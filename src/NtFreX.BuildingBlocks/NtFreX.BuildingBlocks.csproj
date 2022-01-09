@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6</TargetFramework>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+
+	<ItemGroup>
+		<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+		<PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
+		<PackageReference Include="Veldrid" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.Utilities" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.StartupUtilities" Version="$(VeldridVersion)" />
+		<PackageReference Include="AssimpNet" Version="4.1.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--<PackageReference Include="BepuPhysics" Version="2.4.0-beta9" />-->
+
+		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuPhysics\BepuPhysics.csproj" />
+		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />
+		<ProjectReference Include="..\..\dependencies\SDL2-CS\SDL2-CS.Core.csproj" />
+	</ItemGroup>
+</Project>

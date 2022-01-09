@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <Authors>NtFreX</Authors>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <VeldridVersion>4.8.0</VeldridVersion>
+  </PropertyGroup>
+
+</Project>

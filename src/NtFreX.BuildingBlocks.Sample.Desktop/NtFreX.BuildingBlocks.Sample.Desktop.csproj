@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+	  <TargetFramework>net6</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NtFreX.BuildingBlocks.Sample\NtFreX.BuildingBlocks.Sample.csproj" />
+  </ItemGroup>
+</Project>

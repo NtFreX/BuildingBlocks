@@ -1,0 +1,6 @@
+[submodule "dependencies/SDL2-CS"]
+	path = dependencies/SDL2-CS
+	url = https://github.com/flibitijibibo/SDL2-CS
+[submodule "dependencies/bepuphysics2"]
+	path = dependencies/bepuphysics2
+	url = https://github.com/bepu/bepuphysics2
