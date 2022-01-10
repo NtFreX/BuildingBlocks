@@ -9,6 +9,7 @@ using NtFreX.BuildingBlocks.Shell;
 using System.Numerics;
 using Veldrid;
 using Veldrid.SPIRV;
+using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Sample
 {
@@ -174,10 +175,16 @@ namespace NtFreX.BuildingBlocks.Sample
                 GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, shaders, data, collider: false, name: $"goblin{x}")).ToArray());
             }
             {
-                // TODO: draw indexed or however this is called
+                //TODO: test instanced bounding boxes with rotation and scale
                 var convertingMesh = QubeModel.CreateMesh();
                 var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, convertingMesh, textureView: emptyTexture);
-                GraphicsSystem.AddModels(Enumerable.Range(0, 1000).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = -Vector3.One * x }, shaders, data, collider: false, name: $"qube{x}")).ToArray());
+                for (var z = 0; z < 100; z++)
+                {
+                    var instances = Enumerable.Range(0, 1000).Select(x => new InstanceInfo { Position = new Vector3(x * 2, 0, 0) }).ToArray();
+                    var model = new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(30, -10, z * 2) }, shaders, data, collider: false, name: "qubeInstanced", instances: instances);
+                    //CreateBoundingBox(model.GetBoundingBox(), shaders, emptyTexture);
+                    GraphicsSystem.AddModels(model);
+                }
             }
 
             //_ = Task.Run(async () =>
@@ -222,19 +229,10 @@ namespace NtFreX.BuildingBlocks.Sample
             }
 
             var completedModels = await Task.WhenAll(modelLoaders);
-            foreach (var model in completedModels.SelectMany(x => x).Concat(dragon).Concat(goblin).Concat(models).Concat(ballModels))
-            {
-                var boundingBox = model.BoundingBox;
-                var scaleX = boundingBox.Max.X - boundingBox.Min.X;
-                var scaleY = boundingBox.Max.Y - boundingBox.Min.Y;
-                var scaleZ = boundingBox.Max.Z - boundingBox.Min.Z;
-                var posX = boundingBox.Min.X + scaleX / 2f;
-                var posY = boundingBox.Min.Y + scaleY / 2f;
-                var posZ = boundingBox.Min.Z + scaleZ / 2f;
-                var bounds = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(posX, posY, posZ), Scale = new Vector3(scaleX, scaleY, scaleZ) }, shaders, red: 1, texture: emptyTexture);
-                bounds.Material.Value = bounds.Material.Value with { Opacity = .5f };
-                GraphicsSystem.AddModels(bounds);
-            }
+            //foreach (var model in completedModels.SelectMany(x => x).Concat(dragon).Concat(goblin).Concat(models).Concat(ballModels))
+            //{
+            //    CreateBoundingBox(model.GetBoundingBox(), shaders, emptyTexture);
+            //}
 
             GraphicsSystem.AddModels(completedModels.SelectMany(x => x).ToArray());
             GraphicsSystem.AddModels(ballModels.ToArray());
@@ -245,6 +243,19 @@ namespace NtFreX.BuildingBlocks.Sample
 
             AudioSystem.StopAll();
             AudioSystem.PlaceWav(detective, loop: true, position: Vector3.Zero, intensity: 100f);
+        }
+
+        private void CreateBoundingBox(BoundingBox boundingBox, Shader[] shaders, TextureView? texture)
+        {
+            var scaleX = boundingBox.Max.X - boundingBox.Min.X;
+            var scaleY = boundingBox.Max.Y - boundingBox.Min.Y;
+            var scaleZ = boundingBox.Max.Z - boundingBox.Min.Z;
+            var posX = boundingBox.Min.X + scaleX / 2f;
+            var posY = boundingBox.Min.Y + scaleY / 2f;
+            var posZ = boundingBox.Min.Z + scaleZ / 2f;
+            var bounds = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(posX, posY, posZ), Scale = new Vector3(scaleX, scaleY, scaleZ) }, shaders, red: 1, texture: texture);
+            bounds.Material.Value = bounds.Material.Value with { Opacity = .5f };
+            GraphicsSystem.AddModels(bounds);
         }
 
         protected override void OnRendering(float deleta, CommandList commandList) { }

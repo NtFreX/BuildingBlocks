@@ -82,7 +82,7 @@ namespace NtFreX.BuildingBlocks
 
             // TODO: render passess
             var frustum = new BoundingFrustum(Camera.ViewMatrix * Camera.ProjectionMatrix);
-            var visibleModels = models.Where(x => frustum.Contains(x.BoundingBox) != ContainmentType.Disjoint).ToArray();
+            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint).ToArray();
 
             //var queue = new RenderQueue();
             //queue.AddRange(visibleModels, Camera.Position);

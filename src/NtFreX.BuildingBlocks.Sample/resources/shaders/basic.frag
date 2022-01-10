@@ -39,14 +39,14 @@ layout(set = 3, binding = 0) uniform Material
     vec4 TransparentColor;
 };
 
-layout(set = 4, binding = 0) uniform texture2D SurfaceTexture;
+layout(set = 4, binding = 0) uniform texture2DArray SurfaceTexture;
 layout(set = 4, binding = 1) uniform sampler SurfaceSampler;
 
 layout(set = 9, location = 0) in vec3 fsin_position_worldSpace;
 layout(set = 9, location = 1) in vec4 fsin_lightPosition;
 layout(set = 9, location = 2) in vec3 fsin_normal;
 layout(set = 9, location = 3) in vec4 fsin_color;
-layout(set = 9, location = 4) in vec2 fsin_texCoords;
+layout(set = 9, location = 4) in vec3 fsin_texCoords;
 layout(set = 9, location = 5) in float fsin_fragCoord;
 
 layout(location = 0) out vec4 fsout_color;
@@ -83,7 +83,7 @@ void main()
     float attenuationCutoff = 0.001;
     //vec3 directionalLightDir = vec3(0, 0, 0);
 
-    vec4 surfaceColor = texture(sampler2D(SurfaceTexture, SurfaceSampler), fsin_texCoords) + fsin_color;
+    vec4 surfaceColor = texture(sampler2DArray(SurfaceTexture, SurfaceSampler), fsin_texCoords) + fsin_color;
      
     vec4 pointDiffuse = vec4(0, 0, 0, 1);
     vec4 pointSpec = vec4(0, 0, 0, 1);
