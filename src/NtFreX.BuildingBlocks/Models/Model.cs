@@ -20,27 +20,21 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly ResourceFactory resourceFactory;
         private readonly GraphicsSystem graphicsSystem;
         private readonly Shader[] shaders;
-        private readonly VertexLayoutDescription vertexLayout;
-        private readonly IndexFormat indexFormat;
-        private readonly PrimitiveTopology primitiveTopology;
-        private readonly BoundingBox boundingBox;
+        private readonly MeshDeviceBuffer meshBuffer;
 
         public readonly IMutable<Vector3> Position;
         public readonly IMutable<Quaternion> Rotation;
         public readonly IMutable<Vector3> Scale;
-        public readonly Mutable<MaterialInfo> Material = new Mutable<MaterialInfo>(new MaterialInfo());
+        public readonly IMutable<MaterialInfo> Material;
         public readonly Mutable<PolygonFillMode> FillMode = new Mutable<PolygonFillMode>(PolygonFillMode.Solid);
 
         public string? Name { get; set; }
 
-        public DeviceBuffer VertexBuffer { get; private set; }
-        public DeviceBuffer IndexBuffer { get; private set; }
         public DeviceBuffer WorldBuffer { get; private set; }
         public DeviceBuffer MaterialInfoBuffer { get; private set; }
-        public uint IndexCount { get; private set; }
         public Matrix4x4 WorldMatrix { get; private set; }
 
-        public BoundingBox BoundingBox => BoundingBox.Transform(boundingBox, WorldMatrix);
+        public BoundingBox BoundingBox => BoundingBox.Transform(meshBuffer.BoundingBox, WorldMatrix);
         public Vector3 Center => BoundingBox.GetCenter();
 
         private Pipeline? pipeline;
@@ -50,37 +44,39 @@ namespace NtFreX.BuildingBlocks.Models
         private Vector3 position = Vector3.Zero;
         private Quaternion rotation = Quaternion.Identity;
         private Vector3 scale = Vector3.One;
-        
 
-        public unsafe Model(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders, MeshData mesh, VertexLayoutDescription vertexLayout, IndexFormat indexFormat, PrimitiveTopology primitiveTopology, 
-                    TextureView? textureView, MaterialInfo? material = null, bool colider = false, bool dynamic = false, float mass = 1f)
+        public unsafe Model(
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders,
+            MeshDeviceBuffer meshBuffer, bool collider = false, bool dynamic = false, float mass = 1f, string? name = null)
         {
-            this.collider = colider ? new Collider(primitiveTopology, mesh, simulation, creationInfo, dynamic, mass) : null;
+            this.collider = collider ? new Collider(meshBuffer.PrimitiveTopology, meshBuffer.Triangles ?? throw new Exception("If a collider is attached triangles must be provided"), simulation, creationInfo, dynamic, mass) : null;
             this.graphicsDevice = graphicsDevice;
             this.resourceFactory = resourceFactory;
             this.graphicsSystem = graphicsSystem;
             this.shaders = shaders;
-            this.indexFormat = indexFormat;
-            this.primitiveTopology = primitiveTopology;
-            this.vertexLayout = vertexLayout;
-            
-            boundingBox = mesh.GetBoundingBox();
-            position = creationInfo.Position;
-            scale = creationInfo.Scale;
-            rotation = creationInfo.Rotation;
-            
-            Material.Value = material ?? new MaterialInfo();
+            this.meshBuffer = meshBuffer;
+
+            Material = new MutableWrapper<MaterialInfo>(() => this.meshBuffer.Material, material => this.meshBuffer.Material = material);
             Position = new MutableWrapper<Vector3>(() => GetPose().Position, position => SetPose(position, Rotation?.Value ?? rotation));
             Rotation = new MutableWrapper<Quaternion>(() => GetPose().Orientation, rotation => SetPose(Position?.Value ?? position, rotation));
             Scale = new MutableWrapper<Vector3>(GetScale, SetScale);
-            MaterialInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<MaterialInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             WorldBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            Name = name;
+
+            //TODO: move to mesh
+            MaterialInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<MaterialInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            
 
             Scale.ValueChanged += (_, _) => hasWorldChanged = true;
             Position.ValueChanged += (_, _) => hasWorldChanged = true;
             Rotation.ValueChanged += (_, _) => hasWorldChanged = true;
             FillMode.ValueChanged += (_, _) => UpdatePipeline();
             Material.ValueChanged += (_, _) => UpdateMaterialInfo();
+
+            position = creationInfo.Position;
+            scale = creationInfo.Scale;
+            rotation = creationInfo.Rotation;
+            wasTransparent = Material.Value.Opacity != 1f;
 
             var projectionViewWorldLayout = ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory);
             this.projectionViewWorldResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(projectionViewWorldLayout, graphicsSystem.Camera.ProjectionBuffer, graphicsSystem.Camera.ViewBuffer, WorldBuffer));
@@ -96,25 +92,46 @@ namespace NtFreX.BuildingBlocks.Models
 
             // TODO: support models without texture (render passes?)
             var surfaceTextureLayout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
-            this.surfaceTextureResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(surfaceTextureLayout, textureView, graphicsDevice.Aniso4xSampler));
-
-            var commandListDescription = new CommandListDescription();
-            var commandList = resourceFactory.CreateCommandList(ref commandListDescription);
-            commandList.Begin();
-
-            VertexBuffer = mesh.CreateVertexBuffer(resourceFactory, commandList);
-            IndexBuffer = mesh.CreateIndexBuffer(resourceFactory, commandList, out var indexCount);
-            IndexCount = (uint)indexCount;
-
-            commandList.End();
-            graphicsDevice.SubmitCommands(commandList);
-            commandList.Dispose();
-
-            wasTransparent = Material.Value.Opacity != 1f;
+            this.surfaceTextureResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(surfaceTextureLayout, meshBuffer.TextureView, graphicsDevice.Aniso4xSampler));
 
             UpdateMaterialInfo();
             UpdatePipeline();
             Update(graphicsDevice, InputHandler.Empty, 0f);
+        }
+
+        public static unsafe Model Create<TVertex, TIndex>(
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation,
+            ModelCreationInfo creationInfo, Shader[] shaders, MeshDataProvider<TVertex, TIndex> mesh, 
+            TextureView? textureView = null, string? name = null)
+                where TVertex : unmanaged
+                where TIndex : unmanaged
+        {
+            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, textureView: textureView);
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider: false, name: name);
+        }
+
+        public static unsafe Model CreateCollidable<TVertex, TIndex>(
+           GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation,
+           ModelCreationInfo creationInfo, Shader[] shaders, TriangleMeshDataProvider<TVertex, TIndex> mesh,
+           TextureView? textureView = null, bool dynamic = false, float mass = 1f, string? name = null)
+               where TVertex : unmanaged
+               where TIndex : unmanaged
+        {
+            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, triangles: mesh.Triangles, textureView: textureView);
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider: true, dynamic, mass, name);
+        }
+
+        public static unsafe Model Create(
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders, 
+            MeshData mesh, VertexLayoutDescription vertexLayout, IndexFormat indexFormat, PrimitiveTopology primitiveTopology, 
+            TextureView? textureView, MaterialInfo? material = null, bool collider = false, bool dynamic = false, float mass = 1f, string? name = null)
+        {
+            var triangles = collider ? mesh is ITriangleMeshDataProvider triangleMesh ? triangleMesh.Triangles : mesh.GetTriangles() : null;
+            var boundingBox = mesh.GetBoundingBox();
+            var buffers = mesh.BuildVertexAndIndexBuffer(graphicsDevice, resourceFactory);
+            var data = new MeshDeviceBuffer(buffers.VertexBuffer, buffers.IndexBuffer, (uint)buffers.IndexCount, boundingBox, vertexLayout, indexFormat, primitiveTopology, material, textureView: textureView, triangles: triangles);
+
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider, dynamic, mass, name);
         }
 
         private Vector3 GetScale()
@@ -174,10 +191,10 @@ namespace NtFreX.BuildingBlocks.Models
             var blendState = Material.Value.Opacity == 1f ? BlendStateDescription.SingleOverrideBlend : BlendStateDescription.SingleAlphaBlend;
 
             var shaderSet = new ShaderSetDescription(
-                vertexLayouts: new VertexLayoutDescription[] { vertexLayout },
+                vertexLayouts: new VertexLayoutDescription[] { meshBuffer.VertexLayout },
                 shaders: shaders);
 
-            this.pipeline = GraphicsPipelineFactory.GetGraphicsPipeline(graphicsDevice, resourceFactory, layouts.ToArray(), shaderSet, primitiveTopology, FillMode, blendState);
+            this.pipeline = GraphicsPipelineFactory.GetGraphicsPipeline(graphicsDevice, resourceFactory, layouts.ToArray(), shaderSet, meshBuffer.PrimitiveTopology, FillMode, blendState);
         }
 
         public void Update(GraphicsDevice graphicsDevice, InputHandler inputs, float deltaSeconds)
@@ -203,15 +220,17 @@ namespace NtFreX.BuildingBlocks.Models
             commandList.SetPipeline(this.pipeline);
             // TODO only set if changed?
             commandList.SetGraphicsResourceSet(0, this.projectionViewWorldResourceSet);
+            // TODO: set all ressources to the same buffer/ressource set
             commandList.SetGraphicsResourceSet(1, this.cameraInfoResourceSet);
             commandList.SetGraphicsResourceSet(2, this.lightInfoResourceSet);
+            
             commandList.SetGraphicsResourceSet(3, this.materialInfoResourceSet);
             commandList.SetGraphicsResourceSet(4, this.surfaceTextureResourceSet);
 
-            commandList.SetVertexBuffer(0, VertexBuffer);
-            commandList.SetIndexBuffer(IndexBuffer, indexFormat);
+            commandList.SetVertexBuffer(0, meshBuffer.VertexBuffer);
+            commandList.SetIndexBuffer(meshBuffer.IndexBuffer, meshBuffer.IndexFormat);
             commandList.DrawIndexed(
-                indexCount: IndexCount,
+                indexCount: meshBuffer.IndexLength,
                 instanceCount: 1,
                 indexStart: 0,
                 vertexOffset: 0,

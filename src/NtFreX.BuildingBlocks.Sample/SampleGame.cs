@@ -1,5 +1,4 @@
-﻿using BepuPhysics;
-using BepuPhysics.CollisionDetection;
+﻿using BepuPhysics.CollisionDetection;
 using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
 using NtFreX.BuildingBlocks.Cameras;
@@ -7,13 +6,7 @@ using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Models;
 using NtFreX.BuildingBlocks.Sample.Models;
 using NtFreX.BuildingBlocks.Shell;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Numerics;
-using System.Reflection;
-using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.SPIRV;
 
@@ -174,19 +167,48 @@ namespace NtFreX.BuildingBlocks.Sample
 
             sun = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, texture: emptyTexture, red: 1f, green: 1, alpha: 1f, radius: 25f, sectorCount: 25, stackCount: 25);
 
-            goblin = await DaeModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
+            {
+                // TODO: why is this not working?
+                var mesh = await DaeModelImporter.MeshFromFileAsync(@"resources/models/chinesedragon.dae");
+                var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, mesh[0], textureView: emptyTexture);
+                GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, shaders, data, collider: false, name: $"goblin{x}")).ToArray());
+            }
+            {
+                // TODO: draw indexed or however this is called
+                var convertingMesh = QubeModel.CreateMesh();
+                var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, convertingMesh, textureView: emptyTexture);
+                GraphicsSystem.AddModels(Enumerable.Range(0, 1000).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = -Vector3.One * x }, shaders, data, collider: false, name: $"qube{x}")).ToArray());
+            }
+
+            //_ = Task.Run(async () =>
+            //{
+            //    var gobilinMesh = await DaeModelImporter.MeshFromFileAsync(@"resources/models/goblin.dae");
+            //    var buffers = gobilinMesh[0].BuildVertexAndIndexBuffer(GraphicsDevice, ResourceFactory);
+            //    var convertingMesh = gobilinMesh[0] as MeshDataProvider<VertexPositionColorNormalTexture, uint> ?? throw new Exception();
+            //    var triangleMesh = new TriangleMeshDataProvider<VertexPositionColorNormalTexture, uint>(
+            //        convertingMesh.GetTriangles(), convertingMesh.Vertices, convertingMesh.Indices, convertingMesh.IndexFormat,
+            //        VertexPositionColorNormalTexture.VertexLayout, convertingMesh.MaterialName, convertingMesh.TexturePath,
+            //        VertexPositionColorNormalTexture.BytesBeforePosition, convertingMesh.Material);
+
+            //    await triangleMesh.ToFileAsync("goblin.dat");
+            //    var readMesh = await TriangleMeshDataProvider<VertexPositionColorNormalTexture, uint>.FromFileAsync("goblin.dat");
+            //    //var buffer = new MeshDeviceBuffer()
+            //    GraphicsSystem.AddModels(Model.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo(), shaders, readMesh, readMesh.VertexLayout, readMesh.IndexFormat, readMesh.PrimitiveTopology, emptyTexture));
+            //});
+
+            goblin = await DaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
             foreach (var g in goblin)
             {
                 g.Material.Value = g.Material.Value with { Opacity = 1f };
             }
-            dragon = await DaeModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
+            dragon = await DaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
 
             // currently the obj file doens doesn't support mtlib file names with spaces and the mtl file does not support map_Ks values (released version)
             var modelLoaders = new List<Task<Model[]>>();
-            modelLoaders.Add(DaeModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(1000, 100, 0), Rotation = Quaternion.CreateFromYawPitchRoll(0, -1.5f, 0) }, shaders, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
-            modelLoaders.Add(ObjModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(-1000, 100, 0) }, shaders, @"resources/models/Space Station Scene.obj"));
-            modelLoaders.Add(ObjModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, shaders, @"resources/models/sponza.obj"));
-            modelLoaders.Add(ObjModelImporter.FromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, 1000) }, shaders, @"resources/models/Space Station Scene dark.obj"));
+            modelLoaders.Add(DaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(1000, 100, 0), Rotation = Quaternion.CreateFromYawPitchRoll(0, -1.5f, 0) }, shaders, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(-1000, 100, 0) }, shaders, @"resources/models/Space Station Scene.obj"));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, shaders, @"resources/models/sponza.obj"));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, 1000) }, shaders, @"resources/models/Space Station Scene dark.obj"));
 
             var ballModels = new List<Model>();
             for (var j = -10; j < 10; j++)

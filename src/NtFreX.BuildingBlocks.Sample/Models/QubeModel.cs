@@ -7,16 +7,24 @@ namespace NtFreX.BuildingBlocks.Sample.Models
 {
     static class QubeModel
     {
+        public static MeshDataProvider<VertexPositionColorNormalTexture, ushort> CreateMesh(float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f, float sideLength = 1f, MaterialInfo? material = null)
+        {
+            var vertices = GetVertices(new RgbaFloat(red, green, blue, alpha), sideLength / 2f);
+            var indices = GetIndices();
+            return new MeshDataProvider<VertexPositionColorNormalTexture, ushort>(
+                vertices, indices, IndexFormat.UInt16, PrimitiveTopology.TriangleList,
+                VertexPositionColorNormalTexture.VertexLayout, material: material,
+                bytesBeforePosition: VertexPositionColorNormalTexture.BytesBeforePosition);
+        }
+
         public static Model Create(
             GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders, 
             float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f, float sideLength = 1f, TextureView? texture = null, MaterialInfo? material = null, bool collider = false, bool dynamic = false, float mass = 1f)
         {
-            var vertices = GetVertices(new RgbaFloat(red, green, blue, alpha), sideLength / 2f);
-            var indices = GetIndices();
-            var mesh = new MeshDataProvider<VertexPositionColorNormalTexture, ushort>(vertices, indices, vertex => vertex.Position, IndexFormat.UInt16);
-            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
-                mesh, VertexPositionColorNormalTexture.VertexLayout, IndexFormat.UInt16, 
-                PrimitiveTopology.TriangleList, texture, material, collider, dynamic, mass);
+            var mesh = CreateMesh(red, green, blue, alpha, sideLength, material);
+            return Model.Create(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
+                mesh, mesh.VertexLayout, mesh.IndexFormat,
+                mesh.PrimitiveTopology, textureView: texture, material: mesh.Material, collider: collider, dynamic: dynamic, mass: mass);
         }
 
         private static VertexPositionColorNormalTexture[] GetVertices(RgbaFloat color, float halfSideLength)

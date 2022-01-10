@@ -2,23 +2,13 @@
 using BepuPhysics;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Texture;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Models
 {
-    interface IModelImporter
-    {
-        Task<Model[]> FromFileAsync(ModelCreationInfo creationInfo, Shader[] shaders, string filePath);
-    }
-
-    public class DaeModelImporter : IModelImporter
+    public abstract class ModelImporter
     {
         private readonly GraphicsDevice graphicsDevice;
         private readonly ResourceFactory resourceFactory;
@@ -26,7 +16,7 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly GraphicsSystem graphicsSystem;
         private readonly Simulation simulation;
 
-        public DaeModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
+        public ModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
         {
             this.graphicsDevice = graphicsDevice;
             this.resourceFactory = resourceFactory;
@@ -35,14 +25,45 @@ namespace NtFreX.BuildingBlocks.Models
             this.simulation = simulation;
         }
 
-        public async Task<Model[]> FromFileAsync(ModelCreationInfo creationInfo, Shader[] shaders, string filePath)
+        public abstract Task<MeshDataProvider[]> MeshFromFileAsync(string filePath);
+
+        public async Task<Model[]> ModelFromFileAsync(ModelCreationInfo creationInfo, Shader[] shaders, string filePath)
+        {
+            var directory = Path.GetDirectoryName(filePath);
+            var meshesh = await MeshFromFileAsync(filePath);
+            return await Task.WhenAll(meshesh.Select(async mesh =>
+            {
+                TextureView? texture = null;
+                if (!string.IsNullOrEmpty(mesh.TexturePath))
+                {
+                    var path = string.IsNullOrEmpty(directory) ? mesh.TexturePath : Path.Combine(directory, mesh.TexturePath);
+                    texture = await textureFactory.GetTextureAsync(path, TextureUsage.Sampled).ConfigureAwait(false);
+                }
+                else
+                {
+                    texture = await textureFactory.GetEmptyTextureAsync(TextureUsage.Sampled).ConfigureAwait(false);
+                }
+
+                return Model.Create(
+                            graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
+                            mesh, VertexPositionColorNormalTexture.VertexLayout, mesh.IndexFormat,
+                            mesh.PrimitiveTopology, textureView: texture, material: mesh.Material);
+            }));
+        }
+    }
+
+    public class DaeModelImporter : ModelImporter
+    {
+        public DaeModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
+            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem, simulation) { }
+
+        public override Task<MeshDataProvider[]> MeshFromFileAsync(string filePath)
         {
             AssimpContext assimpContext = new AssimpContext();
             using (var stream = File.OpenRead(filePath))
             {
                 Scene scene = assimpContext.ImportFileFromStream(stream, Path.GetExtension(filePath));
-                var meshes = new List<Model>();
-                var directory = Path.GetDirectoryName(filePath);
+                var meshes = new List<MeshDataProvider>();
                 foreach (var mesh in scene.Meshes)
                 {
                     var type = mesh.PrimitiveType == PrimitiveType.Point ? PrimitiveTopology.PointList :
@@ -81,17 +102,8 @@ namespace NtFreX.BuildingBlocks.Models
 
                     //TODO: load all textures            
                     //TODO: load material file?
-                    TextureView? diffuseTexture = null;
                     var meshMaterial = scene.Materials[mesh.MaterialIndex];
-                    if (meshMaterial.HasTextureDiffuse)
-                    {
-                        var path = string.IsNullOrEmpty(directory) ? meshMaterial.TextureDiffuse.FilePath : Path.Combine(directory, meshMaterial.TextureDiffuse.FilePath);
-                        diffuseTexture = await textureFactory.GetTextureAsync(path, TextureUsage.Sampled).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        diffuseTexture = await textureFactory.GetEmptyTextureAsync(TextureUsage.Sampled).ConfigureAwait(false);
-                    }
+                    string? texture = meshMaterial.HasTextureDiffuse ? meshMaterial.TextureDiffuse.FilePath : null;
 
                     var material = new MaterialInfo
                     {
@@ -109,41 +121,26 @@ namespace NtFreX.BuildingBlocks.Models
 
                     var vertices = shaderReadyVertices.ToArray();
                     var indices = mesh.GetUnsignedIndices();
-                    var meshData = new MeshDataProvider<VertexPositionColorNormalTexture, uint>(vertices, indices, vertex => vertex.Position, IndexFormat.UInt16);
-                    meshes.Add(new Model(
-                        graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
-                        meshData, VertexPositionColorNormalTexture.VertexLayout, IndexFormat.UInt32,
-                        type, diffuseTexture, material)
-                    {
-                        Name = mesh.Name
-                    });
+                    meshes.Add(new MeshDataProvider<VertexPositionColorNormalTexture, uint>(
+                        vertices, indices, IndexFormat.UInt32, type,
+                        VertexPositionColorNormalTexture.VertexLayout,
+                        material: material, bytesBeforePosition: VertexPositionColorNormalTexture.BytesBeforePosition, 
+                        texturePath: texture));
                 }
-                return meshes.ToArray();
+                return Task.FromResult(meshes.ToArray());
             }
         }
     }
 
-    public class ObjModelImporter : IModelImporter
+    public class ObjModelImporter : ModelImporter
     {
-        private readonly GraphicsDevice graphicsDevice;
-        private readonly ResourceFactory resourceFactory;
-        private readonly TextureFactory textureFactory;
-        private readonly GraphicsSystem graphicsSystem;
-        private readonly Simulation simulation;
 
         public ObjModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
-        {
-            this.graphicsDevice = graphicsDevice;
-            this.resourceFactory = resourceFactory;
-            this.textureFactory = textureFactory;
-            this.graphicsSystem = graphicsSystem;
-            this.simulation = simulation;
-        }
+            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem, simulation) { }
 
-        public async Task<Model[]> FromFileAsync(ModelCreationInfo creationInfo, Shader[] shaders, string filePath)
+        public override Task<MeshDataProvider[]> MeshFromFileAsync(string filePath)
         {
             var directory = Path.GetDirectoryName(filePath);
-
             var parser = new ObjParser();
             using (var stream = File.OpenRead(filePath)) 
             {
@@ -154,19 +151,12 @@ namespace NtFreX.BuildingBlocks.Models
                 {
                     var material = materialParser.Parse(materialStream);
 
-                    var meshes = new List<Model>();
+                    var meshes = new List<MeshDataProvider>();
                     foreach (ObjFile.MeshGroup group in scene.MeshGroups)
                     {
                         var fileMesh = scene.GetMesh(group);
-                        var mesh = new MeshDataProvider<VertexPositionColorNormalTexture, ushort>(
-                            fileMesh.Vertices.Select(x => new VertexPositionColorNormalTexture(x)).ToArray(),
-                            fileMesh.GetIndices(),
-                            vertex => vertex.Position,
-                            IndexFormat.UInt16, fileMesh.MaterialName);
 
-                        var indices = mesh.GetIndices();
-
-                        var materialDef = material.Definitions[mesh.MaterialName];
+                        var materialDef = material.Definitions[fileMesh.MaterialName];
                         var materialInfo = new MaterialInfo
                         {
                             Opacity = materialDef.Opacity,
@@ -174,23 +164,17 @@ namespace NtFreX.BuildingBlocks.Models
                             Shininess = materialDef.SpecularExponent
                         };
 
-                        TextureView? diffuseTexture = null;
-                        if (!string.IsNullOrEmpty(materialDef.DiffuseTexture))
-                        {
-                            var path = string.IsNullOrEmpty(directory) ? materialDef.DiffuseTexture : Path.Combine(directory, materialDef.DiffuseTexture);
-                            diffuseTexture = await textureFactory.GetTextureAsync(path, TextureUsage.Sampled).ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            diffuseTexture = await textureFactory.GetEmptyTextureAsync(TextureUsage.Sampled).ConfigureAwait(false);
-                        }
-
-                        meshes.Add(new Model(
-                            graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
-                            mesh, VertexPositionColorNormalTexture.VertexLayout, IndexFormat.UInt16,
-                            PrimitiveTopology.TriangleList, diffuseTexture, materialInfo));
+                        meshes.Add(new MeshDataProvider<VertexPositionColorNormalTexture, ushort>(
+                            fileMesh.Vertices.Select(x => new VertexPositionColorNormalTexture(x)).ToArray(),
+                            fileMesh.GetIndices(),
+                            IndexFormat.UInt16, PrimitiveTopology.TriangleList,
+                            VertexPositionColorNormalTexture.VertexLayout,
+                            materialName: fileMesh.MaterialName,
+                            bytesBeforePosition: VertexPositionColorNormalTexture.BytesBeforePosition,
+                            texturePath: string.IsNullOrEmpty(materialDef.DiffuseTexture) ? materialDef.DiffuseTexture : null,
+                            material: materialInfo));
                     }
-                    return meshes.ToArray();
+                    return Task.FromResult(meshes.ToArray());
                 }
             }
         }

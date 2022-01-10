@@ -12,16 +12,14 @@ using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Models;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Texture;
-using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks
 {
+    //TODO: instancing, veldrid
     struct NullNarrowPhaseCallbacks : INarrowPhaseCallbacks
     {
         private readonly IContactEventHandler contactEventHandler;

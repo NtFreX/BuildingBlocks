@@ -2,7 +2,6 @@
 using BepuPhysics.Collidables;
 using System.Numerics;
 using Veldrid;
-using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Models
 {
@@ -16,14 +15,13 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly StaticHandle? staticHandle;
         private readonly Simulation simulation;
 
-        public unsafe Collider(PrimitiveTopology primitiveTopology, MeshData meshProvider, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f)
+        public unsafe Collider(PrimitiveTopology primitiveTopology, Triangle[] triangles, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f)
         {
             if (primitiveTopology != PrimitiveTopology.TriangleList)
                 throw new ArgumentException("Only triangle lists are supported to be colidable");
 
             IsDynamic = dynamic;
 
-            var triangles = meshProvider.GetTriangles();
             simulation.BufferPool.Take<Triangle>(triangles.Length, out var buffer);
             
             mesh = new Mesh(buffer, creationInfo.Scale, simulation.BufferPool);

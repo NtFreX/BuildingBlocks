@@ -13,6 +13,8 @@ namespace NtFreX.BuildingBlocks.Models
                 new VertexElementDescription("TextureCoordinates", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2),
                 new VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4));
 
+        public static ushort BytesBeforePosition => 0;
+
         public readonly Vector3 Position;
         public readonly Vector3 Normal;
         public readonly Vector2 TextureCoordinates;

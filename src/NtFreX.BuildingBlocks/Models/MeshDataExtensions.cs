@@ -1,4 +1,5 @@
 ﻿using BepuPhysics.Collidables;
+using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Models
@@ -15,6 +16,22 @@ namespace NtFreX.BuildingBlocks.Models
                 triangles[i / 3] = new Triangle(points[indexes[i]], points[indexes[i + 1]], points[indexes[i + 2]]);
             }
             return triangles;
+        }
+
+        public static (DeviceBuffer VertexBuffer, DeviceBuffer IndexBuffer, int IndexCount) BuildVertexAndIndexBuffer(this MeshData mesh, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
+        {
+            var commandListDescription = new CommandListDescription();
+            var commandList = resourceFactory.CreateCommandList(ref commandListDescription);
+            commandList.Begin();
+
+            var vertexBuffer = mesh.CreateVertexBuffer(resourceFactory, commandList);
+            var indexBuffer = mesh.CreateIndexBuffer(resourceFactory, commandList, out var indexCount);
+
+            commandList.End();
+            graphicsDevice.SubmitCommands(commandList);
+            commandList.Dispose();
+
+            return (vertexBuffer, indexBuffer, indexCount);
         }
     }
 }

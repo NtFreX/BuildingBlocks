@@ -33,7 +33,6 @@ namespace NtFreX.BuildingBlocks.Desktop
         static async Task Main(string[] args)
         {
             // sdl c# import or own bindings (licence both wrapper and main lib)
-
             var shell = new DesktopShell(Assembly.GetEntryAssembly().FullName, ApplicationContext.IsDebug);
             var game = new SampleGame(shell, ApplicationContext.LoggerFactory);
             await shell.RunAsync();
