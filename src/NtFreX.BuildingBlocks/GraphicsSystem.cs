@@ -1,60 +1,28 @@
-﻿using NtFreX.BuildingBlocks.Cameras;
-using NtFreX.BuildingBlocks.Desktop;
+﻿using Microsoft.Extensions.Logging;
+using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
+using NtFreX.BuildingBlocks.Light;
 using NtFreX.BuildingBlocks.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Runtime.InteropServices;
+using NtFreX.BuildingBlocks.Standard;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks
 {
-    public class LightSystem
-    {
-        private LightInfo lightInfo = new LightInfo();
-
-        public Vector3 AmbientLight { get => lightInfo.AmbientLight; set => lightInfo.AmbientLight = value; }
-
-        public DeviceBuffer LightBuffer { get; private set; }
-
-        public LightSystem(ResourceFactory resourceFactory)
-        {
-            LightBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<LightInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-        }
-
-        public void SetPointLights(params PointLightInfo[] lights)
-        {
-            if (LightInfo.MaxLights < lights.Length)
-                throw new Exception($"Only {LightInfo.MaxLights} point lights are supported");
-
-            lightInfo.ActivePointLights = lights.Length;
-            for(var i = 0; i < lights.Length; i++)
-            {
-                lightInfo[i] = lights[i];
-            }
-        }
-
-        public void Update(GraphicsDevice graphicsDevice)
-        {
-            // TODO: update buffer only when nessesary
-            graphicsDevice.UpdateBuffer(LightBuffer, 0, lightInfo);
-        }
-    }
-
     public class GraphicsSystem
     {
+
+        private readonly DebugExecutionTimerSource timerGetVisibleObjects;
         private readonly List<Model> models = new List<Model>();
                 
         public Camera Camera { get; private set; }
         public LightSystem LightSystem { get; private set; }
 
-        public GraphicsSystem(ResourceFactory resourceFactory, Camera camera)
+        public GraphicsSystem(ILoggerFactory loggerFactory, ResourceFactory resourceFactory, Camera camera)
         {
             Camera = camera;
             LightSystem = new LightSystem(resourceFactory);
+            timerGetVisibleObjects = new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem GetVisibleObjects");
         }
 
         public void AddModels(params Model[] models)
@@ -82,7 +50,10 @@ namespace NtFreX.BuildingBlocks
 
             // TODO: render passess
             var frustum = new BoundingFrustum(Camera.ViewMatrix * Camera.ProjectionMatrix);
-            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint).ToArray();
+            
+            var timer = new DebugExecutionTimer(timerGetVisibleObjects);
+            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint && x.Material.Value.Opacity != 0f).ToArray();
+            timer.Dispose();
 
             //var queue = new RenderQueue();
             //queue.AddRange(visibleModels, Camera.Position);
@@ -93,16 +64,30 @@ namespace NtFreX.BuildingBlocks
             //    model.Draw(commandList);
             //}
 
+            //if(visibleModels.TryGetValue(true, out var opaqueModels))
+            //{
+            //    var transparentQueue = new RenderQueue();
+            //    transparentQueue.AddRange()
+            //    foreach (var model in opaqueModels)
+            //    {
+            //        model.Draw(commandList);
+            //    }
+            //}
+            //if(visibleModels.TryGetValue(false, out var transparentModels))
+            //{
+            //    foreach(var model in transparentModels)
+            //    {
+            //        model.Draw(commandList);
+            //    }
+            //}
+            //TODO: not nessesary to order opaque models
             var transparentQueue = new RenderQueue();
             var opaqueQueue = new RenderQueue();
             foreach (var model in visibleModels)
             {
                 if (model.Material.Value.Opacity != 1f)
                 {
-                    if (model.Material.Value.Opacity != 0f)
-                    {
-                        transparentQueue.Add(model, Camera.Position);
-                    }
+                    transparentQueue.Add(model, Camera.Position);
                 }
                 else
                 {
@@ -110,7 +95,7 @@ namespace NtFreX.BuildingBlocks
                 }
             }
 
-            transparentQueue.Sort();
+            transparentQueue.Sort(); 
             opaqueQueue.Sort();
 
 

@@ -49,7 +49,8 @@ layout(set = 9, location = 3) in vec4 fsin_color;
 layout(set = 9, location = 4) in vec3 fsin_texCoords;
 layout(set = 9, location = 5) in float fsin_fragCoord;
 
-layout(location = 0) out vec4 fsout_color;
+layout(location=0) out vec4 accumColor;
+layout(location=1) out float accumAlpha;
 
 float GetPointLightAttenuation(float distance, float radius, float cutoff)
 {
@@ -66,6 +67,9 @@ float GetPointLightAttenuation(float distance, float radius, float cutoff)
     attenuation = max(attenuation, 0);
 
     return attenuation;
+}
+float weight(float z, float a) {
+    return clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
 }
 /*
 float GetLinearDepth(float depth)
@@ -130,6 +134,11 @@ void main()
     vec4 beforeTint = (worldAmbientCombined * surfaceColor /*+ (surfaceColor * diffuseFactor)*/) + pointDiffuse + pointSpec;
     //outputColor = ApplyTintColor(beforeTint, tintColor, tintFactor);
     
-    fsout_color = vec4(beforeTint.xyz, clamp(Opacity, 0, 1) + fsin_color.w);
+    vec4 realColor = vec4(beforeTint.xyz, clamp(Opacity + fsin_color.w, 0, 1));
+
+    
+    float w = weight(gl_FragCoord.z, realColor.a);
+    accumColor = vec4(realColor.xyz, realColor.a);
+    accumAlpha = realColor.a * w;
     return;
 }

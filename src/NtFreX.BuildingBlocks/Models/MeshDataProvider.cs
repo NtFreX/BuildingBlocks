@@ -1,68 +1,10 @@
-﻿using BepuPhysics.Collidables;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Text.Json.Serialization;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Models
 {
-    public interface ITriangleMeshDataProvider
-    {
-        public Triangle[] Triangles { get; set; }
-    }
-    public class TriangleMeshDataProvider<TVertex, TIndex> : MeshDataProvider<TVertex, TIndex>, ITriangleMeshDataProvider
-        where TVertex : unmanaged
-        where TIndex : unmanaged
-    {
-        public Triangle[] Triangles { get; set; }
-
-        [JsonConstructor]
-        private TriangleMeshDataProvider()
-            : base() { }
-
-        public TriangleMeshDataProvider(Triangle[] triangles, TVertex[] vertices, TIndex[] indices, IndexFormat indexFormat, VertexLayoutDescription vertexLayout, string? materialName = null, string? texturePath = null, int bytesBeforePosition = 0, MaterialInfo? material = null)
-            : base(vertices, indices, indexFormat, PrimitiveTopology.TriangleList, vertexLayout, materialName: materialName, bytesBeforePosition: bytesBeforePosition, material: material, texturePath: texturePath)
-        {
-            Triangles = triangles;
-        }
-
-        public static TriangleMeshDataProvider<TVertex, TIndex> Create(Triangle[] triangles, IndexFormat indexFormat, Func<Vector3, TVertex> vertexBuilder, VertexLayoutDescription vertexLayout, string? materialName = null, string? texturePath = null, int bytesBeforePosition = 0)
-            => new TriangleMeshDataProvider<TVertex, TIndex>(triangles, ToVertices(triangles, vertexBuilder), GetIndices(triangles.Length), indexFormat, vertexLayout, materialName: materialName, bytesBeforePosition: bytesBeforePosition, texturePath: texturePath);
-
-        private static TIndex[] GetIndices(int triangleLength)
-        {
-            checked
-            {
-                return Enumerable.Range(0, triangleLength).Cast<TIndex>().ToArray();
-            }
-        }
-        private static unsafe TVertex[] ToVertices(Triangle[] triangles, Func<Vector3, TVertex> vertexBuilder)
-        {
-            var vertices = new Vector3[triangles.Length * 3];
-            fixed (void* trianglePtr = triangles)
-            {
-                fixed (void* vertexPtr = vertices)
-                {
-                    Marshal.Copy(new IntPtr(trianglePtr), new[] { new IntPtr(vertexPtr) }, 0, Marshal.SizeOf<Triangle>() * triangles.Length);
-                }
-            }
-            return vertices.Select(vertexBuilder).ToArray();
-        }
-
-
-        public async Task ToFileAsync(string path)
-        {
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(this);
-            await File.WriteAllTextAsync(path, json);
-        }
-
-        public static async Task<TriangleMeshDataProvider<TVertex, TIndex>> FromFileAsync(string path)
-        {
-            var json = await File.ReadAllTextAsync(path);
-            return Newtonsoft.Json.JsonConvert.DeserializeObject<TriangleMeshDataProvider<TVertex, TIndex>>(json);
-        }
-    }
     public abstract class MeshDataProvider : MeshData
     {
         public IndexFormat IndexFormat { get; set; }
@@ -78,6 +20,8 @@ namespace NtFreX.BuildingBlocks.Models
         public abstract BoundingBox GetBoundingBox();
         public abstract BoundingSphere GetBoundingSphere();
         public abstract ushort[] GetIndices();
+        public abstract ushort[] GetIndices16Bit();
+        public abstract uint[] GetIndices32Bit();
         public abstract Vector3[] GetVertexPositions();
         public abstract bool RayCast(Ray ray, out float distance);
         public abstract int RayCast(Ray ray, List<float> distances);
@@ -92,8 +36,6 @@ namespace NtFreX.BuildingBlocks.Models
         public TVertex[] Vertices { get; set; }
         public TIndex[] Indices { get; set; }
 
-        [JsonConstructor]
-        protected MeshDataProvider() { }
         public MeshDataProvider(TVertex[] vertices, TIndex[] indices, IndexFormat indexFormat, PrimitiveTopology primitiveTopology, VertexLayoutDescription vertexLayout, string? materialName = null, string? texturePath = null, int bytesBeforePosition = 0, MaterialInfo? material = null)
         {
             var indexType = typeof(TIndex);
@@ -236,7 +178,7 @@ namespace NtFreX.BuildingBlocks.Models
             }
         }
 
-        public ushort[] GetIndices16Bit()
+        public override ushort[] GetIndices16Bit()
         {
             if (IndexFormat == IndexFormat.UInt32)
                 throw new NotSupportedException();
@@ -244,7 +186,7 @@ namespace NtFreX.BuildingBlocks.Models
             return Indices.Cast<ushort>().ToArray();
         }
 
-        public uint[] GetIndices32Bit()
+        public override uint[] GetIndices32Bit()
         {
             if (IndexFormat == IndexFormat.UInt16)
                 throw new NotSupportedException();

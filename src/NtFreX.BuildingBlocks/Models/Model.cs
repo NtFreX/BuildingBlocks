@@ -1,4 +1,6 @@
 ﻿using BepuPhysics;
+using BepuPhysics.Collidables;
+using NtFreX.BuildingBlocks.Behaviors;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
@@ -10,7 +12,6 @@ namespace NtFreX.BuildingBlocks.Models
 {
     public class Model : IRenderable
     {
-        private readonly Collider? collider;
         private readonly ResourceSet projectionViewWorldResourceSet;
         private readonly ResourceSet cameraInfoResourceSet;
         private readonly ResourceSet lightInfoResourceSet;
@@ -20,10 +21,12 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly ResourceFactory resourceFactory;
         private readonly GraphicsSystem graphicsSystem;
         private readonly Shader[] shaders;
-        private readonly MeshDeviceBuffer meshBuffer;
         private readonly InstanceInfo[] instances;
         private readonly BoundingBox instanceBoundingBox;
         private readonly DeviceBuffer instanceVertexBuffer;
+        private readonly Cached<BoundingBox> boundingBoxCache;
+        private readonly Cached<Vector3> centerCache;
+        private readonly List<IBehavior> behaviors = new List<IBehavior>();
 
         public readonly IMutable<Vector3> Position;
         public readonly IMutable<Quaternion> Rotation;
@@ -31,16 +34,15 @@ namespace NtFreX.BuildingBlocks.Models
         public readonly IMutable<MaterialInfo> Material;
         public readonly Mutable<PolygonFillMode> FillMode = new Mutable<PolygonFillMode>(PolygonFillMode.Solid);
 
-
         public string? Name { get; set; }
 
+        public MeshDeviceBuffer MeshBuffer { get; private set; }
         public DeviceBuffer WorldBuffer { get; private set; }
         public DeviceBuffer MaterialInfoBuffer { get; private set; }
         public Matrix4x4 WorldMatrix { get; private set; }
-        
-        // TODO: cache this
-        public BoundingBox GetBoundingBox() => BoundingBox.Transform(instanceBoundingBox, WorldMatrix);
-        public Vector3 GetCenter() => GetBoundingBox().GetCenter();
+
+        public BoundingBox GetBoundingBox() => boundingBoxCache.Get();
+        public Vector3 GetCenter() => centerCache.Get();
 
         private Pipeline? pipeline;
         private bool hasWorldChanged = true;
@@ -51,29 +53,33 @@ namespace NtFreX.BuildingBlocks.Models
         private Vector3 scale = Vector3.One;
 
         public unsafe Model(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders,
-            MeshDeviceBuffer meshBuffer, bool collider = false, bool dynamic = false, float mass = 1f, string? name = null, InstanceInfo[]? instances = null)
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, ModelCreationInfo creationInfo, Shader[] shaders,
+            MeshDeviceBuffer meshBuffer, string? name = null, InstanceInfo[]? instances = null, IBehavior[]? behaviors = null)
         {
-            this.collider = collider ? new Collider(meshBuffer.PrimitiveTopology, meshBuffer.Triangles ?? throw new Exception("If a collider is attached triangles must be provided"), simulation, creationInfo, dynamic, mass) : null;
             this.graphicsDevice = graphicsDevice;
             this.resourceFactory = resourceFactory;
             this.graphicsSystem = graphicsSystem;
             this.shaders = shaders;
-            this.meshBuffer = meshBuffer;
+            this.MeshBuffer = meshBuffer;
 
-            Material = new MutableWrapper<MaterialInfo>(() => this.meshBuffer.Material, material => this.meshBuffer.Material = material);
-            Position = new MutableWrapper<Vector3>(() => GetPose().Position, position => SetPose(position, Rotation?.Value ?? rotation));
-            Rotation = new MutableWrapper<Quaternion>(() => GetPose().Orientation, rotation => SetPose(Position?.Value ?? position, rotation));
-            Scale = new MutableWrapper<Vector3>(GetScale, SetScale);
+            if (behaviors != null)
+            {
+                this.behaviors.AddRange(behaviors);
+            }
+
+            Material = new MutableWrapper<MaterialInfo>(() => this.MeshBuffer.Material, material => this.MeshBuffer.Material = material);
+            Position = new MutableWrapper<Vector3>(() => this.position, position => this.position = position);
+            Rotation = new MutableWrapper<Quaternion>(() => this.rotation, rotation => this.rotation = rotation);
+            Scale = new MutableWrapper<Vector3>(() => this.scale, scale => this.scale = scale);
             WorldBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             Name = name;
 
             //TODO: move to mesh
             MaterialInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<MaterialInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            
-            Scale.ValueChanged += (_, _) => hasWorldChanged = true;
-            Position.ValueChanged += (_, _) => hasWorldChanged = true;
-            Rotation.ValueChanged += (_, _) => hasWorldChanged = true;
+
+            Scale.ValueChanged += (_, _) => InvalidateWorldCache();
+            Position.ValueChanged += (_, _) => InvalidateWorldCache();
+            Rotation.ValueChanged += (_, _) => InvalidateWorldCache();
             FillMode.ValueChanged += (_, _) => UpdatePipeline();
             Material.ValueChanged += (_, _) => UpdateMaterialInfo();
 
@@ -105,44 +111,48 @@ namespace NtFreX.BuildingBlocks.Models
             instanceVertexBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint) (InstanceInfo.Size * this.instances.Length), BufferUsage.VertexBuffer));
             graphicsDevice.UpdateBuffer(instanceVertexBuffer, 0, this.instances);
 
+            boundingBoxCache = new Cached<BoundingBox>(() => BoundingBox.Transform(instanceBoundingBox, WorldMatrix));
+            centerCache = new Cached<Vector3>(() => GetBoundingBox().GetCenter());
+
+            InvalidateWorldCache();
             UpdateMaterialInfo();
             UpdatePipeline();
             Update(graphicsDevice, InputHandler.Empty, 0f);
         }
 
         public static unsafe Model Create<TVertex, TIndex>(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation,
-            ModelCreationInfo creationInfo, Shader[] shaders, MeshDataProvider<TVertex, TIndex> mesh, 
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem,
+            ModelCreationInfo creationInfo, Shader[] shaders, MeshDataProvider<TVertex, TIndex> mesh,
             TextureView? textureView = null, string? name = null)
                 where TVertex : unmanaged
                 where TIndex : unmanaged
         {
             var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, textureView: textureView);
-            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider: false, name: name);
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders, data, name: name);
         }
 
-        public static unsafe Model CreateCollidable<TVertex, TIndex>(
-           GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation,
-           ModelCreationInfo creationInfo, Shader[] shaders, TriangleMeshDataProvider<TVertex, TIndex> mesh,
-           TextureView? textureView = null, bool dynamic = false, float mass = 1f, string? name = null)
-               where TVertex : unmanaged
-               where TIndex : unmanaged
+        public static unsafe Model Create<TVertex, TIndex, TShape>(
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem,
+            ModelCreationInfo creationInfo, Shader[] shaders, MeshDataProvider<TVertex, TIndex> mesh, Func<Simulation, TShape> shapeAllocator,
+            TextureView? textureView = null, string? name = null)
+                where TVertex : unmanaged
+                where TIndex : unmanaged
+                where TShape : unmanaged, IShape
         {
-            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, triangles: mesh.Triangles, textureView: textureView);
-            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider: true, dynamic, mass, name);
+            var data = PhysicsMeshDeviceBuffer<TShape>.Create(graphicsDevice, resourceFactory, mesh, shapeAllocator, textureView: textureView);
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders, data, name: name);
         }
 
         public static unsafe Model Create(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders, 
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, ModelCreationInfo creationInfo, Shader[] shaders, 
             MeshData mesh, VertexLayoutDescription vertexLayout, IndexFormat indexFormat, PrimitiveTopology primitiveTopology, 
-            TextureView? textureView, MaterialInfo? material = null, bool collider = false, bool dynamic = false, float mass = 1f, string? name = null)
+            TextureView? textureView, MaterialInfo? material = null, string? name = null)
         {
-            var triangles = collider ? mesh is ITriangleMeshDataProvider triangleMesh ? triangleMesh.Triangles : mesh.GetTriangles() : null;
             var boundingBox = mesh.GetBoundingBox();
             var buffers = mesh.BuildVertexAndIndexBuffer(graphicsDevice, resourceFactory);
-            var data = new MeshDeviceBuffer(buffers.VertexBuffer, buffers.IndexBuffer, (uint)buffers.IndexCount, boundingBox, vertexLayout, indexFormat, primitiveTopology, material, textureView: textureView, triangles: triangles);
+            var data = new MeshDeviceBuffer(buffers.VertexBuffer, buffers.IndexBuffer, (uint)buffers.IndexCount, boundingBox, vertexLayout, indexFormat, primitiveTopology, material, textureView: textureView/*, triangles: triangles*/);
 
-            return new Model(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, data, collider, dynamic, mass, name);
+            return new Model(graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders, data, name: name);
         }
 
         private static Matrix4x4 CreateWorldMatrix(Vector3 position, Matrix4x4 rotation, Vector3 scale)
@@ -152,39 +162,12 @@ namespace NtFreX.BuildingBlocks.Models
                    Matrix4x4.CreateTranslation(position);
         }
 
-        private Vector3 GetScale()
+        private void InvalidateWorldCache()
         {
-            if (collider != null)
-            {
-                return collider.Scale;
-            }
-            return this.scale;
-        }
-        private void SetScale(Vector3 scale)
-        {
-            if (collider != null)
-            {
-                collider.Scale = scale;
-            }
-            this.scale = scale;
-        }
-        private RigidPose GetPose()
-        {
-            if (collider != null)
-            {
-                return collider.GetPose();
-            }
-            return new RigidPose(position, rotation);
-        }
-
-        private void SetPose(Vector3 position, Quaternion rotation)
-        {
-            if (collider != null)
-            {
-                collider.SetPose(position, rotation);
-            }
-            this.position = position;
-            this.rotation = rotation;
+            WorldMatrix = CreateWorldMatrix(Position.Value, Matrix4x4.CreateFromQuaternion(Rotation.Value), Scale.Value);
+            centerCache?.Invalidate(); 
+            boundingBoxCache?.Invalidate();
+            hasWorldChanged = true;
         }
 
         private void UpdateMaterialInfo()
@@ -217,18 +200,25 @@ namespace NtFreX.BuildingBlocks.Models
             vertexLayoutPerInstance.InstanceStepRate = 1;
 
             var shaderSet = new ShaderSetDescription(
-                vertexLayouts: new VertexLayoutDescription[] { meshBuffer.VertexLayout, vertexLayoutPerInstance },
+                vertexLayouts: new VertexLayoutDescription[] { MeshBuffer.VertexLayout, vertexLayoutPerInstance },
                 shaders: shaders);
 
-            this.pipeline = GraphicsPipelineFactory.GetGraphicsPipeline(graphicsDevice, resourceFactory, layouts.ToArray(), shaderSet, meshBuffer.PrimitiveTopology, FillMode, blendState);
+            this.pipeline = GraphicsPipelineFactory.GetGraphicsPipeline(graphicsDevice, resourceFactory, layouts.ToArray(), shaderSet, MeshBuffer.PrimitiveTopology, FillMode, blendState);
+        }
+
+        public Model AddBehavoirs(Func<Model, IBehavior> behaviorResolver)
+            => AddBehavoirs(behaviorResolver(this));
+        public Model AddBehavoirs(params IBehavior[] behaviors)
+        {
+            this.behaviors.AddRange(behaviors);
+            return this;
         }
 
         public void Update(GraphicsDevice graphicsDevice, InputHandler inputs, float deltaSeconds)
         {
-            if (collider?.IsDynamic ?? hasWorldChanged)
+            if (hasWorldChanged)
             {
-                WorldMatrix = CreateWorldMatrix(Position.Value, Matrix4x4.CreateFromQuaternion(Rotation.Value), Scale.Value);
-                graphicsDevice.UpdateBuffer(WorldBuffer, 0, WorldMatrix);
+                this.graphicsDevice.UpdateBuffer(WorldBuffer, 0, WorldMatrix);
                 hasWorldChanged = false;
 
             }
@@ -236,6 +226,12 @@ namespace NtFreX.BuildingBlocks.Models
             {
                 graphicsDevice.UpdateBuffer(MaterialInfoBuffer, 0, Material.Value);
                 hasMaterialChanged = false;
+            }
+
+            foreach(var behavior in behaviors)
+            {
+                // TODO: use current graphic device? or remove param?
+                behavior.Update(graphicsSystem, this, deltaSeconds);
             }
         }
 
@@ -251,13 +247,13 @@ namespace NtFreX.BuildingBlocks.Models
             commandList.SetGraphicsResourceSet(3, this.materialInfoResourceSet);
             commandList.SetGraphicsResourceSet(4, this.surfaceTextureResourceSet);
 
-            commandList.SetVertexBuffer(0, meshBuffer.VertexBuffer);
-            commandList.SetIndexBuffer(meshBuffer.IndexBuffer, meshBuffer.IndexFormat);
+            commandList.SetVertexBuffer(0, MeshBuffer.VertexBuffer);
+            commandList.SetIndexBuffer(MeshBuffer.IndexBuffer, MeshBuffer.IndexFormat);
 
             commandList.SetVertexBuffer(1, instanceVertexBuffer);
 
             commandList.DrawIndexed(
-                indexCount: meshBuffer.IndexLength,
+                indexCount: MeshBuffer.IndexLength,
                 instanceCount: (uint) instances.Length,
                 indexStart: 0,
                 vertexOffset: 0,

@@ -9,7 +9,7 @@ namespace NtFreX.BuildingBlocks.Sample.Models
     {
         public static MeshDataProvider<VertexPositionColorNormalTexture, ushort> CreateMesh(
            float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f,
-           int rows = 1, int columns = 1, MaterialInfo? material = null)
+           int rows = 2, int columns = 2, MaterialInfo? material = null)
         {
             if (rows < 2)
                 throw new ArgumentOutOfRangeException(nameof(rows), "Rows need to be bigger then 1");
@@ -25,18 +25,15 @@ namespace NtFreX.BuildingBlocks.Sample.Models
         }
 
         public static Model Create(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation,
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem,
             ModelCreationInfo creationInfo, Shader[] shaders,
             float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f,
-            int rows = 1, int columns = 1,
-            TextureView? texture = null, MaterialInfo? material = null,
-            bool collider = false, bool dynamic = false, float mass = 1f)
+            int rows = 2, int columns = 2,
+            TextureView? texture = null, MaterialInfo? material = null, string? name = null)
         {
             var mesh = CreateMesh(red, green, blue, alpha, rows, columns, material);
-            return Model.Create(
-                graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders, 
-                mesh, mesh.VertexLayout, mesh.IndexFormat, mesh.PrimitiveTopology,
-                textureView: texture, material: mesh.Material, collider: collider, dynamic: dynamic, mass: mass);
+            var shapeAllocator = (Simulation simulation) => mesh.GetPhysicsMesh(simulation, creationInfo.Scale);
+            return Model.Create(graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders, mesh, shapeAllocator, textureView: texture, name: name);
         }
 
         private static VertexPositionColorNormalTexture[] GetVertices(RgbaFloat color, int rows, int columns)
@@ -48,7 +45,7 @@ namespace NtFreX.BuildingBlocks.Sample.Models
             {
                 for (float j = 0; j < columns; j++)
                 {
-                    vertices.Add(new VertexPositionColorNormalTexture(new Vector3(i + halfRows, 0, j + halfColumns), color, new Vector2(i, j)));
+                    vertices.Add(new VertexPositionColorNormalTexture(new Vector3(i + halfRows, 0, j + halfColumns), color, new Vector2(i + i % 1 - rows, j + j % 1 - columns)));
                 }
             }
             return vertices.ToArray();
@@ -66,9 +63,9 @@ namespace NtFreX.BuildingBlocks.Sample.Models
                     indices.Add((ushort)(one + columns + 1));
                     indices.Add((ushort)(one + 1));
 
-                    indices.Add((ushort)one);
-                    indices.Add((ushort)(one + columns + 1));
                     indices.Add((ushort)(one + columns));
+                    indices.Add((ushort)(one + columns + 1));
+                    indices.Add((ushort)one);
                 }
             }
             return indices.ToArray();

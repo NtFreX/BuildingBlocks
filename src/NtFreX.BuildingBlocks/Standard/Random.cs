@@ -6,6 +6,8 @@ namespace NtFreX.BuildingBlocks.Standard
     {
         private static System.Random random = new System.Random();
 
+        public static Vector3 GetRandomVector(float minimum, float maximum) => 
+            new Vector3(GetRandomNumber(minimum, maximum), GetRandomNumber(minimum, maximum), GetRandomNumber(minimum, maximum));
         public static Vector3 Noise(float x, float y, float z, float noiseFactor)
             => Noise(new Vector3(x, y, z), noiseFactor);
         public static Vector3 Noise(Vector3 value, float noiseFactor)

@@ -14,15 +14,13 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly ResourceFactory resourceFactory;
         private readonly TextureFactory textureFactory;
         private readonly GraphicsSystem graphicsSystem;
-        private readonly Simulation simulation;
 
-        public ModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
+        public ModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem)
         {
             this.graphicsDevice = graphicsDevice;
             this.resourceFactory = resourceFactory;
             this.textureFactory = textureFactory;
             this.graphicsSystem = graphicsSystem;
-            this.simulation = simulation;
         }
 
         public abstract Task<MeshDataProvider[]> MeshFromFileAsync(string filePath);
@@ -45,17 +43,17 @@ namespace NtFreX.BuildingBlocks.Models
                 }
 
                 return Model.Create(
-                            graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
-                            mesh, VertexPositionColorNormalTexture.VertexLayout, mesh.IndexFormat,
-                            mesh.PrimitiveTopology, textureView: texture, material: mesh.Material);
+                            graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders,
+                            mesh, vertexLayout: VertexPositionColorNormalTexture.VertexLayout, indexFormat: mesh.IndexFormat,
+                            primitiveTopology: mesh.PrimitiveTopology, textureView: texture, material: mesh.Material);
             }));
         }
     }
 
     public class DaeModelImporter : ModelImporter
     {
-        public DaeModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
-            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem, simulation) { }
+        public DaeModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem)
+            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem) { }
 
         public override Task<MeshDataProvider[]> MeshFromFileAsync(string filePath)
         {
@@ -135,8 +133,8 @@ namespace NtFreX.BuildingBlocks.Models
     public class ObjModelImporter : ModelImporter
     {
 
-        public ObjModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem, Simulation simulation)
-            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem, simulation) { }
+        public ObjModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem)
+            : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem) { }
 
         public override Task<MeshDataProvider[]> MeshFromFileAsync(string filePath)
         {
@@ -171,7 +169,7 @@ namespace NtFreX.BuildingBlocks.Models
                             VertexPositionColorNormalTexture.VertexLayout,
                             materialName: fileMesh.MaterialName,
                             bytesBeforePosition: VertexPositionColorNormalTexture.BytesBeforePosition,
-                            texturePath: string.IsNullOrEmpty(materialDef.DiffuseTexture) ? materialDef.DiffuseTexture : null,
+                            texturePath: !string.IsNullOrEmpty(materialDef.DiffuseTexture) ? materialDef.DiffuseTexture : null,
                             material: materialInfo));
                     }
                     return Task.FromResult(meshes.ToArray());

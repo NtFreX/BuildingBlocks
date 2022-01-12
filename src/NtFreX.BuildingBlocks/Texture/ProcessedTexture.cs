@@ -150,6 +150,8 @@ namespace NtFreX.BuildingBlocks.Texture
             cl.CopyTexture(staging, texture);
             cl.End();
             gd.SubmitCommands(cl);
+            gd.DisposeWhenIdle(cl);
+            gd.DisposeWhenIdle(staging);
 
             return texture;
         }

@@ -1,11 +1,18 @@
-﻿using BepuPhysics.CollisionDetection;
+﻿using BepuPhysics.Collidables;
+using BepuPhysics.CollisionDetection;
 using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
+using NtFreX.BuildingBlocks.Behaviors;
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Models;
 using NtFreX.BuildingBlocks.Sample.Models;
 using NtFreX.BuildingBlocks.Shell;
+using NtFreX.BuildingBlocks.Texture;
+using SixLabors.Fonts;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
+using System.Diagnostics;
 using System.Numerics;
 using Veldrid;
 using Veldrid.SPIRV;
@@ -13,15 +20,23 @@ using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Sample
 {
+    //TODO: multithreading and  tasks!!!!!!!!!!!!!!
     public class SampleGame : Game
     {
         private const string dashRunner = @"resources/audio/Dash Runner.wav";
         private const string detective = @"resources/audio/8-bit Detective.wav";
 
+        private Model textModel;
         private Model[]? models;
         private Model? sun;
         private Model[]? goblin;
         private Model[]? dragon;
+
+        private Shader[] shaders;
+        private TextureView emptyTexture;
+
+        private long elapsedMiliseconds = 0;
+        private Stopwatch stopwatch = Stopwatch.StartNew();
 
         private float sunYawn = 0f;
         private float sunPitch = 0f;
@@ -32,6 +47,15 @@ namespace NtFreX.BuildingBlocks.Sample
         protected override IContactEventHandler LoadContactEventHandler() => new SampleContactEventHandler(this, AudioSystem);
         protected override void OnUpdating(float delta)
         {
+            if (elapsedMiliseconds + 10 < stopwatch.ElapsedMilliseconds)
+            {
+                GraphicsSystem.AddModels(SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
+                            new ModelCreationInfo { Position = Standard.Random.Noise(new Vector3(10, 5, -25), 0.3f) },
+                            shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25).AddBehavoirs(x =>
+                            new CollidableBehavoir<Sphere>(Simulation, x, dynamic: true)));
+                elapsedMiliseconds = stopwatch.ElapsedMilliseconds;
+            }
+
             var sunSpeed = sun!.Position.Value.Y < 0 ? 0.4f : 0.1f;
             var sunDistance = 2000f;
 
@@ -90,7 +114,7 @@ namespace NtFreX.BuildingBlocks.Sample
             TextureFactory.SetEmptyTexture(@"resources/models/textures/empty_texture.png");
             TextureFactory.SetDefaultTexture(@"resources/models/textures/no_texture.png");
 
-            var emptyTexture = await TextureFactory.GetEmptyTextureAsync(TextureUsage.Sampled);
+            emptyTexture = await TextureFactory.GetEmptyTextureAsync(TextureUsage.Sampled);
 
             var vertexShaderDesc = new ShaderDescription(
                 ShaderStages.Vertex,
@@ -101,87 +125,119 @@ namespace NtFreX.BuildingBlocks.Sample
                 File.ReadAllBytes("resources/shaders/basic.frag"),
                 "main", ApplicationContext.IsDebug);
 
-            var shaders = ResourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc);
+            shaders = ResourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc);
+
+            {
+                var fontFamily = SystemFonts.Find("Arial");
+                var texture = TextureCreator.Create(GraphicsDevice, ResourceFactory, "Hello world, and some more text", Color.Green, new PointF(0, 0), fontFamily.CreateFont(480, FontStyle.Italic), img =>
+                {
+                    var size = img.GetCurrentSize();
+                    img.DrawLines(new Pen(Color.Red, 1f),
+                        new PointF(0, 0), new PointF(0, size.Height - 1), new PointF(size.Width - 1, size.Height - 1),
+                        new PointF(size.Width - 1, 0), new PointF(0, 0));
+                });
+
+                var sizeFactor = 0.05f;
+                textModel = TextureModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo
+                {
+                    Position = new Vector3(-20, 0, -20),
+                    Scale = new Vector3(texture.Target.Width * sizeFactor, 1, texture.Target.Height * sizeFactor)
+                }, shaders, texture).AddBehavoirs(
+                    new AlwaysFaceCameraBehavior(), 
+                    new GrowWhenFarFromCameraBehavoir(.003f));
+                GraphicsSystem.AddModels(textModel);
+            }
 
             var stoneTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/spnza_bricks_a_diff.png", TextureUsage.Sampled);
             var blueTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/app.png", TextureUsage.Sampled);
 
-            var qube = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(20, 20, 20) }, shaders, texture: emptyTexture, sideLength: 1, collider: true, dynamic: true);
+            var qube = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(20, 20, 20) }, shaders, texture: emptyTexture, sideLength: 1, name: "physicsWireframe")
+                .AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x, dynamic: true));
             qube.FillMode.Value = PolygonFillMode.Wireframe;
             GraphicsSystem.AddModels(qube);
 
             var qubeSideLength = .5f;
             var lineLength = 10000f;
             models = new Model[] {
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(6, 6, 3) }, shaders, sideLength: 3, texture: stoneTexture, collider: true),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(6, 6, 3) }, shaders, sideLength: 3, texture: stoneTexture).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
 
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
 
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, -4) }, shaders, texture: blueTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, -3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, blue: 1f, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, -2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, green: 1f, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, -1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, red: 1f, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, 1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, 2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, 3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 0, 4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, -4) }, shaders, texture: blueTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, -3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, blue: 1f).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, -2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, green: 1f).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, -1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, red: 1f).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, 1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, 2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, 3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 0, 4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
 
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, -4, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, -3, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, -2, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, -1, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 1, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 2, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 3, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(0, 4, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, -4, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, -3, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, -2, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, -1, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 1, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 2, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 3, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(0, 4, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
 
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-4, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-3, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-2, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-1, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(1, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(2, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(3, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(4, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                                                                                                                     
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-4, -4, -4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-3, -3, -3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-2, -2, -2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(-1, -1, -1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(1, 1, 1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(2, 2, 2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(3, 3, 3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(4, 4, 4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength, collider: true),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-4, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-3, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-2, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-1, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(1, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(2, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(3, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(4, 0, 0) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                                                                                                         
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-4, -4, -4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-3, -3, -3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-2, -2, -2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(-1, -1, -1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(1, 1, 1) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(2, 2, 2) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(3, 3, 3) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(4, 4, 4) }, shaders, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new CollidableBehavoir<Box>(Simulation, x)),
 
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitX * lineLength, texture: emptyTexture, red: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitX * lineLength, texture: emptyTexture, red: .5f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitY * lineLength, texture: emptyTexture, green: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitY * lineLength, texture: emptyTexture, green: .5f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitZ * lineLength, texture: emptyTexture, blue: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitZ * lineLength, texture: emptyTexture, blue: .5f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitX * lineLength, texture: emptyTexture, red: 1f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitX * lineLength, texture: emptyTexture, red: .5f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitY * lineLength, texture: emptyTexture, green: 1f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitY * lineLength, texture: emptyTexture, green: .5f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, Vector3.UnitZ * lineLength, texture: emptyTexture, blue: 1f, alpha: 1f),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, Vector3.Zero, -Vector3.UnitZ * lineLength, texture: emptyTexture, blue: .5f, alpha: 1f),
 
-                PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, 
-                    new ModelCreationInfo { Position = GraphicsSystem.Camera.Up.Value * -10f, Scale = Vector3.One * 10f }, 
-                    shaders, rows: 250, columns: 300, texture: stoneTexture, material: new MaterialInfo { ShininessStrength = .001f }, collider: true
-                ),
+                PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, 
+                    new ModelCreationInfo { Position = GraphicsSystem.Camera.Up.Value * -10f, Scale = Vector3.One * 100f }, 
+                    shaders, rows: 50, columns: 50, texture: stoneTexture, material: new MaterialInfo { ShininessStrength = .001f },
+                    name: "floor"
+                ).AddBehavoirs(x => new CollidableBehavoir<Mesh>(Simulation, x)),
             };
 
-            sun = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.Zero }, shaders, texture: emptyTexture, red: 1f, green: 1, alpha: 1f, radius: 25f, sectorCount: 25, stackCount: 25);
+            sun = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.Zero }, shaders, texture: emptyTexture, red: 1f, green: 1, alpha: 1f, radius: 25f, sectorCount: 25, stackCount: 25);
 
             {
                 // TODO: why is this not working?
                 var mesh = await DaeModelImporter.MeshFromFileAsync(@"resources/models/chinesedragon.dae");
                 var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, mesh[0], textureView: emptyTexture);
-                GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, shaders, data, collider: false, name: $"goblin{x}")).ToArray());
+                GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, shaders, data, name: $"goblin{x}")).ToArray());
             }
             {
-                //TODO: test instanced bounding boxes with rotation and scale
+                //TODO: fix textures
                 var convertingMesh = QubeModel.CreateMesh();
                 var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, convertingMesh, textureView: emptyTexture);
-                for (var z = 0; z < 100; z++)
+                for (var i = 0; i < 3; i++)
                 {
-                    var instances = Enumerable.Range(0, 1000).Select(x => new InstanceInfo { Position = new Vector3(x * 2, 0, 0) }).ToArray();
-                    var model = new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(30, -10, z * 2) }, shaders, data, collider: false, name: "qubeInstanced", instances: instances);
+                    var instances = Enumerable
+                        .Range(0, 1000)
+                        .Select(x => Enumerable
+                            .Range(0, 1000)
+                            .Select(z => new InstanceInfo { 
+                                Position = Standard.Random.Noise(new Vector3(x * 2, 0, z * 2), .2f), 
+                                Rotation = Standard.Random.GetRandomVector(0f, 180f), 
+                                Scale = Standard.Random.GetRandomVector(0.5f, 1.5f) }))
+                        .SelectMany(x => x)
+                        .ToArray();
+                    var model = new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(30, -10 + i, 0) }, shaders, data, name: "qubeInstanced", instances: instances);
                     //CreateBoundingBox(model.GetBoundingBox(), shaders, emptyTexture);
                     GraphicsSystem.AddModels(model);
                 }
@@ -222,7 +278,10 @@ namespace NtFreX.BuildingBlocks.Sample
             {
                 for (var i = -5; i < 5; i++)
                 {
-                    var m = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(i * 5, i + 5 + 15 + j + 5 + 50 * 3, j * 5) }, shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25, collider: true, dynamic: true);
+                    var m = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
+                        new ModelCreationInfo { Position = new Vector3(i * 5, i + 5 + 15 + j + 5 + 50 * 3, j * 5) }, 
+                        shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25,
+                        name: $"physicsSphere{j}:{i}").AddBehavoirs(x => new CollidableBehavoir<Sphere>(Simulation, x, dynamic: true));
                     m.FillMode.Value = PolygonFillMode.Wireframe;
                     ballModels.Add(m);
                 }
@@ -253,7 +312,7 @@ namespace NtFreX.BuildingBlocks.Sample
             var posX = boundingBox.Min.X + scaleX / 2f;
             var posY = boundingBox.Min.Y + scaleY / 2f;
             var posZ = boundingBox.Min.Z + scaleZ / 2f;
-            var bounds = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, new ModelCreationInfo { Position = new Vector3(posX, posY, posZ), Scale = new Vector3(scaleX, scaleY, scaleZ) }, shaders, red: 1, texture: texture);
+            var bounds = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(posX, posY, posZ), Scale = new Vector3(scaleX, scaleY, scaleZ) }, shaders, red: 1, texture: texture);
             bounds.Material.Value = bounds.Material.Value with { Opacity = .5f };
             GraphicsSystem.AddModels(bounds);
         }
@@ -288,8 +347,8 @@ namespace NtFreX.BuildingBlocks.Sample
 
             if (volume > 3f)
             {
-                var bodyReference = pair.A.BodyHandle == default ? pair.B : pair.A;
-                var body = game.Simulation.Bodies.GetBodyReference(bodyReference.BodyHandle);
+                var dynamicBody = pair.A.Mobility == CollidableMobility.Dynamic ? pair.A : pair.B;
+                var body = game.Simulation.Bodies.GetBodyReference(dynamicBody.BodyHandle);
                 var position = offset + body.Pose.Position;
                 logger.LogInformation($"A colision with a deth of {depth} occured which will create a sound with a volume of {volume} at {position}");
                 audioSystem.PlaceWav(contactSound, position, maxIntensity / maxVolume * volume, (int)volume);

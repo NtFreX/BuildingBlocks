@@ -1,50 +1,44 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
+using NtFreX.BuildingBlocks.Models;
 using System.Numerics;
 using Veldrid;
 
-namespace NtFreX.BuildingBlocks.Models
+namespace NtFreX.BuildingBlocks.Behaviors
 {
-    public class Collider
+    public class Collider<TShape>
+        where TShape : unmanaged, IShape
     {
         public bool IsDynamic { get; private set; }
-
-        private Mesh mesh;
 
         private readonly BodyHandle? bodyHandle;
         private readonly StaticHandle? staticHandle;
         private readonly Simulation simulation;
 
-        public unsafe Collider(PrimitiveTopology primitiveTopology, Triangle[] triangles, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f)
+        public unsafe Collider(PrimitiveTopology primitiveTopology, TShape shape, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f)
         {
             if (primitiveTopology != PrimitiveTopology.TriangleList)
                 throw new ArgumentException("Only triangle lists are supported to be colidable");
 
             IsDynamic = dynamic;
 
-            simulation.BufferPool.Take<Triangle>(triangles.Length, out var buffer);
-            
-            mesh = new Mesh(buffer, creationInfo.Scale, simulation.BufferPool);
-            var modelIndex = simulation.Shapes.Add(mesh);
+            var modelIndex = simulation.Shapes.Add(shape);
 
             var pose = new RigidPose(creationInfo.Position, creationInfo.Rotation);
+            var collidable = new CollidableDescription(modelIndex);
             if (dynamic)
             {
                 var inertia = new BodyInertia { InverseMass = mass };
-                bodyHandle = simulation.Bodies.Add(BodyDescription.CreateDynamic(pose, Vector3.Zero, inertia, modelIndex, 0.01f /* sleep threshold */));
+                var velocity = new BodyVelocity(linear: Vector3.Zero, angular: Vector3.Zero);
+                var activity = new BodyActivityDescription(sleepThreshold: 0.01f);
+                bodyHandle = simulation.Bodies.Add(BodyDescription.CreateDynamic(pose, velocity, inertia, collidable, activity));
             }
             else
             {
-                staticHandle = simulation.Statics.Add(new StaticDescription(pose, modelIndex));
+                staticHandle = simulation.Statics.Add(new StaticDescription(pose.Position, pose.Orientation, collidable));
             }
 
             this.simulation = simulation;
-        }
-
-        public Vector3 Scale
-        { 
-            get => mesh.Scale;
-            set => mesh.Scale = value; 
         }
 
         public RigidPose GetPose()

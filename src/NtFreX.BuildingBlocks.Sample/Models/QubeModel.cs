@@ -1,4 +1,5 @@
 ﻿using BepuPhysics;
+using BepuPhysics.Collidables;
 using NtFreX.BuildingBlocks.Models;
 using System.Numerics;
 using Veldrid;
@@ -18,13 +19,13 @@ namespace NtFreX.BuildingBlocks.Sample.Models
         }
 
         public static Model Create(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, ModelCreationInfo creationInfo, Shader[] shaders, 
-            float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f, float sideLength = 1f, TextureView? texture = null, MaterialInfo? material = null, bool collider = false, bool dynamic = false, float mass = 1f)
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, ModelCreationInfo creationInfo, Shader[] shaders, 
+            float red = 0f, float green = 0f, float blue = 0f, float alpha = 0f, float sideLength = 1f, TextureView? texture = null, MaterialInfo? material = null,
+            string? name = null)
         {
             var mesh = CreateMesh(red, green, blue, alpha, sideLength, material);
-            return Model.Create(graphicsDevice, resourceFactory, graphicsSystem, simulation, creationInfo, shaders,
-                mesh, mesh.VertexLayout, mesh.IndexFormat,
-                mesh.PrimitiveTopology, textureView: texture, material: mesh.Material, collider: collider, dynamic: dynamic, mass: mass);
+            var shapeAllocator = (Simulation simulation) => new Box(sideLength * creationInfo.Scale.X, sideLength * creationInfo.Scale.Y, sideLength * creationInfo.Scale.Z);
+            return Model.Create(graphicsDevice, resourceFactory, graphicsSystem, creationInfo, shaders,  mesh, shapeAllocator, textureView: texture, name: name);
         }
 
         private static VertexPositionColorNormalTexture[] GetVertices(RgbaFloat color, float halfSideLength)

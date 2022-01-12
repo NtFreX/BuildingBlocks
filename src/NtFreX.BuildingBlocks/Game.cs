@@ -11,6 +11,7 @@ using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Models;
 using NtFreX.BuildingBlocks.Shell;
+using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Texture;
 using System.Diagnostics;
 using System.Numerics;
@@ -43,7 +44,7 @@ namespace NtFreX.BuildingBlocks
 
         public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
         {
-            pairMaterial.FrictionCoefficient = 1f;
+            pairMaterial.FrictionCoefficient = 0.01f;
             pairMaterial.MaximumRecoveryVelocity = 2f;
             pairMaterial.SpringSettings = new SpringSettings(30, 1);
             contactEventHandler.HandleContact(pair, manifold);
@@ -66,9 +67,9 @@ namespace NtFreX.BuildingBlocks
     }
     struct NullPoseIntegratorCallbacks : IPoseIntegratorCallbacks
     {
-    //    Vector3 gravityWideDt;
-    //    float linearDampingDt;
-    //    float angularDampingDt;
+        //Vector3 gravityWideDt;
+        //float linearDampingDt;
+        //float angularDampingDt;
         Vector3Wide gravityWideDt;
         Vector<float> linearDampingDt;
         Vector<float> angularDampingDt;
@@ -89,18 +90,19 @@ namespace NtFreX.BuildingBlocks
 
         public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity)
         {
-            var offset = position - Vector3Wide.Broadcast(Vector3.Zero);
-            var distance = offset.Length();
-            velocity.Linear = (linearDampingDt * velocity.Linear) - gravityWideDt * offset / Vector.Max(Vector<float>.One, distance * distance * distance);
+            velocity.Linear = (velocity.Linear + gravityWideDt) * linearDampingDt;
             velocity.Angular = velocity.Angular * angularDampingDt;
         }
 
         public void PrepareForIntegration(float dt)
         {
-            const float linearDamping = .03f;
-            const float angularDamping = .03f;
+            const float linearDamping = .003f;
+            const float angularDamping = .003f;
             Vector3 gravity = new Vector3(0, -9f, 0);
 
+            //linearDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - linearDamping, 0, 1), dt));
+            //angularDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - angularDamping, 0, 1), dt));
+            //gravityWideDt = Vector3Wide.Broadcast(gravity * dt);
             linearDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - linearDamping, 0, 1), dt));
             angularDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - angularDamping, 0, 1), dt));
             gravityWideDt = Vector3Wide.Broadcast(gravity * dt);
@@ -127,13 +129,16 @@ namespace NtFreX.BuildingBlocks
         private readonly BufferPool simulationBufferPool = new BufferPool();
         private CommandList commandList;
 
-        private double[] updateFps = new double[50];
-        private int updateFpsIndex = 0;
-        private double[] drawFps = new double[50];
-        private int drawFpsIndex = 0;
-
         private double? previousRenderingElapsed;
         private double? previousUpdaingElapsed;
+
+        private DebugExecutionTimerSource timerRendering;
+        private DebugExecutionTimerSource timerUpdating;
+        private DebugExecutionTimerSource timerUpdateInput;
+        private DebugExecutionTimerSource timerUpdateUi;
+        private DebugExecutionTimerSource timerUpdateApp;
+        private DebugExecutionTimerSource timerUpdateGraphics;
+        private DebugExecutionTimerSource timerUpdateSimulation;
 
         public Game(IShell shell, ILoggerFactory loggerFactory)
         {
@@ -150,20 +155,19 @@ namespace NtFreX.BuildingBlocks
             shell.Resized += () => OnWindowResized();
         }
 
-        private void OnUpdating(InputSnapshot inputSnapshot)
-        {
-            var elapsed = Stopwatch.Elapsed.TotalSeconds;
-            var updateDelta = (float) (previousUpdaingElapsed == null ? .00000001f : elapsed - previousUpdaingElapsed.Value);
-            previousUpdaingElapsed = elapsed;
+        protected virtual IContactEventHandler LoadContactEventHandler() => new NullContactEventHandler();
+        protected abstract Camera LoadCamera();
+        protected abstract void OnRendering(float deleta, CommandList commandList);
+        protected abstract void OnUpdating(float delta);
+        protected abstract Task LoadResourcesAsync();
 
-            Simulation.Timestep(updateDelta);
-            InputHandler.Update(inputSnapshot);
-            UiRenderer.Update(updateDelta, inputSnapshot);
-            GraphicsSystem.Update(GraphicsDevice, updateDelta, InputHandler);
-            updateFps[updateFpsIndex++] = 1f / updateDelta;
-            updateFpsIndex = updateFpsIndex == updateFps.Length ? 0 : updateFpsIndex;
-            OnUpdating(updateDelta);
+        protected virtual void OnWindowResized()
+        {
+            GraphicsDevice.ResizeMainWindow(Shell.Width, Shell.Height);
+            UiRenderer.WindowResized((int)Shell.Width, (int)Shell.Height);
+            GraphicsSystem.OnWindowResized((int)Shell.Width, (int)Shell.Height);
         }
+
         private void OnGraphicsDeviceDestroyed()
         {
             GraphicsDevice.WaitForIdle();
@@ -179,26 +183,58 @@ namespace NtFreX.BuildingBlocks
             GraphicsDevice = graphicsDevice;
             ResourceFactory = new DisposeCollectorResourceFactory(resourceFactory);
             UiRenderer = new ImGuiRenderer(GraphicsDevice, GraphicsDevice.MainSwapchain.Framebuffer.OutputDescription, (int)Shell.Width, (int)Shell.Height);
-            GraphicsSystem = new GraphicsSystem(ResourceFactory, LoadCamera());
+            GraphicsSystem = new GraphicsSystem(LoggerFactory, ResourceFactory, LoadCamera());
             AudioSystem = new SdlAudioSystem(GraphicsSystem);
-            Simulation = Simulation.Create(simulationBufferPool, new NullNarrowPhaseCallbacks(LoadContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 8));
-            DaeModelImporter = new DaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem, Simulation);
-            ObjModelImporter = new ObjModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem, Simulation);
+            Simulation = Simulation.Create(simulationBufferPool, new NullNarrowPhaseCallbacks(LoadContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+            DaeModelImporter = new DaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
+            ObjModelImporter = new ObjModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
+
+            timerRendering = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Render");
+            timerUpdating = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update");
+            timerUpdateInput = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Input");
+            timerUpdateSimulation = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Simulation");
+            timerUpdateGraphics = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Graphics");
+            timerUpdateUi = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Ui");
+            timerUpdateApp = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update App");
             commandList = ResourceFactory.CreateCommandList();
 
             await LoadResourcesAsync();
         }
 
-        protected virtual IContactEventHandler LoadContactEventHandler() => new NullContactEventHandler();
-        protected abstract Camera LoadCamera();
-        protected virtual void OnWindowResized()
+        private void OnUpdating(InputSnapshot inputSnapshot)
         {
-            GraphicsDevice.ResizeMainWindow(Shell.Width, Shell.Height);
-            UiRenderer.WindowResized((int)Shell.Width, (int)Shell.Height);
-            GraphicsSystem.OnWindowResized((int)Shell.Width, (int)Shell.Height);
+            using var timer = new DebugExecutionTimer(timerUpdating);
+
+            var elapsed = Stopwatch.Elapsed.TotalSeconds;
+            var updateDelta = (float)(previousUpdaingElapsed == null ? .00000001f : elapsed - previousUpdaingElapsed.Value);
+            previousUpdaingElapsed = elapsed;
+
+            using (var _ = new DebugExecutionTimer(timerUpdateSimulation))
+            {
+                Simulation.Timestep(updateDelta);
+            }
+            using (var _ = new DebugExecutionTimer(timerUpdateInput))
+            {
+                InputHandler.Update(inputSnapshot);
+            }
+            using (var _ = new DebugExecutionTimer(timerUpdateUi))
+            {
+                UiRenderer.Update(updateDelta, inputSnapshot);
+            }
+            using (var _ = new DebugExecutionTimer(timerUpdateGraphics))
+            {
+                GraphicsSystem.Update(GraphicsDevice, updateDelta, InputHandler);
+            }
+            using (var _ = new DebugExecutionTimer(timerUpdateApp))
+            {
+                OnUpdating(updateDelta);
+            }
         }
+
         private void OnRendering()
         {
+            using var timer = new DebugExecutionTimer(timerRendering);
+
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
             var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value);
             previousRenderingElapsed = elapsed;
@@ -215,12 +251,15 @@ namespace NtFreX.BuildingBlocks
 
             if (Shell.IsDebug)
             {
-                drawFps[drawFpsIndex++] = 1f / renderDelta;
-                drawFpsIndex = drawFpsIndex == drawFps.Length ? 0 : drawFpsIndex;
-
                 ImGui.Begin("Debug info");
-                ImGui.Text(Math.Round(updateFps.Average()) + " Update FPS");
-                ImGui.Text(Math.Round(drawFps.Average()) + " Draw FPS");
+                ImGui.Text(timerUpdating.Average.TotalMilliseconds + "ms update time");
+                ImGui.Text(" - " + timerUpdateSimulation.Average.TotalMilliseconds + "ms update simulation time");
+                ImGui.Text(" - " + timerUpdateInput.Average.TotalMilliseconds + "ms read input time");
+                ImGui.Text(" - " + timerUpdateUi.Average.TotalMilliseconds + "ms update ui time");
+                ImGui.Text(" - " + timerUpdateGraphics.Average.TotalMilliseconds + "ms update graphics time");
+                ImGui.Text(" - " + timerUpdateApp.Average.TotalMilliseconds + "ms update app time");
+                ImGui.Text(timerRendering.Average.TotalMilliseconds + "ms draw time");
+                ImGui.Text(Math.Round(1f / renderDelta) + " FPS");
                 ImGui.End();
 
                 ImGui.Begin("Camera");
@@ -231,16 +270,11 @@ namespace NtFreX.BuildingBlocks
 
             OnRendering(renderDelta, commandList);
 
-
             UiRenderer.Render(GraphicsDevice, commandList);
             commandList.End();
             GraphicsDevice.SubmitCommands(commandList);
             GraphicsDevice.SwapBuffers();
             GraphicsDevice.WaitForIdle();
         }
-
-        protected abstract void OnRendering(float deleta, CommandList commandList);
-        protected abstract void OnUpdating(float delta);
-        protected abstract Task LoadResourcesAsync();
     }
 }
