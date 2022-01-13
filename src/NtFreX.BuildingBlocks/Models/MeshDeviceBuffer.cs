@@ -1,5 +1,6 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
+using NtFreX.BuildingBlocks.Standard;
 using Veldrid;
 using Veldrid.Utilities;
 
@@ -36,7 +37,7 @@ namespace NtFreX.BuildingBlocks.Models
         public IndexFormat IndexFormat { get; }
         public PrimitiveTopology PrimitiveTopology { get; }
         public MaterialInfo Material { get; set; }
-        public TextureView? TextureView { get; }
+        public Mutable<TextureView?> TextureView { get; }
 
         public MeshDeviceBuffer(
             DeviceBuffer vertexBuffer, DeviceBuffer indexBuffer, uint indexLength, BoundingBox boundingBox, VertexLayoutDescription vertexLayout, 
@@ -50,7 +51,7 @@ namespace NtFreX.BuildingBlocks.Models
             IndexFormat = indexFormat;
             PrimitiveTopology = primitiveTopology;
             Material = material ?? new MaterialInfo();
-            TextureView = textureView;
+            TextureView = new Mutable<TextureView?>(textureView);
         }
 
         public static MeshDeviceBuffer Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, MeshDataProvider mesh, TextureView? textureView = null)

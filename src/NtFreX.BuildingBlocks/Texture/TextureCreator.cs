@@ -9,6 +9,7 @@ namespace NtFreX.BuildingBlocks.Texture
 {
     public static class TextureCreator
     {
+        // TODO: use character maps etc
         public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, string text, Color color, PointF location, FontFamily fontFamily, float fontSize, FontStyle fontStyle = FontStyle.Regular, Action<IImageProcessingContext>? mutateImage = null)
             => Create(graphicsDevice, resourceFactory, text, color, location, fontFamily.CreateFont(fontSize, fontStyle), mutateImage);
         public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, string text, Color color, PointF location, Font font, Action<IImageProcessingContext>? mutateImage = null)

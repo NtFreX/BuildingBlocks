@@ -14,6 +14,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Veldrid;
 using Veldrid.SPIRV;
 using Veldrid.Utilities;
@@ -21,6 +22,119 @@ using Veldrid.Utilities;
 namespace NtFreX.BuildingBlocks.Sample
 {
     //TODO: multithreading and  tasks!!!!!!!!!!!!!!
+    public struct ParticleInfo
+    {
+        public Vector3 Position;
+        public Vector3 Scale;
+        public Vector3 Velocity;
+        public Vector4 Color;
+
+        public ParticleInfo(Vector3 position, Vector3 scale, Vector3 velocity, Vector4 color)
+        {
+            Position = position;
+            Scale = scale;
+            Velocity = velocity;
+            Color = color;
+        }
+    }
+    //TODO: fix this make this work delete this change this to spawn textures?
+    public class ParticleSystem
+    {
+        public const uint MaxParticles = 100000;
+
+        private readonly Pipeline computePipeline;
+        private readonly ResourceSet particleBufferResourceSet;
+        private readonly ResourceSet infoBufferResourceSet;
+        private readonly Pipeline graphicsPipeline;
+        private readonly ResourceSet graphicsParticleResourceSet;
+        private readonly ResourceSet graphicsInfoResourceSet;
+        private readonly ResourceSet projectionViewWorldResourceSet;
+        private readonly ParticleInfo[] particles;
+
+        public ParticleSystem(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Shader computeShader, Shader[] shaders, ParticleInfo[] particles)
+        {
+            if (particles.Length > MaxParticles)
+                throw new Exception($"To many particles, only {MaxParticles} are supported");
+
+            var particleBuffer = resourceFactory.CreateBuffer(new BufferDescription(
+                (uint)(Unsafe.SizeOf<ParticleInfo>() * particles.Length),
+                BufferUsage.StructuredBufferReadWrite,
+                (uint)Unsafe.SizeOf<ParticleInfo>()));
+
+            var infoBuffer = resourceFactory.CreateBuffer(new BufferDescription(16, BufferUsage.UniformBuffer));
+
+            var particleComputeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)));
+
+            var infoComputeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("InfoBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+
+            var computePipelineDesc = new ComputePipelineDescription(
+                computeShader,
+                new[] { particleComputeLayout, infoComputeLayout },
+                1, 1, 1);
+
+            computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
+            particleBufferResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(particleComputeLayout, particleBuffer));
+            infoBufferResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(infoComputeLayout, infoBuffer));
+
+            var particleVertexLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)));
+
+            var infoVertexLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("InfoBuffer", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+
+            var projectionViewWorldLayout = ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory);
+
+            var shaderSet = new ShaderSetDescription(Array.Empty<VertexLayoutDescription>(), shaders);
+
+            var  particleDrawPipelineDesc = new GraphicsPipelineDescription(
+                BlendStateDescription.SingleOverrideBlend,
+                DepthStencilStateDescription.Disabled,
+                RasterizerStateDescription.Default,
+                PrimitiveTopology.PointList,
+                shaderSet,
+                new[] { particleVertexLayout, infoVertexLayout, projectionViewWorldLayout },
+                graphicsDevice.SwapchainFramebuffer.OutputDescription);
+
+            var worldBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            graphicsDevice.UpdateBuffer(worldBuffer, 0, Matrix4x4.Identity);
+
+            graphicsPipeline = resourceFactory.CreateGraphicsPipeline(ref particleDrawPipelineDesc);
+            graphicsParticleResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
+                particleVertexLayout,
+                particleBuffer));
+            graphicsInfoResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
+                infoVertexLayout,
+                infoBuffer));
+            projectionViewWorldResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(projectionViewWorldLayout, graphicsSystem.Camera.ProjectionBuffer, graphicsSystem.Camera.ViewBuffer, worldBuffer));
+
+            var cl = resourceFactory.CreateCommandList();
+            cl.Begin();
+            cl.UpdateBuffer(infoBuffer, 0, new Vector4(particles.Length, 0, 0, 0));
+            cl.UpdateBuffer(particleBuffer, 0, particles);
+            cl.End();
+            
+            graphicsDevice.SubmitCommands(cl);
+            graphicsDevice.WaitForIdle();
+            this.particles = particles;
+        }
+
+        public void Draw(CommandList cl)
+        {
+            cl.SetPipeline(computePipeline);
+            cl.SetComputeResourceSet(0, particleBufferResourceSet);
+            cl.SetComputeResourceSet(1, infoBufferResourceSet);
+            cl.Dispatch((uint)particles.Length, 1, 1);
+
+            cl.SetPipeline(graphicsPipeline);
+            cl.SetGraphicsResourceSet(0, graphicsParticleResourceSet);
+            cl.SetGraphicsResourceSet(1, graphicsInfoResourceSet);
+            cl.SetGraphicsResourceSet(2, projectionViewWorldResourceSet);
+            cl.Draw((uint)particles.Length, 1, 0, 0);
+        }
+    }
+
     public class SampleGame : Game
     {
         private const string dashRunner = @"resources/audio/Dash Runner.wav";
@@ -34,27 +148,37 @@ namespace NtFreX.BuildingBlocks.Sample
 
         private Shader[] shaders;
         private TextureView emptyTexture;
+        private ParticleSystem particleSystem;
 
-        private long elapsedMiliseconds = 0;
+        private readonly FontFamily fontFamily;
+        private readonly Font font;
+
+        private long elapsedMilisecondsSincePhyicsObjectAdd = 0;
+        private long elapsedMilisecondsSinceTextureUpdate = 0;
         private Stopwatch stopwatch = Stopwatch.StartNew();
 
         private float sunYawn = 0f;
         private float sunPitch = 0f;
 
         public SampleGame(IShell shell, ILoggerFactory loggerFactory) 
-            : base(shell, loggerFactory) { }
+            : base(shell, loggerFactory) 
+        {
+            fontFamily = SystemFonts.Find("Arial");
+            font = fontFamily.CreateFont(480, FontStyle.Italic);
+        }
 
         protected override IContactEventHandler LoadContactEventHandler() => new SampleContactEventHandler(this, AudioSystem);
         protected override void OnUpdating(float delta)
         {
-            if (elapsedMiliseconds + 10 < stopwatch.ElapsedMilliseconds)
+            if (elapsedMilisecondsSincePhyicsObjectAdd + 100 < stopwatch.ElapsedMilliseconds)
             {
                 GraphicsSystem.AddModels(SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
                             new ModelCreationInfo { Position = Standard.Random.Noise(new Vector3(10, 5, -25), 0.3f) },
-                            shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25).AddBehavoirs(x =>
+                            shaders, radius: Standard.Random.GetRandomNumber(0.3f, 1.2f), texture: emptyTexture, sectorCount: 25, stackCount: 25).AddBehavoirs(x =>
                             new CollidableBehavoir<Sphere>(Simulation, x, dynamic: true)));
-                elapsedMiliseconds = stopwatch.ElapsedMilliseconds;
+                elapsedMilisecondsSincePhyicsObjectAdd = stopwatch.ElapsedMilliseconds;
             }
+
 
             var sunSpeed = sun!.Position.Value.Y < 0 ? 0.4f : 0.1f;
             var sunDistance = 2000f;
@@ -91,7 +215,7 @@ namespace NtFreX.BuildingBlocks.Sample
         protected override Camera LoadCamera()
         {
             var camera = new MovableCamera(GraphicsDevice, ResourceFactory, Shell.Width, Shell.Height);
-            camera.Position.Value = new Vector3(40, 25, 40);
+            //camera.Position.Value = new Vector3(40, 25, 40);
             return camera;
         }
 
@@ -116,6 +240,33 @@ namespace NtFreX.BuildingBlocks.Sample
 
             emptyTexture = await TextureFactory.GetEmptyTextureAsync(TextureUsage.Sampled);
 
+            {
+                var computeParticleShader = ResourceFactory.CreateFromSpirv(new ShaderDescription(
+                    ShaderStages.Compute,
+                    File.ReadAllBytes(@"resources\shaders\particle_compute.glsl"),
+                    entryPoint: "main", ApplicationContext.IsDebug));
+                var shaders = ResourceFactory.CreateFromSpirv(
+                    new ShaderDescription(
+                        ShaderStages.Vertex,
+                        File.ReadAllBytes(@"resources\shaders\particle_vertex.glsl"),
+                        "main"),
+                    new ShaderDescription(
+                        ShaderStages.Fragment,
+                        File.ReadAllBytes(@"resources\shaders\particle_fragment.glsl"),
+                        "main"));
+                var initialParticles = new ParticleInfo[ParticleSystem.MaxParticles];
+                for (int i = 0; i < ParticleSystem.MaxParticles; i++)
+                {
+                    ParticleInfo pi = new ParticleInfo(
+                        new Vector3(40, 20, 40),
+                        new Vector3(Standard.Random.GetRandomNumber(5f, 50f), Standard.Random.GetRandomNumber(5f, 50f), Standard.Random.GetRandomNumber(5f, 50f)),
+                        new Vector3(Standard.Random.GetRandomNumber(0.1f, 1f), Standard.Random.GetRandomNumber(0.1f, 1f), Standard.Random.GetRandomNumber(0.1f, 1f)),
+                        new Vector4(Standard.Random.GetRandomNumber(0.4f, 0.6f), Standard.Random.GetRandomNumber(0.4f, 0.6f), Standard.Random.GetRandomNumber(0.4f, 0.6f), Standard.Random.GetRandomNumber(0.4f, 0.6f)));
+                    initialParticles[i] = pi;
+                }
+                particleSystem = new ParticleSystem(GraphicsDevice, ResourceFactory, GraphicsSystem, computeParticleShader, shaders, initialParticles);
+            }
+
             var vertexShaderDesc = new ShaderDescription(
                 ShaderStages.Vertex,
                 File.ReadAllBytes("resources/shaders/basic.vert"),
@@ -129,13 +280,7 @@ namespace NtFreX.BuildingBlocks.Sample
 
             {
                 var fontFamily = SystemFonts.Find("Arial");
-                var texture = TextureCreator.Create(GraphicsDevice, ResourceFactory, "Hello world, and some more text", Color.Green, new PointF(0, 0), fontFamily.CreateFont(480, FontStyle.Italic), img =>
-                {
-                    var size = img.GetCurrentSize();
-                    img.DrawLines(new Pen(Color.Red, 1f),
-                        new PointF(0, 0), new PointF(0, size.Height - 1), new PointF(size.Width - 1, size.Height - 1),
-                        new PointF(size.Width - 1, 0), new PointF(0, 0));
-                });
+                var texture = CreateCounterTexture("and some more text");
 
                 var sizeFactor = 0.05f;
                 textModel = TextureModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo
@@ -145,6 +290,23 @@ namespace NtFreX.BuildingBlocks.Sample
                 }, shaders, texture).AddBehavoirs(
                     new AlwaysFaceCameraBehavior(), 
                     new GrowWhenFarFromCameraBehavoir(.003f));
+
+                _ = Task.Run(() =>
+                {
+                    // TODO: while(scene.IsActive) or something like (window.Exists)
+                    while (true) 
+                    {
+                        if (elapsedMilisecondsSinceTextureUpdate + 10 < stopwatch.ElapsedMilliseconds)
+                        {
+                            //TODO: make this fast (char atlas)
+                            //TODO: this is a memory leak
+                            var texture = CreateCounterTexture($"{stopwatch.Elapsed.TotalSeconds}s");
+                            textModel.MeshBuffer.TextureView.Value = texture;
+                            elapsedMilisecondsSinceTextureUpdate = stopwatch.ElapsedMilliseconds;
+                        }
+                    }
+                });
+
                 GraphicsSystem.AddModels(textModel);
             }
 
@@ -303,7 +465,16 @@ namespace NtFreX.BuildingBlocks.Sample
             AudioSystem.StopAll();
             AudioSystem.PlaceWav(detective, loop: true, position: Vector3.Zero, intensity: 100f);
         }
-
+        private TextureView CreateCounterTexture(string text)
+        {
+            return TextureCreator.Create(GraphicsDevice, ResourceFactory, $"Hello world, {text}", Color.Green, new PointF(0, 0), font, img =>
+            {
+                var size = img.GetCurrentSize();
+                img.DrawLines(new Pen(Color.Red, 1f),
+                    new PointF(0, 0), new PointF(0, size.Height - 1), new PointF(size.Width - 1, size.Height - 1),
+                    new PointF(size.Width - 1, 0), new PointF(0, 0));
+            });
+        }
         private void CreateBoundingBox(BoundingBox boundingBox, Shader[] shaders, TextureView? texture)
         {
             var scaleX = boundingBox.Max.X - boundingBox.Min.X;
@@ -317,7 +488,10 @@ namespace NtFreX.BuildingBlocks.Sample
             GraphicsSystem.AddModels(bounds);
         }
 
-        protected override void OnRendering(float deleta, CommandList commandList) { }
+        protected override void OnRendering(float deleta, CommandList commandList) 
+        {
+            particleSystem.Draw(commandList);
+        }
     }
     class SampleContactEventHandler : IContactEventHandler
     {

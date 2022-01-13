@@ -16,7 +16,6 @@ namespace NtFreX.BuildingBlocks.Models
         private readonly ResourceSet cameraInfoResourceSet;
         private readonly ResourceSet lightInfoResourceSet;
         private readonly ResourceSet materialInfoResourceSet;
-        private readonly ResourceSet surfaceTextureResourceSet;
         private readonly GraphicsDevice graphicsDevice;
         private readonly ResourceFactory resourceFactory;
         private readonly GraphicsSystem graphicsSystem;
@@ -51,6 +50,7 @@ namespace NtFreX.BuildingBlocks.Models
         private Vector3 position = Vector3.Zero;
         private Quaternion rotation = Quaternion.Identity;
         private Vector3 scale = Vector3.One;
+        private ResourceSet surfaceTextureResourceSet; // TODO: move the resource set to the buffer?
 
         public unsafe Model(
             GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, ModelCreationInfo creationInfo, Shader[] shaders,
@@ -88,6 +88,7 @@ namespace NtFreX.BuildingBlocks.Models
             rotation = creationInfo.Rotation;
             wasTransparent = Material.Value.Opacity != 1f;
 
+            // TODO: move render stages, shader pipe line mapping and ressource layouts out of here? combine with particle renderer?!!!!!!!!!!!
             var projectionViewWorldLayout = ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory);
             this.projectionViewWorldResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(projectionViewWorldLayout, graphicsSystem.Camera.ProjectionBuffer, graphicsSystem.Camera.ViewBuffer, WorldBuffer));
 
@@ -100,20 +101,20 @@ namespace NtFreX.BuildingBlocks.Models
             var materialLayout = ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory);
             this.materialInfoResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(materialLayout, MaterialInfoBuffer));
 
-            // TODO: support models without texture (render passes?)
-            var surfaceTextureLayout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
-            this.surfaceTextureResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(surfaceTextureLayout, meshBuffer.TextureView, graphicsDevice.Aniso4xSampler));
+            meshBuffer.TextureView.ValueChanged += (_, _) => UpdateTextureResourceSet();
 
             this.instances = instances ?? new[] { new InstanceInfo() };
             instanceBoundingBox = this.instances
                 .Select(x => BoundingBox.Transform(meshBuffer.BoundingBox, CreateWorldMatrix(x.Position, Matrix4x4.CreateRotationX(x.Rotation.X) * Matrix4x4.CreateRotationY(x.Rotation.Y) * Matrix4x4.CreateRotationZ(x.Rotation.Z), x.Scale)))
                 .Aggregate((one, two) => BoundingBox.Combine(one, two));
+            //TODO move to mesh device buffer
             instanceVertexBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint) (InstanceInfo.Size * this.instances.Length), BufferUsage.VertexBuffer));
             graphicsDevice.UpdateBuffer(instanceVertexBuffer, 0, this.instances);
 
             boundingBoxCache = new Cached<BoundingBox>(() => BoundingBox.Transform(instanceBoundingBox, WorldMatrix));
             centerCache = new Cached<Vector3>(() => GetBoundingBox().GetCenter());
 
+            UpdateTextureResourceSet();
             InvalidateWorldCache();
             UpdateMaterialInfo();
             UpdatePipeline();
@@ -160,6 +161,13 @@ namespace NtFreX.BuildingBlocks.Models
             return Matrix4x4.CreateScale(scale) *
                    rotation *
                    Matrix4x4.CreateTranslation(position);
+        }
+
+        private void UpdateTextureResourceSet()
+        {
+            // TODO: support models without texture (render passes?)
+            var surfaceTextureLayout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
+            this.surfaceTextureResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(surfaceTextureLayout, MeshBuffer.TextureView.Value, graphicsDevice.Aniso4xSampler));
         }
 
         private void InvalidateWorldCache()
@@ -302,7 +310,7 @@ namespace NtFreX.BuildingBlocks.Models
         }
     }
 
-    static class ResourceLayoutFactory
+    public static class ResourceLayoutFactory
     {
         private static ResourceLayout? projectionViewWorldLayout;
         public static ResourceLayout GetProjectionViewWorldLayout(ResourceFactory resourceFactory)

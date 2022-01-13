@@ -121,7 +121,7 @@ namespace NtFreX.BuildingBlocks.Texture
             Veldrid.Texture texture = rf.CreateTexture(new TextureDescription(
                 Width, Height, Depth, MipLevels, ArrayLayers, Format, usage, Type));
 
-            Veldrid.Texture staging = rf.CreateTexture(new TextureDescription(
+            using Veldrid.Texture staging = rf.CreateTexture(new TextureDescription(
                 Width, Height, Depth, MipLevels, ArrayLayers, Format, TextureUsage.Staging, Type));
 
             ulong offset = 0;
