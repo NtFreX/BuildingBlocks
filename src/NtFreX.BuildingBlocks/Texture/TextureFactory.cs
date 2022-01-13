@@ -28,7 +28,7 @@ namespace NtFreX.BuildingBlocks.Texture
                 return texture;
 
             var processedTexture = await ProcessedTexture.ReadAsync(fullPath);
-            var surfaceTexture = processedTexture.CreateDeviceTexture(game.GraphicsDevice, game.ResourceFactory, usage);
+            using var surfaceTexture = processedTexture.CreateDeviceTexture(game.GraphicsDevice, game.ResourceFactory, usage);
             var surfaceTextureView = game.ResourceFactory.CreateTextureView(surfaceTexture);
 
             textures.Add(key, surfaceTextureView);

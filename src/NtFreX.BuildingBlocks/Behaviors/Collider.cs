@@ -15,7 +15,7 @@ namespace NtFreX.BuildingBlocks.Behaviors
         private readonly StaticHandle? staticHandle;
         private readonly Simulation simulation;
 
-        public unsafe Collider(PrimitiveTopology primitiveTopology, TShape shape, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f)
+        public unsafe Collider(PrimitiveTopology primitiveTopology, TShape shape, Simulation simulation, ModelCreationInfo creationInfo = default, bool dynamic = false, float mass = 1f, BodyVelocity? velocity = null)
         {
             if (primitiveTopology != PrimitiveTopology.TriangleList)
                 throw new ArgumentException("Only triangle lists are supported to be colidable");
@@ -29,9 +29,9 @@ namespace NtFreX.BuildingBlocks.Behaviors
             if (dynamic)
             {
                 var inertia = new BodyInertia { InverseMass = mass };
-                var velocity = new BodyVelocity(linear: Vector3.Zero, angular: Vector3.Zero);
+                var actualVelocity = velocity ?? new BodyVelocity(linear: Vector3.Zero, angular: Vector3.Zero);
                 var activity = new BodyActivityDescription(sleepThreshold: 0.01f);
-                bodyHandle = simulation.Bodies.Add(BodyDescription.CreateDynamic(pose, velocity, inertia, collidable, activity));
+                bodyHandle = simulation.Bodies.Add(BodyDescription.CreateDynamic(pose, actualVelocity, inertia, collidable, activity));
             }
             else
             {

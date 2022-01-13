@@ -30,7 +30,6 @@ namespace NtFreX.BuildingBlocks.Models
         public readonly IMutable<Vector3> Position;
         public readonly IMutable<Quaternion> Rotation;
         public readonly IMutable<Vector3> Scale;
-        public readonly IMutable<MaterialInfo> Material;
         public readonly Mutable<PolygonFillMode> FillMode = new Mutable<PolygonFillMode>(PolygonFillMode.Solid);
 
         public string? Name { get; set; }
@@ -67,7 +66,6 @@ namespace NtFreX.BuildingBlocks.Models
                 this.behaviors.AddRange(behaviors);
             }
 
-            Material = new MutableWrapper<MaterialInfo>(() => this.MeshBuffer.Material, material => this.MeshBuffer.Material = material);
             Position = new MutableWrapper<Vector3>(() => this.position, position => this.position = position);
             Rotation = new MutableWrapper<Quaternion>(() => this.rotation, rotation => this.rotation = rotation);
             Scale = new MutableWrapper<Vector3>(() => this.scale, scale => this.scale = scale);
@@ -81,12 +79,12 @@ namespace NtFreX.BuildingBlocks.Models
             Position.ValueChanged += (_, _) => InvalidateWorldCache();
             Rotation.ValueChanged += (_, _) => InvalidateWorldCache();
             FillMode.ValueChanged += (_, _) => UpdatePipeline();
-            Material.ValueChanged += (_, _) => UpdateMaterialInfo();
+            meshBuffer.Material.ValueChanged += (_, _) => UpdateMaterialInfo();
 
             position = creationInfo.Position;
             scale = creationInfo.Scale;
             rotation = creationInfo.Rotation;
-            wasTransparent = Material.Value.Opacity != 1f;
+            wasTransparent = meshBuffer.Material.Value.Opacity != 1f;
 
             // TODO: move render stages, shader pipe line mapping and ressource layouts out of here? combine with particle renderer?!!!!!!!!!!!
             var projectionViewWorldLayout = ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory);
@@ -180,13 +178,13 @@ namespace NtFreX.BuildingBlocks.Models
 
         private void UpdateMaterialInfo()
         {
-            if ((Material.Value.Opacity == 1f && wasTransparent) || (Material.Value.Opacity < 1f && !wasTransparent))
+            if ((MeshBuffer.Material.Value.Opacity == 1f && wasTransparent) || (MeshBuffer.Material.Value.Opacity < 1f && !wasTransparent))
             {
                 UpdatePipeline();
             }
 
             hasMaterialChanged = true;
-            wasTransparent = Material.Value.Opacity != 1f;
+            wasTransparent = MeshBuffer.Material.Value.Opacity != 1f;
         }
 
         private void UpdatePipeline()
@@ -198,7 +196,7 @@ namespace NtFreX.BuildingBlocks.Models
             layouts.Add(ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory));
             layouts.Add(ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory));
 
-            var blendState = Material.Value.Opacity == 1f ? BlendStateDescription.SingleOverrideBlend : BlendStateDescription.SingleAlphaBlend;
+            var blendState = MeshBuffer.Material.Value.Opacity == 1f ? BlendStateDescription.SingleOverrideBlend : BlendStateDescription.SingleAlphaBlend;
 
             VertexLayoutDescription vertexLayoutPerInstance = new VertexLayoutDescription(
                 new VertexElementDescription("InstancePosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
@@ -232,7 +230,7 @@ namespace NtFreX.BuildingBlocks.Models
             }
             if (hasMaterialChanged)
             {
-                graphicsDevice.UpdateBuffer(MaterialInfoBuffer, 0, Material.Value);
+                graphicsDevice.UpdateBuffer(MaterialInfoBuffer, 0, MeshBuffer.Material.Value);
                 hasMaterialChanged = false;
             }
 

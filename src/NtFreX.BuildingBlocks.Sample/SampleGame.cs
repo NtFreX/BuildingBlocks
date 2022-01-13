@@ -1,4 +1,5 @@
-﻿using BepuPhysics.Collidables;
+﻿using BepuPhysics;
+using BepuPhysics.Collidables;
 using BepuPhysics.CollisionDetection;
 using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
@@ -172,10 +173,21 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             if (elapsedMilisecondsSincePhyicsObjectAdd + 100 < stopwatch.ElapsedMilliseconds)
             {
-                GraphicsSystem.AddModels(SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
-                            new ModelCreationInfo { Position = Standard.Random.Noise(new Vector3(10, 5, -25), 0.3f) },
-                            shaders, radius: Standard.Random.GetRandomNumber(0.3f, 1.2f), texture: emptyTexture, sectorCount: 25, stackCount: 25).AddBehavoirs(x =>
-                            new CollidableBehavoir<Sphere>(Simulation, x, dynamic: true)));
+                var creationInfo = new ModelCreationInfo { Position = Standard.Random.Noise(new Vector3(10, 5, -25), 0.3f), Rotation = Quaternion.CreateFromYawPitchRoll(Standard.Random.GetRandomNumber(0f, 10f), Standard.Random.GetRandomNumber(0f, 10f), Standard.Random.GetRandomNumber(0f, 10f)) };
+                var material = new MaterialInfo { DiffuseColor = new Vector4(Standard.Random.GetRandomNumber(0.3f, 1f), Standard.Random.GetRandomNumber(0.3f, 1f), Standard.Random.GetRandomNumber(0.3f, 1f), 1f), Opacity = Standard.Random.GetRandomNumber(0.3f, 1f) };
+                var velocity = new BodyVelocity(Standard.Random.GetRandomVector(0f, 1f), Standard.Random.GetRandomVector(0f, 2f));
+                if (Standard.Random.GetRandomNumber(0, 2) == 0)
+                {
+                    GraphicsSystem.AddModels(SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, creationInfo, shaders,
+                        material: material, radius: Standard.Random.GetRandomNumber(0.3f, 1.2f), texture: emptyTexture, sectorCount: 25, stackCount: 25).AddBehavoirs(x =>
+                                new CollidableBehavoir<Sphere>(Simulation, x, dynamic: true, velocity: velocity)));
+                }
+                else
+                {
+                    GraphicsSystem.AddModels(QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, creationInfo, shaders,
+                        material: material, sideLength: Standard.Random.GetRandomNumber(0.3f, 1.2f), texture: emptyTexture).AddBehavoirs(x =>
+                                new CollidableBehavoir<Box>(Simulation, x, dynamic: true, velocity: velocity)));
+                }
                 elapsedMilisecondsSincePhyicsObjectAdd = stopwatch.ElapsedMilliseconds;
             }
 
@@ -202,9 +214,9 @@ namespace NtFreX.BuildingBlocks.Sample
             models![0].Rotation.Value = Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(sunPitch) * Matrix4x4.CreateRotationY(sunPitch));
             foreach (var model in models)
             {
-                model.Material.Value = models[0].Material.Value with { Opacity = sun.Position.Value.Y / sunDistance };
+                model.MeshBuffer.Material.Value = models[0].MeshBuffer.Material.Value with { Opacity = sun.Position.Value.Y / sunDistance };
             }
-            models[models.Length - 1].Material.Value = models[models.Length - 1].Material.Value with { Opacity = 1f };
+            models[models.Length - 1].MeshBuffer.Material.Value = models[models.Length - 1].MeshBuffer.Material.Value with { Opacity = 1f };
 
             foreach (var model in goblin!.Concat(dragon!))
             {
@@ -370,7 +382,7 @@ namespace NtFreX.BuildingBlocks.Sample
 
                 PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, 
                     new ModelCreationInfo { Position = GraphicsSystem.Camera.Up.Value * -10f, Scale = Vector3.One * 100f }, 
-                    shaders, rows: 50, columns: 50, texture: stoneTexture, material: new MaterialInfo { ShininessStrength = .001f },
+                    shaders, rows: 50, columns: 50, texture: stoneTexture, material: new MaterialInfo(shininessStrength: .001f),
                     name: "floor"
                 ).AddBehavoirs(x => new CollidableBehavoir<Mesh>(Simulation, x)),
             };
@@ -424,7 +436,7 @@ namespace NtFreX.BuildingBlocks.Sample
             goblin = await DaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
             foreach (var g in goblin)
             {
-                g.Material.Value = g.Material.Value with { Opacity = 1f };
+                g.MeshBuffer.Material.Value = g.MeshBuffer.Material.Value with { Opacity = 1f };
             }
             dragon = await DaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
 
@@ -484,7 +496,7 @@ namespace NtFreX.BuildingBlocks.Sample
             var posY = boundingBox.Min.Y + scaleY / 2f;
             var posZ = boundingBox.Min.Z + scaleZ / 2f;
             var bounds = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new ModelCreationInfo { Position = new Vector3(posX, posY, posZ), Scale = new Vector3(scaleX, scaleY, scaleZ) }, shaders, red: 1, texture: texture);
-            bounds.Material.Value = bounds.Material.Value with { Opacity = .5f };
+            bounds.MeshBuffer.Material.Value = bounds.MeshBuffer.Material.Value with { Opacity = .5f };
             GraphicsSystem.AddModels(bounds);
         }
 

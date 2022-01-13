@@ -11,11 +11,11 @@ namespace NtFreX.BuildingBlocks.Behaviors
         private readonly Model model;
         private int? isUpdatingThread;
 
-        public CollidableBehavoir(Simulation simulation, Model model, bool dynamic = false, float mass = 1f, TShape? shape = null)
+        public CollidableBehavoir(Simulation simulation, Model model, bool dynamic = false, float mass = 1f, TShape? shape = null, BodyVelocity? velocity = null)
         {
             var creationInfo = new ModelCreationInfo { Position = model.Position.Value, Rotation = model.Rotation.Value, Scale = model.Scale.Value };
             var objectShape = shape ?? ((PhysicsMeshDeviceBuffer<TShape>)model.MeshBuffer).ShapeAllocator.Invoke(simulation);
-            this.collider = new Collider<TShape>(model.MeshBuffer.PrimitiveTopology, objectShape, simulation, creationInfo, dynamic, mass);
+            this.collider = new Collider<TShape>(model.MeshBuffer.PrimitiveTopology, objectShape, simulation, creationInfo, dynamic, mass, velocity);
             model.Position.ValueChanged += (_, _) => OnPoseChanged();
             model.Rotation.ValueChanged += (_, _) => OnPoseChanged();
             this.model = model;

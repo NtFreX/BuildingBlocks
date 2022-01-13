@@ -23,16 +23,14 @@ namespace NtFreX.BuildingBlocks.Texture
         }
         public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, int width, int height, Action<IImageProcessingContext> mutateImage)
         {
-            using (Image<Rgba32> img = new Image<Rgba32>(width, height))
-            {
-                img.Mutate(mutateImage);
-                return Create(graphicsDevice, resourceFactory, img);
-            }
+            using var img = new Image<Rgba32>(width, height);
+            img.Mutate(mutateImage);
+            return Create(graphicsDevice, resourceFactory, img);
         }
         public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Image<Rgba32> image)
         {
             var texture = ProcessedTexture.Read(image);
-            var surfaceTexture = texture.CreateDeviceTexture(graphicsDevice, resourceFactory, TextureUsage.Sampled);
+            using var surfaceTexture = texture.CreateDeviceTexture(graphicsDevice, resourceFactory, TextureUsage.Sampled);
             return resourceFactory.CreateTextureView(surfaceTexture);
         }
     }

@@ -103,19 +103,17 @@ namespace NtFreX.BuildingBlocks.Models
                     var meshMaterial = scene.Materials[mesh.MaterialIndex];
                     string? texture = meshMaterial.HasTextureDiffuse ? meshMaterial.TextureDiffuse.FilePath : null;
 
-                    var material = new MaterialInfo
-                    {
-                        AmbientColor = meshMaterial.ColorAmbient.ToSystemVector(),
-                        DiffuseColor = meshMaterial.ColorDiffuse.ToSystemVector(),
-                        EmissiveColor = meshMaterial.ColorEmissive.ToSystemVector(),
-                        SpecularColor = meshMaterial.ColorSpecular.ToSystemVector(),
-                        ReflectiveColor = meshMaterial.ColorReflective.ToSystemVector(),
-                        TransparentColor = meshMaterial.ColorTransparent.ToSystemVector(),
-                        Opacity = meshMaterial.Opacity,
-                        Reflectivity = meshMaterial.Reflectivity,
-                        Shininess = meshMaterial.Shininess,
-                        ShininessStrength = meshMaterial.ShininessStrength,
-                    };
+                    var material = new MaterialInfo(
+                        ambientColor: meshMaterial.ColorAmbient.ToSystemVector(),
+                        diffuseColor: meshMaterial.ColorDiffuse.ToSystemVector(),
+                        emissiveColor: meshMaterial.ColorEmissive.ToSystemVector(),
+                        specularColor: meshMaterial.ColorSpecular.ToSystemVector(),
+                        reflectiveColor: meshMaterial.ColorReflective.ToSystemVector(),
+                        transparentColor: meshMaterial.ColorTransparent.ToSystemVector(),
+                        opacity: meshMaterial.Opacity,
+                        reflectivity: meshMaterial.Reflectivity,
+                        shininess: meshMaterial.Shininess,
+                        shininessStrength: meshMaterial.ShininessStrength);
 
                     var vertices = shaderReadyVertices.ToArray();
                     var indices = mesh.GetUnsignedIndices();
@@ -155,12 +153,10 @@ namespace NtFreX.BuildingBlocks.Models
                         var fileMesh = scene.GetMesh(group);
 
                         var materialDef = material.Definitions[fileMesh.MaterialName];
-                        var materialInfo = new MaterialInfo
-                        {
-                            Opacity = materialDef.Opacity,
-                            ShininessStrength = (materialDef.SpecularReflectivity.X + materialDef.SpecularReflectivity.Y + materialDef.SpecularReflectivity.Z) / 3f,
-                            Shininess = materialDef.SpecularExponent
-                        };
+                        var materialInfo = new MaterialInfo(
+                            opacity: materialDef.Opacity,
+                            shininessStrength: (materialDef.SpecularReflectivity.X + materialDef.SpecularReflectivity.Y + materialDef.SpecularReflectivity.Z) / 3f,
+                            shininess: materialDef.SpecularExponent);
 
                         meshes.Add(new MeshDataProvider<VertexPositionColorNormalTexture, ushort>(
                             fileMesh.Vertices.Select(x => new VertexPositionColorNormalTexture(x)).ToArray(),

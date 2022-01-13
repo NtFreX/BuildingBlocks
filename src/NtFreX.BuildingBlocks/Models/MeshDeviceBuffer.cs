@@ -36,7 +36,7 @@ namespace NtFreX.BuildingBlocks.Models
         public VertexLayoutDescription VertexLayout { get; }
         public IndexFormat IndexFormat { get; }
         public PrimitiveTopology PrimitiveTopology { get; }
-        public MaterialInfo Material { get; set; }
+        public Mutable<MaterialInfo> Material { get; set; }
         public Mutable<TextureView?> TextureView { get; }
 
         public MeshDeviceBuffer(
@@ -50,7 +50,7 @@ namespace NtFreX.BuildingBlocks.Models
             VertexLayout = vertexLayout;
             IndexFormat = indexFormat;
             PrimitiveTopology = primitiveTopology;
-            Material = material ?? new MaterialInfo();
+            Material = new Mutable<MaterialInfo>(material ?? new MaterialInfo());
             TextureView = new Mutable<TextureView?>(textureView);
         }
 

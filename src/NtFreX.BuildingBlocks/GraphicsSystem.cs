@@ -52,7 +52,7 @@ namespace NtFreX.BuildingBlocks
             var frustum = new BoundingFrustum(Camera.ViewMatrix * Camera.ProjectionMatrix);
             
             var timer = new DebugExecutionTimer(timerGetVisibleObjects);
-            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint && x.Material.Value.Opacity != 0f).ToArray();
+            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint && x.MeshBuffer.Material.Value.Opacity != 0f).ToArray();
             timer.Dispose();
 
             //var queue = new RenderQueue();
@@ -85,7 +85,7 @@ namespace NtFreX.BuildingBlocks
             var opaqueQueue = new RenderQueue();
             foreach (var model in visibleModels)
             {
-                if (model.Material.Value.Opacity != 1f)
+                if (model.MeshBuffer.Material.Value.Opacity != 1f)
                 {
                     transparentQueue.Add(model, Camera.Position);
                 }

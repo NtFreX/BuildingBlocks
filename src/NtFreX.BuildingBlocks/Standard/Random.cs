@@ -14,6 +14,8 @@ namespace NtFreX.BuildingBlocks.Standard
             => new Vector3(Noise(value.X, noiseFactor), Noise(value.Y, noiseFactor), Noise(value.Z, noiseFactor));
         public static float Noise(float value, float noiseFactor)
             => GetRandomNumber(-noiseFactor, noiseFactor) + value;
+        public static int GetRandomNumber(int minimum, int maximum)
+            => random.Next(minimum, maximum);
         public static float GetRandomNumber(float minimum, float maximum)
             => (float)GetRandomNumber((double)minimum, (double)maximum);
         public static double GetRandomNumber(double minimum, double maximum)

@@ -44,8 +44,8 @@ namespace NtFreX.BuildingBlocks
 
         public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
         {
-            pairMaterial.FrictionCoefficient = 0.01f;
-            pairMaterial.MaximumRecoveryVelocity = 2f;
+            pairMaterial.FrictionCoefficient = 0.5f;
+            pairMaterial.MaximumRecoveryVelocity = 0.9999f;
             pairMaterial.SpringSettings = new SpringSettings(30, 1);
             contactEventHandler.HandleContact(pair, manifold);
             return true;
@@ -91,13 +91,13 @@ namespace NtFreX.BuildingBlocks
         public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity)
         {
             velocity.Linear = (velocity.Linear + gravityWideDt) * linearDampingDt;
-            velocity.Angular = velocity.Angular * angularDampingDt;
+            velocity.Angular = velocity.Angular * angularDampingDt; // gravityWideDt * new Vector<float>(100);
         }
 
         public void PrepareForIntegration(float dt)
         {
-            const float linearDamping = .003f;
-            const float angularDamping = .003f;
+            const float linearDamping = 0.0000000001f;
+            const float angularDamping = 0.0000000001f;
             Vector3 gravity = new Vector3(0, -9f, 0);
 
             //linearDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - linearDamping, 0, 1), dt));
