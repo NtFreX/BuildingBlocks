@@ -7,11 +7,13 @@ namespace NtFreX.BuildingBlocks.Audio
     {
         private readonly SdlAudioFile audioFile;
 
+        private int volume = SDL.SDL_MIX_MAXVOLUME;
+
         internal IntPtr AudioPtr { get; set; }
         internal uint RemainingLength { get; set; }
 
         public bool Loop { get; set; }
-        public int Volume { get; set; } = SDL.SDL_MIX_MAXVOLUME;
+        public int Volume { get => volume; set => volume = Math.Min(value, SDL.SDL_MIX_MAXVOLUME); }
         public bool IsPaused { get; set; }
         public bool IsStopped { get; set; }
 

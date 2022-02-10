@@ -38,7 +38,7 @@ namespace NtFreX.BuildingBlocks.Shell
         public async Task RunAsync()
         {
            var graphicsDeviceOptions = new GraphicsDeviceOptions
-            {
+           {
                 SwapchainDepthFormat = PixelFormat.R16_UNorm,
                 HasMainSwapchain = true,
                 SwapchainSrgbFormat = true,
@@ -49,6 +49,7 @@ namespace NtFreX.BuildingBlocks.Shell
                 Debug = IsDebug,
             };
 
+            //TODO: make this work with other graphic backends
             var graphicsDevice = VeldridStartup.CreateGraphicsDevice(window, graphicsDeviceOptions);
             if (GraphicsDeviceCreated != null)
             {

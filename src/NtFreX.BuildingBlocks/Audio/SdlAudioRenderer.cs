@@ -1,6 +1,7 @@
 ﻿using SDL2;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,7 +17,7 @@ namespace NtFreX.BuildingBlocks.Audio
 
         // keep this here so it is not garbage collected
         private readonly SDL.SDL_AudioCallback callbackDelegate;
-        private readonly List<SdlAudioContext> audioContexts = new List<SdlAudioContext>();
+        private readonly ConcurrentDictionary<SdlAudioContext, object?> audioContexts = new ();
 
         static SdlAudioRenderer()
         {
@@ -36,12 +37,9 @@ namespace NtFreX.BuildingBlocks.Audio
 
         public void StopAll()
         {
-            lock (audioContextLock)
+            foreach (var context in audioContexts.Keys.ToArray())
             {
-                foreach (var context in audioContexts)
-                {
-                    context.IsStopped = true;
-                }
+                context.IsStopped = true;
             }
         }
 
@@ -49,7 +47,6 @@ namespace NtFreX.BuildingBlocks.Audio
         {
             if (loadedFormat != null && !AreEqual(audioFile.Spec, loadedFormat.Value))
                 throw new Exception($"Can only play one audio format, loaded format = {loadedFormat}, audio format = {audioFile.Spec}");
-
 
             var audioContext = new SdlAudioContext(audioFile)
             {
@@ -70,10 +67,7 @@ namespace NtFreX.BuildingBlocks.Audio
                 isOpen = true;
             }
 
-            lock (audioContextLock)
-            {
-                audioContexts.Add(audioContext);
-            }
+            audioContexts.TryAdd(audioContext, null);
             if (isPaused)
             {
                 isPaused = false;
@@ -101,22 +95,18 @@ namespace NtFreX.BuildingBlocks.Audio
 
         private unsafe void SDL_AudioCallback(IntPtr userdata, IntPtr stream, int len)
         {
-            lock (audioContextLock)
+            foreach (var context in audioContexts.Keys.ToArray())
             {
-                for (var i = 0; i < audioContexts.Count; i++)
+                if (context.RemainingLength <= 0 || context.IsStopped)
                 {
-                    if (audioContexts[i].RemainingLength == 0 || audioContexts[i].IsStopped)
+                    if (context.Loop && !context.IsStopped)
                     {
-                        if (audioContexts[i].Loop && !audioContexts[i].IsStopped)
-                        {
-                            audioContexts[i].Reset();
-                        }
-                        else
-                        {
-                            audioContexts[i].IsStopped = true;
-                            audioContexts.RemoveAt(i);
-                            i--;
-                        }
+                        context.Reset();
+                    }
+                    else
+                    {
+                        context.IsStopped = true;
+                        audioContexts.Remove(context, out _);
                     }
                 }
             }
@@ -127,23 +117,25 @@ namespace NtFreX.BuildingBlocks.Audio
                 SDL.SDL_memcpy(stream, new IntPtr(ptr), new IntPtr(len));
             }
 
-
-            lock (audioContextLock)
+            if (audioContexts.Count == 0)
             {
-                if (audioContexts.Count == 0)
-                {
-                    SDL.SDL_PauseAudio(1);
-                    isPaused = true;
-                    return;
-                }
+                SDL.SDL_PauseAudio(1);
+                isPaused = true;
+                return;
+            }
 
-               Task.WaitAll(audioContexts.Where(x => !x.IsPaused).Select(context => Task.Run(() =>
-               {
-                   var contextLen = len > context.RemainingLength ? context.RemainingLength : (uint)len;
-                   SDL.SDL_MixAudioFormat(stream, context.AudioPtr, loadedFormat!.Value.format, contextLen, context.Volume);
-                   context.AudioPtr += (int)contextLen;
-                   context.RemainingLength -= contextLen;
-               })).ToArray());
+            foreach(var context in audioContexts.Keys.ToArray())
+            {
+                if (context.IsPaused || context.IsStopped)
+                    return;
+
+                var contextLen = len > context.RemainingLength ? context.RemainingLength : (uint)len;
+                if (context.Volume > 0)
+                {
+                    SDL.SDL_MixAudioFormat(stream, context.AudioPtr, loadedFormat!.Value.format, contextLen, context.Volume);
+                }
+                context.AudioPtr += (int)contextLen;
+                context.RemainingLength -= contextLen;
             }
         }
 

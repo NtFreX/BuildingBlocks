@@ -16,9 +16,9 @@ namespace NtFreX.BuildingBlocks.Cameras
         public MovableCamera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight) 
             : base(graphicsDevice, resourceFactory, windowWidth, windowHeight) { }
 
-        public override void Update(GraphicsDevice graphicsDevice, InputHandler inputs, float deltaSeconds)
+        public override void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)
         {
-            base.Update(graphicsDevice, inputs, deltaSeconds);
+            base.BeforeModelUpdate(inputs, deltaSeconds);
 
             Vector3 motionDir = Vector3.Zero;
             if (inputs.IsKeyDown(Key.A))

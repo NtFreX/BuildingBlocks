@@ -12,6 +12,7 @@
 	<RunAOTCompilation>True</RunAOTCompilation>
 	<AndroidEnableProfiledAot>False</AndroidEnableProfiledAot>
 	<EnableLLVM>True</EnableLLVM>
+	<EnablePreviewFeatures>true</EnablePreviewFeatures>
   </PropertyGroup>
 
 	<ImportGroup></ImportGroup>

@@ -1,21 +1,31 @@
 ﻿using NtFreX.BuildingBlocks.Desktop;
+using NtFreX.BuildingBlocks.Mesh;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Light
 {
-    public class LightSystem
+    public class LightSystem : IDisposable
     {
         private LightInfo lightInfo = new LightInfo();
+        private bool hasLightChanged = true;
+
+        private readonly GraphicsDevice graphicsDevice;
 
         public Vector3 AmbientLight { get => lightInfo.AmbientLight; set => lightInfo.AmbientLight = value; }
 
         public DeviceBuffer LightBuffer { get; private set; }
+        public ResourceSet LightInfoResourceSet { get; private set; }
 
-        public LightSystem(ResourceFactory resourceFactory)
+        public LightSystem(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
         {
+            this.graphicsDevice = graphicsDevice;
+
             LightBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<LightInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+
+            var lightInfoLayout = ResourceLayoutFactory.GetLightInfoLayout(resourceFactory);
+            LightInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(lightInfoLayout, LightBuffer));
         }
 
         public void SetPointLights(params PointLightInfo[] lights)
@@ -28,12 +38,23 @@ namespace NtFreX.BuildingBlocks.Light
             {
                 lightInfo[i] = lights[i];
             }
+
+            hasLightChanged = true;
         }
 
-        public void Update(GraphicsDevice graphicsDevice)
+        public void Update()
         {
-            // TODO: update buffer only when nessesary
-            graphicsDevice.UpdateBuffer(LightBuffer, 0, lightInfo);
+            if (hasLightChanged)
+            {
+                graphicsDevice.UpdateBuffer(LightBuffer, 0, lightInfo);
+                hasLightChanged = false;
+            }
+        }
+
+        public void Dispose()
+        {
+            LightBuffer.Dispose();
+            LightInfoResourceSet.Dispose();
         }
     }
 }

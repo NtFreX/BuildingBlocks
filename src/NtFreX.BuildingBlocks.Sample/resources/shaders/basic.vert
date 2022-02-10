@@ -17,7 +17,7 @@ layout(set = 0, binding = 2) uniform WorldBuffer
 
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec3 Normal;
-layout(location = 2) in vec2 TextureCoordinates;
+layout(location = 2) in vec2 TextureCoordinate;
 layout(location = 3) in vec4 Color;
 layout(location = 4) in vec3 InstancePosition;
 layout(location = 5) in vec3 InstanceRotation;
@@ -62,7 +62,7 @@ void main()
         
     fsin_normal = normalize(instanceRotFull * Normal);
     fsin_color = Color;
-    fsin_texCoords = vec3(TextureCoordinates, InstanceTexArrayIndex);
+    fsin_texCoords = vec3(TextureCoordinate, InstanceTexArrayIndex);
         
     vec4 worldPosition = World * vec4(transformedPos, 1);
     vec4 viewPosition = View * worldPosition;

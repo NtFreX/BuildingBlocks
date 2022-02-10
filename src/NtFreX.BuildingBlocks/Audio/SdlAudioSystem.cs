@@ -1,89 +1,75 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
 using System.Numerics;
 
-namespace NtFreX.BuildingBlocks.Audio
+namespace NtFreX.BuildingBlocks.Audio;
+
+public class SdlAudioSystem : IDisposable
 {
-    public class SdlAudioSystem : IDisposable
+    private readonly Dictionary<string, SdlAudioFile> audioCache = new ();
+    private readonly SdlAudioRenderer audioRenderer = new();
+    private readonly ConcurrentDictionary<SdlAudioEmitter3d, object?> soundEmitters = new();
+    private readonly GraphicsSystem graphicsSystem;
+
+    public SdlAudioSystem(GraphicsSystem graphicsSystem)
     {
-        private readonly Dictionary<string, SdlAudioFile> audioCache = new Dictionary<string, SdlAudioFile>();
-        private readonly object soundEmitterLock = new object();
-        private readonly List<SdlAudioEmitter3d> soundEmitters = new List<SdlAudioEmitter3d>();
-        private readonly SdlAudioRenderer audioRenderer = new SdlAudioRenderer();
-        private readonly GraphicsSystem graphicsSystem;
+        this.graphicsSystem = graphicsSystem;
+    }
 
-        public SdlAudioSystem(GraphicsSystem graphicsSystem)
+    private SdlAudioFile GetCachedAudio(string file)
+    {
+        if (!audioCache.TryGetValue(file, out var audio))
         {
-            this.graphicsSystem = graphicsSystem;
+            audio = new SdlAudioFile(file);
+            audioCache.Add(file, audio);
         }
-
-        private SdlAudioFile GetCachedAudio(string file)
-        {
-            if (!audioCache.TryGetValue(file, out var audio))
-            {
-                audio = new SdlAudioFile(file);
-                audioCache.Add(file, audio);
-            }
-            return audio;
-        }
+        return audio;
+    }
         
-        public void StopAll()
-        {
-            audioRenderer.StopAll();
-        }
+    public void StopAll()
+    {
+        audioRenderer.StopAll();
+    }
 
-        public void PreLoadWav(string file)
-        {
-            GetCachedAudio(file);
-        }
+    public void PreLoadWav(string file)
+    {
+        GetCachedAudio(file);
+    }
 
-        public SdlAudioContext PlayWav(string file, int volume = 128, bool loop = false)
-        {
-            var audio = GetCachedAudio(file);
-            return audioRenderer.PlayWav(audio, volume, loop);
-        }
+    public SdlAudioContext PlayWav(string file, int volume = 128, bool loop = false)
+    {
+        var audio = GetCachedAudio(file);
+        return audioRenderer.PlayWav(audio, volume, loop);
+    }
 
-        public SdlAudioEmitter3d PlaceWav(string file, Vector3 position, float intensity, int volume = 128, bool loop = false)
+    public SdlAudioEmitter3d PlaceWav(string file, Vector3 position, float intensity, int volume = 128, bool loop = false)
+    {
+        var audio = GetCachedAudio(file);
+        var emitter = SdlAudioEmitter3d.Create(audioRenderer, audio, position, graphicsSystem.Camera.Value?.Position.Value, intensity, volume, loop);
+        soundEmitters.TryAdd(emitter, null);
+        return emitter;
+    }
+
+    public void Update(Vector3? listenerPosition)
+    {
+        foreach (var emitter in soundEmitters.Keys.ToArray())
         {
-            var audio = GetCachedAudio(file);
-            var emitter = SdlAudioEmitter3d.Create(audioRenderer, audio, position, graphicsSystem.Camera.Position, intensity, volume, loop);
-            lock (soundEmitterLock)
+            if (emitter.IsStopped)
             {
-                soundEmitters.Add(emitter);
+                soundEmitters.TryRemove(emitter, out _);
             }
-            return emitter;
-        }
-
-        public void Update(Vector3 cameraPosition)
-        {
-            var removeList = new List<SdlAudioEmitter3d>();
-            lock (soundEmitterLock) 
+            else
             {
-                foreach (var emitter in soundEmitters)
-                {
-                    if (emitter.IsStopped)
-                    {
-                        removeList.Add(emitter);
-                    }
-                    else
-                    {
-                        emitter.Update(cameraPosition);
-                    }
-                }
-                foreach (var emitter in removeList)
-                {
-                    soundEmitters.Remove(emitter);
-                }
+                emitter.Update(listenerPosition);
             }
         }
+    }
 
-        public void Dispose()
+    public void Dispose()
+    {
+        audioRenderer.Dispose();
+        foreach(var item in audioCache.Values)
         {
-            audioRenderer.Dispose();
-            foreach(var item in audioCache.Values)
-            {
-                item.Dispose();
-            }
+            item.Dispose();
         }
     }
 }

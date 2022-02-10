@@ -1,13 +1,15 @@
 ﻿using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Input;
+using NtFreX.BuildingBlocks.Mesh;
 using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Cameras
 {
-    public abstract class Camera
+    public abstract class Camera : IDisposable
     {
+        public ResourceSet CameraInfoResourceSet { get; private set; }
         public DeviceBuffer CameraInfoBuffer { get; private set; }
         public DeviceBuffer ProjectionBuffer { get; private set; }
         public DeviceBuffer ViewBuffer { get; private set; }
@@ -17,21 +19,31 @@ namespace NtFreX.BuildingBlocks.Cameras
         public readonly Mutable<float> WindowWidth;
         public readonly Mutable<float> WindowHeight;
 
-        public readonly Mutable<float> FieldOfView = new Mutable<float>(1f);
-        public readonly Mutable<float> NearDistance = new Mutable<float>(0.1f);
-        public readonly Mutable<float> FarDistance = new Mutable<float>(10000f);
+        public readonly Mutable<float> FieldOfView;
+        public readonly Mutable<float> NearDistance;
+        public readonly Mutable<float> FarDistance;
 
-        public readonly Mutable<Vector3> Up = new Mutable<Vector3>(Vector3.UnitY);
-        public readonly Mutable<Vector3> Position = new Mutable<Vector3>(new Vector3(0, .5f, 2f));
-        public readonly Mutable<Vector3> LookAt = new Mutable<Vector3>(new Vector3(0, 0, 0));
+        public readonly Mutable<Vector3> Up;
+        public readonly Mutable<Vector3> Position;
+        public readonly Mutable<Vector3> LookAt;
 
         private bool hasProjectionChanged = true;
         private bool hasViewChanged = true;
 
+        private readonly GraphicsDevice graphicsDevice;
+
         public unsafe Camera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight)
         {
-            WindowWidth = new Mutable<float>(windowWidth);
-            WindowHeight = new Mutable<float>(windowHeight);
+            this.graphicsDevice = graphicsDevice;
+
+            FieldOfView = new Mutable<float>(1f, this); 
+            NearDistance = new Mutable<float>(0.1f, this);
+            FarDistance = new Mutable<float>(10000f, this);
+            Up = new Mutable<Vector3>(Vector3.UnitY, this);
+            Position = new Mutable<Vector3>(new Vector3(0, .5f, 2f), this);
+            LookAt = new Mutable<Vector3>(new Vector3(0, 0, 0), this);
+            WindowWidth = new Mutable<float>(windowWidth, this);
+            WindowHeight = new Mutable<float>(windowHeight, this);
 
             WindowWidth.ValueChanged += (_, _) => UpdateProjectionMatrix();
             WindowHeight.ValueChanged += (_, _) => UpdateProjectionMatrix();
@@ -47,9 +59,13 @@ namespace NtFreX.BuildingBlocks.Cameras
             ViewBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             CameraInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)sizeof(CameraInfo), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
 
+            var cameraInfoLayout = ResourceLayoutFactory.GetCameraInfoLayout(resourceFactory);
+            CameraInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(cameraInfoLayout, CameraInfoBuffer));
+
             UpdateProjectionMatrix();
             UpdateViewMatrix();
-            Update(graphicsDevice, InputHandler.Empty, 0f);
+            BeforeModelUpdate(InputHandler.Empty, 0f);
+            AfterModelUpdate(InputHandler.Empty, 0f);
         }
 
         private void UpdateProjectionMatrix()
@@ -62,10 +78,10 @@ namespace NtFreX.BuildingBlocks.Cameras
             ViewMatrix = Matrix4x4.CreateLookAt(Position, LookAt, Up);
             hasViewChanged = true;
         }
-
-        public virtual void Update(GraphicsDevice graphicsDevice, InputHandler inputs, float deltaSeconds)
+        public virtual void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)
         {
-            if(hasProjectionChanged || hasViewChanged)
+            //TODO: analyise if updating directly is smarter (use initial graphics device, what happens when it changes?) then doing it lazy here once we have a valid graphics device
+            if (hasProjectionChanged || hasViewChanged)
             {
                 var cameraInfo = new CameraInfo
                 {
@@ -87,6 +103,16 @@ namespace NtFreX.BuildingBlocks.Cameras
                 graphicsDevice.UpdateBuffer(ViewBuffer, 0, ViewMatrix);
                 hasViewChanged = false;
             }
+        }
+        public virtual void AfterModelUpdate(InputHandler inputs, float deltaSeconds)
+        { }
+
+        public void Dispose()
+        {
+            CameraInfoBuffer.Dispose();
+            CameraInfoResourceSet.Dispose();
+            ProjectionBuffer.Dispose();
+            ViewBuffer.Dispose();
         }
     }
 }

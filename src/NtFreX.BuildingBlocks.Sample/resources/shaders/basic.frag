@@ -134,7 +134,7 @@ void main()
     vec4 beforeTint = (worldAmbientCombined * surfaceColor /*+ (surfaceColor * diffuseFactor)*/) + pointDiffuse + pointSpec;
     //outputColor = ApplyTintColor(beforeTint, tintColor, tintFactor);
     
-    vec4 realColor = vec4(beforeTint.xyz, clamp(Opacity + fsin_color.w, 0, 1));
+    vec4 realColor = vec4(beforeTint.xyz, clamp(Opacity + surfaceColor.w, 0, 1));
 
     
     float w = weight(gl_FragCoord.z, realColor.a);

@@ -1,7 +1,4 @@
 ﻿using BepuPhysics;
-using BepuPhysics.Collidables;
-using BepuPhysics.CollisionDetection;
-using BepuPhysics.Constraints;
 using BepuUtilities;
 using BepuUtilities.Memory;
 using ImGuiNET;
@@ -9,7 +6,8 @@ using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
-using NtFreX.BuildingBlocks.Models;
+using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Texture;
@@ -20,97 +18,15 @@ using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks
 {
-    //TODO: instancing, veldrid
-    struct NullNarrowPhaseCallbacks : INarrowPhaseCallbacks
-    {
-        private readonly IContactEventHandler contactEventHandler;
-
-        public NullNarrowPhaseCallbacks(IContactEventHandler contactEventHandler)
-        {
-            this.contactEventHandler = contactEventHandler;
-        }
-
-        public bool AllowContactGeneration(int workerIndex, CollidableReference a, CollidableReference b)
-            => a.Mobility == CollidableMobility.Dynamic || b.Mobility == CollidableMobility.Dynamic;
-
-        public bool AllowContactGeneration(int workerIndex, CollidablePair pair, int childIndexA, int childIndexB)
-            => pair.A.Mobility == CollidableMobility.Dynamic || pair.B.Mobility == CollidableMobility.Dynamic;
-
-        public bool AllowContactGeneration(int workerIndex, CollidableReference a, CollidableReference b, ref float speculativeMargin)
-            => true;
-
-        public bool ConfigureContactManifold(int workerIndex, CollidablePair pair, int childIndexA, int childIndexB, ref ConvexContactManifold manifold)
-            => true;
-
-        public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
-        {
-            pairMaterial.FrictionCoefficient = 0.5f;
-            pairMaterial.MaximumRecoveryVelocity = 0.9999f;
-            pairMaterial.SpringSettings = new SpringSettings(30, 1);
-            contactEventHandler.HandleContact(pair, manifold);
-            return true;
-        }
-
-        public void Dispose() { }
-
-        public void Initialize(Simulation simulation) { }
-    }
-
-    public interface IContactEventHandler
-    {
-        void HandleContact<TManifold>(CollidablePair pair, TManifold manifold) where TManifold : struct, IContactManifold<TManifold>;
-    }
-    class NullContactEventHandler : IContactEventHandler
-    {
-        public void HandleContact<TManifold>(CollidablePair pair, TManifold manifold) where TManifold : struct, IContactManifold<TManifold>
-        {}
-    }
-    struct NullPoseIntegratorCallbacks : IPoseIntegratorCallbacks
-    {
-        //Vector3 gravityWideDt;
-        //float linearDampingDt;
-        //float angularDampingDt;
-        Vector3Wide gravityWideDt;
-        Vector<float> linearDampingDt;
-        Vector<float> angularDampingDt;
-
-        public AngularIntegrationMode AngularIntegrationMode => AngularIntegrationMode.Nonconserving;
-
-        public bool AllowSubstepsForUnconstrainedBodies => true;
-
-        public bool IntegrateVelocityForKinematics => true;
-
-        public void Initialize(Simulation simulation) { }
-
-        //public void IntegrateVelocity(int bodyIndex, in RigidPose pose, in BodyInertia localInertia, int workerIndex, ref BodyVelocity velocity)
-        //{
-        //    velocity.Linear = (velocity.Linear + gravityWideDt) * linearDampingDt;
-        //    velocity.Angular = velocity.Angular * angularDampingDt;
-        //}
-
-        public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity)
-        {
-            velocity.Linear = (velocity.Linear + gravityWideDt) * linearDampingDt;
-            velocity.Angular = velocity.Angular * angularDampingDt; // gravityWideDt * new Vector<float>(100);
-        }
-
-        public void PrepareForIntegration(float dt)
-        {
-            const float linearDamping = 0.0000000001f;
-            const float angularDamping = 0.0000000001f;
-            Vector3 gravity = new Vector3(0, -9f, 0);
-
-            //linearDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - linearDamping, 0, 1), dt));
-            //angularDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - angularDamping, 0, 1), dt));
-            //gravityWideDt = Vector3Wide.Broadcast(gravity * dt);
-            linearDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - linearDamping, 0, 1), dt));
-            angularDampingDt = new Vector<float>(MathF.Pow(MathHelper.Clamp(1 - angularDamping, 0, 1), dt));
-            gravityWideDt = Vector3Wide.Broadcast(gravity * dt);
-        }
-    }
+    //TODO: memory leaks in sample game update
+    //TODO: app update performance improvement
+    //TODO: update graphics time performance
+    //TODO: multitheading (create different steps to parallelize: maybe pyhisics independend update, pre phciscs update, post physics update)
+    //TODO: text atlas offset wrong when using multile fonts
     public abstract class Game
     {
         public Stopwatch Stopwatch { get; private set; } = Stopwatch.StartNew();
+        public AssimpDaeModelImporter AssimpDaeModelImporter { get; private set; }
         public DaeModelImporter DaeModelImporter { get; private set; }
         public ObjModelImporter ObjModelImporter { get; private set; }
 
@@ -120,25 +36,32 @@ namespace NtFreX.BuildingBlocks
         public SdlAudioSystem AudioSystem { get; private set; }
         public DisposeCollectorResourceFactory ResourceFactory { get; private set; }
         public ImGuiRenderer UiRenderer { get; private set; }
-        public Simulation Simulation { get; private set; }
+        public Simulation? Simulation { get; private set; }
         public IContactEventHandler ContactEventHandler { get; set; } = new NullContactEventHandler();
         public IShell Shell { get; private set; }
         public ILoggerFactory LoggerFactory { get; private set; }
         public InputHandler InputHandler { get; private set; }
+        public RenderDoc? RenderDoc { get; private set; }
+        public ILogger<Game> Logger { get; private set; }
+        public IThreadDispatcher ThreadDispatcher { get; private set; }
 
-        private readonly BufferPool simulationBufferPool = new BufferPool();
         private CommandList commandList;
 
         private double? previousRenderingElapsed;
         private double? previousUpdaingElapsed;
 
-        private DebugExecutionTimerSource timerRendering;
-        private DebugExecutionTimerSource timerUpdating;
-        private DebugExecutionTimerSource timerUpdateInput;
-        private DebugExecutionTimerSource timerUpdateUi;
-        private DebugExecutionTimerSource timerUpdateApp;
-        private DebugExecutionTimerSource timerUpdateGraphics;
-        private DebugExecutionTimerSource timerUpdateSimulation;
+        private DebugExecutionTimer timerAudioUpdate;
+        private DebugExecutionTimer timerRendering;
+        private DebugExecutionTimer timerUpdating;
+        private DebugExecutionTimer timerUpdateInput;
+        private DebugExecutionTimer timerUpdateUi;
+        private DebugExecutionTimer timerAfterGraphicsUpdate;
+        private DebugExecutionTimer timerBeforeGraphicsUpdate;
+        private DebugExecutionTimer timerUpdateGraphics;
+        private DebugExecutionTimer timerUpdateSimulation;
+
+        public Game(IShell shell)
+            : this(shell, Microsoft.Extensions.Logging.LoggerFactory.Create(x => x.AddConsole())) { }
 
         public Game(IShell shell, ILoggerFactory loggerFactory)
         {
@@ -149,16 +72,28 @@ namespace NtFreX.BuildingBlocks
 
             Shell = shell;
             LoggerFactory = loggerFactory;
+            Logger = LoggerFactory.CreateLogger<Game>();
             TextureFactory = new TextureFactory(this, loggerFactory.CreateLogger<TextureFactory>());
             InputHandler = new InputHandler();
 
             shell.Resized += () => OnWindowResized();
+
+            if (shell.IsDebug)
+            {
+                if (!RenderDoc.Load(out var renderDoc))
+                    Logger.LogWarning("Could not connect to render doc");
+                else
+                    RenderDoc = renderDoc;
+            }
         }
 
-        protected virtual IContactEventHandler LoadContactEventHandler() => new NullContactEventHandler();
-        protected abstract Camera LoadCamera();
+        //TODO: support no simulation
+        protected virtual Simulation? LoadSimulation() => Simulation.Create(new BufferPool(), new NullNarrowPhaseCallbacks(new NullContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+
+        protected abstract Camera GetDefaultCamera();
         protected abstract void OnRendering(float deleta, CommandList commandList);
-        protected abstract void OnUpdating(float delta);
+        protected abstract void BeforeGraphicsSystemUpdate(float delta);
+        protected abstract void AfterGraphicsSystemUpdate(float delta);
         protected abstract Task LoadResourcesAsync();
 
         protected virtual void OnWindowResized()
@@ -172,68 +107,96 @@ namespace NtFreX.BuildingBlocks
         {
             GraphicsDevice.WaitForIdle();
             ResourceFactory.DisposeCollector.DisposeAll();
+            TextureFactory.Dispose();
             GraphicsDevice.Dispose();
             UiRenderer.Dispose();
             AudioSystem.Dispose();
-            Simulation.Dispose();
+            Simulation?.Dispose();
         }
 
         private async Task OnGraphicsDeviceCreatedAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Swapchain _)
         {
             GraphicsDevice = graphicsDevice;
+            ThreadDispatcher = new SimpleThreadDispatcher(Math.Max(1, Environment.ProcessorCount > 4 ? Environment.ProcessorCount - 2 : Environment.ProcessorCount - 1));
             ResourceFactory = new DisposeCollectorResourceFactory(resourceFactory);
             UiRenderer = new ImGuiRenderer(GraphicsDevice, GraphicsDevice.MainSwapchain.Framebuffer.OutputDescription, (int)Shell.Width, (int)Shell.Height);
-            GraphicsSystem = new GraphicsSystem(LoggerFactory, ResourceFactory, LoadCamera());
+            GraphicsSystem = new GraphicsSystem(LoggerFactory, GraphicsDevice, ResourceFactory, GetDefaultCamera());
             AudioSystem = new SdlAudioSystem(GraphicsSystem);
-            Simulation = Simulation.Create(simulationBufferPool, new NullNarrowPhaseCallbacks(LoadContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+            Simulation = LoadSimulation();
             DaeModelImporter = new DaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
+            AssimpDaeModelImporter = new AssimpDaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
             ObjModelImporter = new ObjModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
 
-            timerRendering = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Render");
-            timerUpdating = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update");
-            timerUpdateInput = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Input");
-            timerUpdateSimulation = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Simulation");
-            timerUpdateGraphics = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Graphics");
-            timerUpdateUi = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Ui");
-            timerUpdateApp = new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update App");
+            timerAudioUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Audio Update"));
+            timerRendering = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Render"));
+            timerUpdating = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update"));
+            timerUpdateInput = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Input"));
+            timerUpdateSimulation = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Simulation"));
+            timerUpdateGraphics = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Graphics"));
+            timerUpdateUi = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Ui"));
+            timerAfterGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game After Graphics Update"));
+            timerBeforeGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Before Graphics Update"));
             commandList = ResourceFactory.CreateCommandList();
-
+            
             await LoadResourcesAsync();
         }
 
         private void OnUpdating(InputSnapshot inputSnapshot)
         {
-            using var timer = new DebugExecutionTimer(timerUpdating);
+            timerUpdating.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
             var updateDelta = (float)(previousUpdaingElapsed == null ? .00000001f : elapsed - previousUpdaingElapsed.Value);
             previousUpdaingElapsed = elapsed;
-
-            using (var _ = new DebugExecutionTimer(timerUpdateSimulation))
+                        
             {
-                Simulation.Timestep(updateDelta);
+                timerUpdateSimulation.Start();
+                Simulation?.Timestep(updateDelta, ThreadDispatcher);
+                timerUpdateSimulation.Stop();
             }
-            using (var _ = new DebugExecutionTimer(timerUpdateInput))
+            
             {
+                timerUpdateInput.Start();
                 InputHandler.Update(inputSnapshot);
+                timerUpdateInput.Stop();
             }
-            using (var _ = new DebugExecutionTimer(timerUpdateUi))
+            
             {
+                timerUpdateUi.Start();
                 UiRenderer.Update(updateDelta, inputSnapshot);
+                timerUpdateUi.Stop();
             }
-            using (var _ = new DebugExecutionTimer(timerUpdateGraphics))
+
             {
-                GraphicsSystem.Update(GraphicsDevice, updateDelta, InputHandler);
+                timerBeforeGraphicsUpdate.Start();
+                BeforeGraphicsSystemUpdate(updateDelta);
+                timerBeforeGraphicsUpdate.Stop();
             }
-            using (var _ = new DebugExecutionTimer(timerUpdateApp))
+            
             {
-                OnUpdating(updateDelta);
+                timerUpdateGraphics.Start();
+                GraphicsSystem.Update( updateDelta, InputHandler);
+                timerUpdateGraphics.Stop();
             }
+            
+            {
+                timerAfterGraphicsUpdate.Start();
+                AfterGraphicsSystemUpdate(updateDelta);
+                timerAfterGraphicsUpdate.Stop();
+            }
+
+            {
+                timerAudioUpdate.Start();
+                AudioSystem.Update(GraphicsSystem.Camera.Value?.Position.Value);
+                timerAudioUpdate.Stop();
+            }
+
+            timerUpdating.Stop();
         }
 
         private void OnRendering()
         {
-            using var timer = new DebugExecutionTimer(timerRendering);
+            timerRendering.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
             var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value);
@@ -252,19 +215,21 @@ namespace NtFreX.BuildingBlocks
             if (Shell.IsDebug)
             {
                 ImGui.Begin("Debug info");
-                ImGui.Text(timerUpdating.Average.TotalMilliseconds + "ms update time");
-                ImGui.Text(" - " + timerUpdateSimulation.Average.TotalMilliseconds + "ms update simulation time");
-                ImGui.Text(" - " + timerUpdateInput.Average.TotalMilliseconds + "ms read input time");
-                ImGui.Text(" - " + timerUpdateUi.Average.TotalMilliseconds + "ms update ui time");
-                ImGui.Text(" - " + timerUpdateGraphics.Average.TotalMilliseconds + "ms update graphics time");
-                ImGui.Text(" - " + timerUpdateApp.Average.TotalMilliseconds + "ms update app time");
-                ImGui.Text(timerRendering.Average.TotalMilliseconds + "ms draw time");
+                ImGui.Text(timerUpdating.Source.Average.TotalMilliseconds + "ms update time");
+                ImGui.Text(" - " + timerUpdateSimulation.Source.Average.TotalMilliseconds + "ms update simulation time");
+                ImGui.Text(" - " + timerUpdateInput.Source.Average.TotalMilliseconds + "ms read input time");
+                ImGui.Text(" - " + timerUpdateUi.Source.Average.TotalMilliseconds + "ms update ui time");
+                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.Average.TotalMilliseconds + "ms before graphics update app time");
+                ImGui.Text(" - " + timerUpdateGraphics.Source.Average.TotalMilliseconds + "ms update graphics time");
+                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.Average.TotalMilliseconds + "ms after graphics update app time");
+                ImGui.Text(" - " + timerAudioUpdate.Source.Average.TotalMilliseconds + "ms audio time");
+                ImGui.Text(timerRendering.Source.Average.TotalMilliseconds + "ms draw time");
                 ImGui.Text(Math.Round(1f / renderDelta) + " FPS");
                 ImGui.End();
 
                 ImGui.Begin("Camera");
-                ImGui.Text($"Position : {GraphicsSystem.Camera?.Position}");
-                ImGui.Text($"LookAt : {GraphicsSystem.Camera?.LookAt}");
+                ImGui.Text($"Position : {GraphicsSystem.Camera.Value?.Position.Value}");
+                ImGui.Text($"LookAt : {GraphicsSystem.Camera.Value?.LookAt.Value}");
                 ImGui.End();
             }
 
@@ -275,6 +240,8 @@ namespace NtFreX.BuildingBlocks
             GraphicsDevice.SubmitCommands(commandList);
             GraphicsDevice.SwapBuffers();
             GraphicsDevice.WaitForIdle();
+
+            timerRendering.Stop();
         }
     }
 }

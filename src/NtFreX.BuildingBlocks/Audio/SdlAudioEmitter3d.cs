@@ -19,21 +19,25 @@ namespace NtFreX.BuildingBlocks.Audio
 
             Position = position;
             Intensity = intensity;
-            Volume = audioContext.Volume;
+            Volume = volume;
         }
-        public static SdlAudioEmitter3d Create(SdlAudioRenderer sdlAudioRenderer, SdlAudioFile audioFile, Vector3 position, Vector3 cameraPosition, float intensity, int volume = 128, bool loop = false)
-            => new SdlAudioEmitter3d(sdlAudioRenderer.PlayWav(audioFile, GetAudioVolume(position, cameraPosition, volume, intensity), loop), position, volume, intensity);
+
+        public static SdlAudioEmitter3d Create(SdlAudioRenderer sdlAudioRenderer, SdlAudioFile audioFile, Vector3 position, Vector3? listenerPosition, float intensity, int volume = 128, bool loop = false)
+            => new SdlAudioEmitter3d(sdlAudioRenderer.PlayWav(audioFile, GetAudioVolume(position, listenerPosition, volume, intensity), loop), position, volume, intensity);
 
         public void TogglePlayPause() => audioContext.IsPaused = !audioContext.IsPaused;
-        public void Update(Vector3 cameraPosition)
+
+        public void Update(Vector3? listenerPosition)
         {
-            audioContext.Volume = GetAudioVolume(Position, cameraPosition, Volume, Intensity);
-            audioContext.IsPaused = audioContext.Volume == 0;
+            audioContext.Volume = GetAudioVolume(Position, listenerPosition, Volume, Intensity);
         }
 
-        private static int GetAudioVolume(Vector3 position, Vector3 cameraPosition, int volume, float intensity)
+        private static int GetAudioVolume(Vector3 position, Vector3? listenerPosition, int volume, float intensity)
         {
-            var halfDistanceFactor = Math.Max(.5f, Vector3.Distance(cameraPosition, position) / intensity);
+            if (listenerPosition == null)
+                return 0;
+
+            var halfDistanceFactor = Math.Max(.5f, Vector3.Distance(listenerPosition.Value, position) / intensity);
             return (int)(volume / (halfDistanceFactor * 2f));
         }
     }

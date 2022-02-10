@@ -7,7 +7,7 @@
         private readonly Func<T> getter;
 
         private bool initialized;
-        private T value;
+        private T? value;
 
         public Cached(Func<T> getter, Func<bool>? allwaysInvalidWhen = null)
         {
@@ -22,7 +22,7 @@
         {
             lock (locker)
             {
-                if (!initialized || (allwaysInvalidWhen?.Invoke() ?? false))
+                if (!initialized || (allwaysInvalidWhen?.Invoke() ?? false) || value == null)
                 {
                     value = getter();
                     initialized = true;
@@ -30,5 +30,5 @@
                 return value;
             }
         }
-    }    
+    }
 }

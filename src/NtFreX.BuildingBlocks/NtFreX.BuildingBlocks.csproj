@@ -5,6 +5,8 @@
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 	</PropertyGroup>
 
 
@@ -12,8 +14,10 @@
 		<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
 		<PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta13" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
 		<PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
 		<PackageReference Include="Veldrid" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
 		<PackageReference Include="Veldrid.Utilities" Version="$(VeldridVersion)" />
 		<PackageReference Include="Veldrid.StartupUtilities" Version="$(VeldridVersion)" />
 		<PackageReference Include="AssimpNet" Version="4.1.0" />

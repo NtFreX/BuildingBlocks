@@ -1,12 +1,8 @@
 ﻿using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Texture
@@ -40,6 +36,15 @@ namespace NtFreX.BuildingBlocks.Texture
             MipLevels = mipLevels;
             ArrayLayers = arrayLayers;
             TextureData = textureData;
+        }
+
+        public static ProcessedTexture Read(string name)
+        {
+            using (var stream = File.OpenRead(name))
+            {
+                var image = Image.Load<Rgba32>(stream);
+                return Read(image);
+            }
         }
 
         public static async Task<ProcessedTexture> ReadAsync(string name)

@@ -2,102 +2,165 @@
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Light;
-using NtFreX.BuildingBlocks.Models;
+using NtFreX.BuildingBlocks.Mesh;
 using NtFreX.BuildingBlocks.Standard;
+using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks
 {
-    public class GraphicsSystem
+    public class GraphicsSystem : IDisposable
     {
+        private readonly DebugExecutionTimer timerGetVisibleObjects;
+        private readonly List<Model> frustumItems = new List<Model>();
+        private readonly HashSet<Model> allItems = new HashSet<Model>();
+        private readonly Octree<Model> models = new Octree<Model>(new BoundingBox(new Vector3(float.MinValue), new Vector3(float.MaxValue)), 2);
 
-        private readonly DebugExecutionTimerSource timerGetVisibleObjects;
-        private readonly List<Model> models = new List<Model>();
-                
-        public Camera Camera { get; private set; }
-        public LightSystem LightSystem { get; private set; }
 
-        public GraphicsSystem(ILoggerFactory loggerFactory, ResourceFactory resourceFactory, Camera camera)
+        public Model[] Models => allItems.ToArray();
+
+        // TODO: support empty camera
+        public Mutable<Camera?> Camera { get; }
+        public LightSystem LightSystem { get; set; }
+
+        private BoundingFrustum currentBoundingFrustum = new BoundingFrustum();
+
+        public GraphicsSystem(ILoggerFactory loggerFactory, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Camera camera)
         {
-            Camera = camera;
-            LightSystem = new LightSystem(resourceFactory);
-            timerGetVisibleObjects = new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem GetVisibleObjects");
+            Camera = new Mutable<Camera?>(camera, this);
+            LightSystem = new LightSystem(graphicsDevice, resourceFactory);
+            timerGetVisibleObjects = new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem GetVisibleObjects"));
         }
 
+        private void UpdateModelActive(object? sender, bool visible)
+        {
+            var model = (Model)sender!;
+            if (!visible)
+            {
+                RemoveModelCore(model);
+            }
+            else
+            {
+                AddModelCore(model);
+            }
+        }
+
+        private void UpdateModelMaterial(object? sender, MaterialInfo material)
+        {
+            var model = (Model)sender!;
+            if (material.Opacity == 0)
+            {
+                RemoveModelCore(model);
+            }
+            else
+            {
+                AddModelCore(model);
+            }
+        }
+
+        private void RemoveModelCore(Model model)
+        {
+            if (!allItems.Contains(model))
+                return;
+
+            models.RemoveItem(model);
+            allItems.Remove(model);
+            model.NewBoundingBoxAvailable -= UpdateModelBounds;
+        }
+
+        private void AddModelCore(Model model)
+        {
+            if (allItems.Contains(model))
+                return;
+
+            models.AddItem(model.GetBoundingBox(), model);
+            allItems.Add(model);
+            model.NewBoundingBoxAvailable += UpdateModelBounds;
+        }
+
+        private void UpdateModelBounds(object? sender, EventArgs args)
+        {
+            var model = (Model)sender!;
+            this.models.MoveItem(model, model.GetBoundingBox());
+        }
+
+        public void RemoveModels(params Model[] models)
+        {
+            foreach (var model in models)
+            {
+                if (!allItems.Contains(model))
+                    continue;
+
+                model.IsActive.ValueChanged -= UpdateModelActive;
+                model.MaterialChanged -= UpdateModelMaterial;
+                RemoveModelCore(model);
+            }
+        }
         public void AddModels(params Model[] models)
         {
-            this.models.AddRange(models);
+            foreach (var model in models)
+            {
+                if (allItems.Contains(model))
+                    continue;
+
+                model.IsActive.ValueChanged += UpdateModelActive;
+                model.MaterialChanged += UpdateModelMaterial;
+                AddModelCore(model);
+            }
         }
 
-        public void Update(GraphicsDevice graphicsDevice, float deltaSeconds, InputHandler inputHandler)
+        public void Update(float deltaSeconds, InputHandler inputHandler)
         {
-            Camera?.Update(graphicsDevice, inputHandler, deltaSeconds);
+            Camera.Value?.BeforeModelUpdate(inputHandler, deltaSeconds);
 
-            foreach(var model in models)
+            foreach(var model in allItems)
             {
-                model.Update(graphicsDevice, inputHandler, deltaSeconds);
+                model.Update(inputHandler, deltaSeconds);
             }
 
-            LightSystem.Update(graphicsDevice);
+            Camera.Value?.AfterModelUpdate(inputHandler, deltaSeconds);
+
+            LightSystem.Update();
         }
 
 
         public void Draw(CommandList commandList)
         {
-            if (Camera == null)
+            if (Camera == null || Camera.Value == null)
                 return;
 
             // TODO: render passess
-            var frustum = new BoundingFrustum(Camera.ViewMatrix * Camera.ProjectionMatrix);
-            
-            var timer = new DebugExecutionTimer(timerGetVisibleObjects);
-            var visibleModels = models.Where(x => frustum.Contains(x.GetBoundingBox()) != ContainmentType.Disjoint && x.MeshBuffer.Material.Value.Opacity != 0f).ToArray();
-            timer.Dispose();
 
-            //var queue = new RenderQueue();
-            //queue.AddRange(visibleModels, Camera.Position);
-            //queue.Sort();
-
-            //foreach (var model in queue)
-            //{
-            //    model.Draw(commandList);
-            //}
-
-            //if(visibleModels.TryGetValue(true, out var opaqueModels))
-            //{
-            //    var transparentQueue = new RenderQueue();
-            //    transparentQueue.AddRange()
-            //    foreach (var model in opaqueModels)
-            //    {
-            //        model.Draw(commandList);
-            //    }
-            //}
-            //if(visibleModels.TryGetValue(false, out var transparentModels))
-            //{
-            //    foreach(var model in transparentModels)
-            //    {
-            //        model.Draw(commandList);
-            //    }
-            //}
-            //TODO: not nessesary to order opaque models
             var transparentQueue = new RenderQueue();
             var opaqueQueue = new RenderQueue();
-            foreach (var model in visibleModels)
             {
-                if (model.MeshBuffer.Material.Value.Opacity != 1f)
+                timerGetVisibleObjects.Start();
+
+                currentBoundingFrustum = new BoundingFrustum(Camera.Value.ViewMatrix * Camera.Value.ProjectionMatrix);
+
+                frustumItems.Clear();
+                models.GetContainedObjects(currentBoundingFrustum, frustumItems);
+
+                for (var i = 0; i < frustumItems.Count; i++)
                 {
-                    transparentQueue.Add(model, Camera.Position);
+                    var model = frustumItems[i];
+                    var opacity = model.MeshBuffer.Material.Value.Opacity;
+                    if (opacity != 1f)
+                    {
+                        transparentQueue.Add(model, Camera.Value.Position);
+                    }
+                    else
+                    {
+                        opaqueQueue.Add(model, Camera.Value.Position);
+                    }
                 }
-                else
-                {
-                    opaqueQueue.Add(model, Camera.Position);
-                }
+
+                timerGetVisibleObjects.Stop();
             }
 
             transparentQueue.Sort(); 
             opaqueQueue.Sort();
-
 
             foreach (var model in opaqueQueue.Reverse())
             {
@@ -111,11 +174,16 @@ namespace NtFreX.BuildingBlocks
 
         public void OnWindowResized(int width, int height)
         {
-            if (Camera == null)
+            if (Camera.Value == null)
                 return;
 
-            Camera.WindowWidth.Value = width;
-            Camera.WindowHeight.Value = height;
+            Camera.Value.WindowWidth.Value = width;
+            Camera.Value.WindowHeight.Value = height;
+        }
+
+        public void Dispose()
+        {
+            LightSystem.Dispose();
         }
     }
 }

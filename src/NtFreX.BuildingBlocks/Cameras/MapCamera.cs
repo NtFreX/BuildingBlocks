@@ -16,11 +16,12 @@ namespace NtFreX.BuildingBlocks.Cameras
         private float distance = 10f;
 
         public MapCamera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight)
-            : base(graphicsDevice, resourceFactory, windowWidth, windowHeight) { }
+            : base(graphicsDevice, resourceFactory, windowWidth, windowHeight)
+        { }
 
-        public override void Update(GraphicsDevice graphicsDevice, InputHandler inputs, float deltaSeconds)
+        public override void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)
         {
-            base.Update(graphicsDevice, inputs, deltaSeconds);
+            base.BeforeModelUpdate(inputs, deltaSeconds);
 
             Vector3 direction = Vector3.Zero;
             float pitchDir = 0f;  

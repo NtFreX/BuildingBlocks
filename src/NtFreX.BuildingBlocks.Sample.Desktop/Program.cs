@@ -13,7 +13,7 @@ namespace NtFreX.BuildingBlocks.Desktop
      *     render all bufffers
      */
 
-
+    // TODO: https://github.com/KhronosGroup/SPIRV-Tools (offline combined shaders?) and precompile models as well
     // TODO: fix light pos materials, shadows
     // TODO: ocapacy and material tint
     // TODO: fix textures (allow objects without texture, currently if non is set the last is used)
