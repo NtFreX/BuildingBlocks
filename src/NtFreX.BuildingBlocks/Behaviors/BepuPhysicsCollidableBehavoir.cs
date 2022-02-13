@@ -1,7 +1,10 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
+using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Physics;
+using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Behaviors
@@ -10,23 +13,23 @@ namespace NtFreX.BuildingBlocks.Behaviors
     //TODO: can pause physics of model
     //TODO: only rigid body no collider
     //TODO: collider options (groups, just detection), default possibility but possibility to replace complete physics setup with custom code
-    public class BepuPhysicsCollidableBehavoir<TShape> : IBehavior
+    public class BepuPhysicsCollidableBehavoir<TShape> : IUpdateable
         where TShape : unmanaged, IShape
     {
         private readonly Simulation simulation;
-        private readonly Model[] models;
+        private readonly MeshRenderer[] models;
         private readonly BepuPhysicsBodyType bodyType;
         private readonly BodyInertia inertia;
 
         public BepuPhysicsCollider<TShape> Collider { get; private set; }
 
-        public BepuPhysicsCollidableBehavoir(Simulation simulation, Model model, float mass = 1f, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
+        public BepuPhysicsCollidableBehavoir(Simulation simulation, MeshRenderer model, float mass = 1f, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
             : this(simulation, new[] { model }, mass, bodyType, velocity, shape) { }
-        public BepuPhysicsCollidableBehavoir(Simulation simulation, Model[] models, float mass = 1f, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
+        public BepuPhysicsCollidableBehavoir(Simulation simulation, MeshRenderer[] models, float mass = 1f, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
             : this(simulation, models, CreateInertia(mass), bodyType, velocity, shape) { }
-        public BepuPhysicsCollidableBehavoir(Simulation simulation, Model model, BodyInertia inertia, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
+        public BepuPhysicsCollidableBehavoir(Simulation simulation, MeshRenderer model, BodyInertia inertia, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
             : this(simulation, new [] { model }, inertia, bodyType, velocity, shape) { }
-        public BepuPhysicsCollidableBehavoir(Simulation simulation, Model[] models, BodyInertia inertia, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
+        public BepuPhysicsCollidableBehavoir(Simulation simulation, MeshRenderer[] models, BodyInertia inertia, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, BodyVelocity? velocity = null, TShape? shape = null)
         {
             this.simulation = simulation;
             this.models = models;
@@ -49,8 +52,7 @@ namespace NtFreX.BuildingBlocks.Behaviors
 
             foreach (var model in models)
             {
-                model.Position.ValueChanged += (sender, args) => OnModelPoseChanged(args, model.Rotation.Value);
-                model.Rotation.ValueChanged += (sender, args) => OnModelPoseChanged(model.Position.Value, args);
+                model.Transform.ValueChanged += (sender, args) => OnModelPoseChanged(model.Transform.Value);
             }
         }
 
@@ -72,29 +74,30 @@ namespace NtFreX.BuildingBlocks.Behaviors
 
         private BepuPhysicsCollider<TShape> LoadCollider(TShape shape, BodyVelocity? velocity = null)
         {
-            var creationInfo = new ModelCreationInfo { Position = models.First().Position.Value, Rotation = models.First().Rotation.Value, Scale = models.First().Scale.Value };
-            return new BepuPhysicsCollider<TShape>(shape, simulation, inertia, creationInfo, bodyType,
+            return new BepuPhysicsCollider<TShape>(shape, simulation, inertia, models.First().Transform.Value, bodyType,
                 velocity: velocity ?? (this.Collider != null ? this.Collider.GetVelocity() : new BodyVelocity()));
         }
 
-        private void OnModelPoseChanged(Vector3 position, Quaternion rotation)
+        private void OnModelPoseChanged(Transform transform)
         {
             var pose = this.Collider.GetPose();
-            if(pose.Orientation != rotation || pose.Position != position)
-                this.Collider.SetPose(position, rotation);
+            var rotation = Quaternion.CreateFromRotationMatrix(transform.Rotation);
+            if(pose.Orientation != rotation || pose.Position != transform.Position)
+                this.Collider.SetPose(transform.Position, rotation);
         }
 
-        public void Update(float delta)
+        public void Update(float delta, InputHandler inputHandler)
         {
             if (Collider.BodyType != BepuPhysicsBodyType.Static)
             {
                 var pose = this.Collider.GetPose();
                 foreach (var model in models)
                 {
-                    if (pose.Position != model.Position.Value)
-                        model.Position.Value = pose.Position;
-                    if (pose.Orientation != model.Rotation.Value)
-                        model.Rotation.Value = pose.Orientation;
+                    var rotation = Matrix4x4.CreateFromQuaternion(pose.Orientation);
+                    if (pose.Position != model.Transform.Value.Position || rotation != model.Transform.Value.Rotation)
+                    {
+                        model.Transform.Value = model.Transform.Value with { Position = pose.Position, Rotation = rotation };
+                    }
                 }
             }
         }

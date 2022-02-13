@@ -9,12 +9,17 @@ using NtFreX.BuildingBlocks.Behaviors;
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Input;
+using NtFreX.BuildingBlocks.Light;
 using NtFreX.BuildingBlocks.Mesh;
-using NtFreX.BuildingBlocks.Models;
+using NtFreX.BuildingBlocks.Mesh.Import;
+using NtFreX.BuildingBlocks.Model;
+using NtFreX.BuildingBlocks.Model.Common;
 using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Standard;
+using NtFreX.BuildingBlocks.Standard.Extensions;
 using NtFreX.BuildingBlocks.Texture;
+using NtFreX.BuildingBlocks.Texture.Text;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using System.Diagnostics;
@@ -140,84 +145,184 @@ namespace NtFreX.BuildingBlocks.Sample
     //}
 
 
+    public class CenterQubeComponent
+    {
+        private MeshRenderer[] centerQubes = Array.Empty<MeshRenderer>();
+
+        public CenterQubeComponent(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, Scene scene, TextureView blueTexture)
+        {
+            //TODO: why are they not drawn?
+            var qubeSideLength = .5f;
+            centerQubes = new MeshRenderer[] {
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = Vector3.Zero }, sideLength: qubeSideLength),
+
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, -4) }, texture: blueTexture, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, -3) }, sideLength: qubeSideLength, blue: 1f),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, -2) }, sideLength: qubeSideLength, green: 1f),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, -1) }, sideLength: qubeSideLength, red: 1f),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, 1) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, 2) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, 3) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 0, 4) }, sideLength: qubeSideLength),
+
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, -4, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, -3, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, -2, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, -1, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 1, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 2, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 3, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(0, 4, 0) }, sideLength: qubeSideLength),
+
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-4, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-3, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-2, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-1, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(1, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(2, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(3, 0, 0) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(4, 0, 0) }, sideLength: qubeSideLength),
+
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-4, -4, -4) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-3, -3, -3) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-2, -2, -2) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(-1, -1, -1) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(1, 1, 1) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(2, 2, 2) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(3, 3, 3) }, sideLength: qubeSideLength),
+                QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = new Vector3(4, 4, 4) }, sideLength: qubeSideLength),
+            };
+            scene.AddUpdateables(centerQubes.Select(x => new BepuPhysicsCollidableBehavoir<Box>(simulation, x)).ToArray());
+            scene.AddCullRenderables(centerQubes);
+        }
+
+        public void SetOpacity(float value)
+        {
+            foreach (var model in centerQubes)
+            {
+                model.MeshBuffer.Material.Value = model.MeshBuffer.Material.Value with { Opacity = value };
+            }
+        }
+    }
+
+    public class SunComponent
+    {
+        private readonly LightSystem lightSystem;
+        private readonly MeshRenderer sun;
+
+        public Vector3 Position => sun.Transform.Value.Position;
+
+        public const float SunDistance = 2000f;
+        public float SunYawn { get; set; } = 0f;
+        public float sunPitch { get; set; } = 0f;
+        
+        public SunComponent(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, LightSystem lightSystem, Scene scene)
+        {
+            this.lightSystem = lightSystem;
+
+            sun = SphereModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: new Transform { Position = Vector3.Zero }, red: 1f, green: 1, alpha: 1f, radius: 25f, sectorCount: 25, stackCount: 25);
+            scene.AddFreeRenderables(sun);
+            scene.AddUpdateables(sun);
+        }
+
+        // todo: how to save mesh / recreate mesh
+        //public void CreateDeviceResources()
+        //{
+
+        //}
+
+        public void Update(float delta)
+        {
+            var sunSpeed = sun.Transform.Value.Position.Y < 0 ? 0.4f : 0.1f;
+
+            sunPitch += sunSpeed * delta;
+
+            var rotation = Quaternion.CreateFromYawPitchRoll(SunYawn, sunPitch, 0f);
+            var lightPos = Vector3.Transform(Vector3.UnitZ, rotation) * SunDistance;
+            var brightness = Math.Min(Math.Max((lightPos.Y + (SunDistance / 5)) / SunDistance, 0.05f), .8f);
+            lightSystem.AmbientLight = new Vector3(brightness);
+            
+            sun.Transform.Value = sun.Transform.Value with { Position = lightPos };
+        }
+    }
+
     public class SampleGame : Game
     {
+        private CenterQubeComponent centerQubeComponent;
+        private SunComponent sunComponent;
+
         private const string dashRunner = @"resources/audio/Dash Runner.wav";
         private const string detective = @"resources/audio/8-bit Detective.wav";
 
-        private Model[] centerQubes = Array.Empty<Model>();
-        private Model rotatingQube;
-        private Model? sun;
-        private Model[]? goblin;
-        private Model[]? dragon;
+        //private MeshRenderer rotatingQube;
+        //private MeshRenderer[]? goblin;
+        //private MeshRenderer[]? dragon;
 
-        private Shader[] shaders;
-        private TextureView? emptyTexture;
+        //private TextureView? emptyTexture;
         //private ParticleSystem particleSystem;
 
         private readonly Font[] font;
 
-        private long elapsedMilisecondsSincePhyicsObjectAdd = 0;
+        //private long elapsedMilisecondsSincePhyicsObjectAdd = 0;
         private Stopwatch stopwatch = Stopwatch.StartNew();
 
-        private float sunYawn = 0f;
-        private float sunPitch = 0f;
 
         private DeviceBufferPool deviceBufferPool = new DeviceBufferPool(128);
         private CommandListPool commandListPool;
         private TextModelBuffer textModelBuffer;
 
         private MovableCamera movableCamera;
-        private ThirdPersonCamera thirdPersonCamera;
+        //private ThirdPersonCamera thirdPersonCamera;
 
         //private List<Model> physicsModels = new List<Model>();
-        private List<Car> cars = new List<Car>();
+        //private List<Car> cars = new List<Car>();
 
-        private readonly CollidableProperty<SubgroupCollisionFilter> collidableProperties = new CollidableProperty<SubgroupCollisionFilter>();
+        //private readonly CollidableProperty<SubgroupCollisionFilter> collidableProperties = new CollidableProperty<SubgroupCollisionFilter>();
 
         public SampleGame(IShell shell, ILoggerFactory loggerFactory) 
             : base(shell, loggerFactory) 
         {
-            font = SystemFonts.Families.Select(x => x.CreateFont(48, FontStyle.Regular)).ToArray();
+            //font = SystemFonts.Families.Select(x => x.CreateFont(48, FontStyle.Regular)).ToArray();
         }
 
-        protected override Simulation LoadSimulation() => Simulation.Create(new BepuUtilities.Memory.BufferPool(), new SubgroupFilteredCallbacks(new SampleContactEventHandler(this, AudioSystem), collidableProperties), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
-                
-        protected override void BeforeGraphicsSystemUpdate(float delta)
-        {
-            if (InputHandler.IsKeyDown(Key.F9))
-            {
-                GraphicsSystem.Camera.Value = movableCamera;
-            }
-            if (InputHandler.IsKeyDown(Key.F10))
-            {
-                var carToFollow = cars[Standard.Random.GetRandomNumber(0, cars.Count)];
-                thirdPersonCamera.Offset = Vector3.Transform(thirdPersonCamera.Up.Value * 8f + thirdPersonCamera.Forward * -20f, carToFollow.InitialRotation);
-                thirdPersonCamera.LookAtOffset = Vector3.Transform(thirdPersonCamera.Up.Value * -2f + thirdPersonCamera.Forward * 30f, carToFollow.InitialRotation);
-                thirdPersonCamera.Model = carToFollow.Models.First();
-                thirdPersonCamera.Forward = carToFollow.Configuration.DesiredForward;
-                GraphicsSystem.Camera.Value = thirdPersonCamera;
-            }
-        }
+        //protected override Simulation LoadSimulation() => Simulation.Create(new BepuUtilities.Memory.BufferPool(), new SubgroupFilteredCallbacks(new SampleContactEventHandler(this, AudioSystem), collidableProperties), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+
+        //protected override void BeforeGraphicsSystemUpdate(float delta)
+        //{
+        //    if (InputHandler.IsKeyDown(Key.F9))
+        //    {
+        //        GraphicsSystem.Camera.Value = movableCamera;
+        //    }
+        //    if (InputHandler.IsKeyDown(Key.F10))
+        //    {
+        //        var carToFollow = cars[Standard.Random.GetRandomNumber(0, cars.Count)];
+        //        thirdPersonCamera.Offset = Vector3.Transform(thirdPersonCamera.Up.Value * 8f + thirdPersonCamera.Forward * -20f, carToFollow.Transform.Rotation);
+        //        thirdPersonCamera.LookAtOffset = Vector3.Transform(thirdPersonCamera.Up.Value * -2f + thirdPersonCamera.Forward * 30f, carToFollow.Transform.Rotation);
+        //        thirdPersonCamera.Model = carToFollow.Models.First();
+        //        thirdPersonCamera.Forward = carToFollow.Configuration.DesiredForward;
+        //        GraphicsSystem.Camera.Value = thirdPersonCamera;
+        //    }
+        //}
         protected override void AfterGraphicsSystemUpdate(float delta)
         {
-            if (InputHandler.IsKeyDown(Key.Delete))
-            {
-                foreach (var car in cars)
-                {
-                    car.Reset();
-                }
-            }
+            base.AfterGraphicsSystemUpdate(delta);
+            //if (InputHandler.IsKeyDown(Key.Delete))
+            //{
+            //    foreach (var car in cars)
+            //    {
+            //        car.Reset();
+            //    }
+            //}
 
-            foreach (var car in cars)
-            {
-                car.Update(InputHandler, delta);
-            }
+            //foreach (var car in cars)
+            //{
+            //    car.Update(InputHandler, delta);
+            //}
 
-            var text = stopwatch.Elapsed.TotalSeconds.ToString("0.00") + " total seconds elapsed";
-            textModelBuffer.Write(text.Select((item, index) => new Text(font[index], text[index].ToString(), new RgbaFloat(Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), 1))).ToArray());
-            
-            commandListPool.Submit(GraphicsDevice);
+            //var text = stopwatch.Elapsed.TotalSeconds.ToString("0.00") + " total seconds elapsed";
+            //textModelBuffer.Write(text.Select((item, index) => new TextData(font[index], text[index].ToString(), new RgbaFloat(Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), 1))).ToArray());
+
+            //commandListPool.Submit(GraphicsDevice);
 
             //TODO: this is a memory leak
             //if (elapsedMilisecondsSincePhyicsObjectAdd + 100 < stopwatch.ElapsedMilliseconds)
@@ -255,36 +360,26 @@ namespace NtFreX.BuildingBlocks.Sample
             //}
 
 
-            var sunSpeed = sun!.Position.Value.Y < 0 ? 0.4f : 0.1f;
-            var sunDistance = 2000f;
+            //sunComponent.Update(delta);
+            //centerQubeComponent.SetOpacity(sunComponent.Position.Y / SunComponent.SunDistance);
 
-            sunPitch += sunSpeed * delta;
-            
-            var rotation = Quaternion.CreateFromYawPitchRoll(sunYawn, sunPitch, 0f);
-            var lightPos = Vector3.Transform(Vector3.UnitZ, rotation) * sunDistance;
-            var brightness = Math.Min(Math.Max((lightPos.Y + (sunDistance / 5)) / sunDistance, 0.05f), .8f);
-            GraphicsSystem.LightSystem.AmbientLight = new Vector3(brightness);
 
-            var lights = new List<PointLightInfo>(new[] { new PointLightInfo { Color = new Vector3(.02f, 0, 0), Intensity = Standard.Random.GetRandomNumber(0.05f, 0.2f), Range = 25f, Position = Vector3.Zero } });
-            if (sun.Position.Value.Y >= -10) 
-            {
-                lights.Add(new PointLightInfo { Color = new Vector3(.02f, Math.Min(Math.Max(brightness, .002f), .02f), 0), Intensity = 0.2f, Range = sunDistance * 2, Position = lightPos });
-            }
-            GraphicsSystem.LightSystem.SetPointLights(lights.ToArray());
+            //var lights = new List<PointLightInfo>(new[] { new PointLightInfo { Color = new Vector3(.02f, 0, 0), Intensity = Standard.Random.GetRandomNumber(0.05f, 0.2f), Range = 25f, Position = Vector3.Zero } });
+            //if (sun.Position.Value.Y >= -10) 
+            //{
+            //    lights.Add(new PointLightInfo { Color = new Vector3(.02f, Math.Min(Math.Max(brightness, .002f), .02f), 0), Intensity = 0.2f, Range = sunDistance * 2, Position = lightPos });
+            //}
+            //GraphicsSystem.LightSystem.SetPointLights(lights.ToArray());
 
-            sun.Position.Value = lightPos;
 
-            //TODO: why does transparency not work anymore???
-            rotatingQube.Rotation.Value = Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(sunPitch) * Matrix4x4.CreateRotationY(sunPitch));
-            foreach (var model in centerQubes)
-            {
-                model.MeshBuffer.Material.Value = model.MeshBuffer.Material.Value with { Opacity = sun.Position.Value.Y / sunDistance };
-            }
+            ////TODO: why does transparency not work anymore???
+            //rotatingQube.Rotation.Value = Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(sunPitch) * Matrix4x4.CreateRotationY(sunPitch));
 
-            foreach (var model in goblin!.Concat(dragon!))
-            {
-                model.MeshBuffer.FillMode.Value = sun.Position.Value.Z > 0 ? PolygonFillMode.Wireframe : PolygonFillMode.Solid;
-            }
+
+            //foreach (var model in goblin!.Concat(dragon!))
+            //{
+            //    model.MeshBuffer.FillMode.Value = sun.Position.Value.Z > 0 ? PolygonFillMode.Wireframe : PolygonFillMode.Solid;
+            //}
         }
 
         protected override Camera GetDefaultCamera() 
@@ -296,32 +391,38 @@ namespace NtFreX.BuildingBlocks.Sample
 
         protected override async Task LoadResourcesAsync()
         {
-            commandListPool = new CommandListPool(ResourceFactory);
+            await base.LoadResourcesAsync();
+            //commandListPool = new CommandListPool(ResourceFactory);
 
-            PlayLoadingAudio();
+            //PlayLoadingAudio();
 
-            emptyTexture = TextureFactory.GetEmptyTexture(TextureUsage.Sampled);
-            var stoneTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/spnza_bricks_a_diff.png", TextureUsage.Sampled);
-            var blueTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/app.png", TextureUsage.Sampled);
+            //emptyTexture = TextureFactory.GetEmptyTexture(TextureUsage.Sampled);
+            //var stoneTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/spnza_bricks_a_diff.png", TextureUsage.Sampled);
+            //var blueTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/app.png", TextureUsage.Sampled);
 
             //LoadParticleSystem();
 
-            var vertexShaderDesc = new ShaderDescription(
-                ShaderStages.Vertex,
-                File.ReadAllBytes("resources/shaders/basic.vert"),
-                "main", ApplicationContext.IsDebug);
-            var fragmentShaderDesc = new ShaderDescription(
-                ShaderStages.Fragment,
-                File.ReadAllBytes("resources/shaders/basic.frag"),
-                "main", ApplicationContext.IsDebug);
+            {
+                //MeshRenderPassFactory.RenderPasses.Add(new VertexPositionColorNormalTextureMeshRenderPass(ResourceFactory, ApplicationContext.IsDebug));
+            }
 
-            shaders = ResourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc);
+            //var vertexShaderDesc = new ShaderDescription(
+            //    ShaderStages.Vertex,
+            //    File.ReadAllBytes("resources/shaders/basic.vert"),
+            //    "main", ApplicationContext.IsDebug);
+            //var fragmentShaderDesc = new ShaderDescription(
+            //    ShaderStages.Fragment,
+            //    File.ReadAllBytes("resources/shaders/basic.frag"),
+            //    "main", ApplicationContext.IsDebug);
 
-            TextAtlas.Load(GraphicsDevice, ResourceFactory, font.Take(10).ToArray(), "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.;:-_+*/=?^'()[]{} ");
+            //var shaders = ResourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc);
+            //MeshRenderPassFactory.RenderPasses.Add(new VertexPositionColorNormalTextureStandardRenderPass(shaders));
 
-            //GraphicsSystem.AddModels(TextModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
-            //        SystemFonts.Find("Arial").CreateFont(22), string.Join(Environment.NewLine, Enumerable.Repeat("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.;:-_+*/=?^'()[]{} ", 10)), RgbaFloat.Black, shaders,
-            //        creationInfo: new ModelCreationInfo { Position = new Vector3(50, 50, -50), Scale = Vector3.One * 0.05f }).ToArray());
+            //TextAtlas.Load(GraphicsDevice, ResourceFactory, font.Take(10).ToArray(), "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.;:-_+*/=?^'()[]{} ");
+
+            //CurrentScene.AddCullRenderables(TextModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
+            //        SystemFonts.Find("Arial").CreateFont(22), string.Join(Environment.NewLine, Enumerable.Repeat("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.;:-_+*/=?^'()[]{} ", 10)), RgbaFloat.Black,
+            //        transform: new Transform { Position = new Vector3(50, 50, -50), Scale = Vector3.One * 0.05f }).ToArray());
 
             //GraphicsSystem.AddModels(TextModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
             //        SystemFonts.Find("Arial").CreateFont(40), $"Welcome to the game!", RgbaFloat.Black, shaders,
@@ -339,8 +440,8 @@ namespace NtFreX.BuildingBlocks.Sample
             //        ShaderStages.Fragment,
             //        File.ReadAllBytes("resources/shaders/ui.frag"),
             //        "main", ApplicationContext.IsDebug));
-            textModelBuffer = new TextModelBuffer(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, deviceBufferPool, commandListPool);
-            textModelBuffer.SetTransform(new Vector3(-20, 0, -20), Vector3.One * 0.01f, Quaternion.Identity);
+            //textModelBuffer = new TextModelBuffer(CurrentScene, GraphicsDevice, ResourceFactory, GraphicsSystem, deviceBufferPool, commandListPool);
+            //textModelBuffer.SetTransform(new Vector3(-20, 0, -20), Vector3.One * 0.01f, Matrix4x4.Identity);
 
 
             //var qube = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(20, 20, 20) }, texture: emptyTexture, sideLength: 1, name: "physicsWireframe")
@@ -348,7 +449,7 @@ namespace NtFreX.BuildingBlocks.Sample
             //qube.FillMode.Value = PolygonFillMode.Wireframe;
             //GraphicsSystem.AddModels(qube);
 
-            rotatingQube = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, sideLength: 3, creationInfo: new ModelCreationInfo { Position = new Vector3(6, 6, 3) }, texture: stoneTexture).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x));
+            //rotatingQube = QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, sideLength: 3, creationInfo: new ModelCreationInfo { Position = new Vector3(6, 6, 3) }, texture: stoneTexture).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x));
 
             //{
             //    var mesh = await DaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"resources/models/chinesedragon.dae");
@@ -356,9 +457,9 @@ namespace NtFreX.BuildingBlocks.Sample
             //    GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, data, creationInfo: new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, name: $"goblin{x}")).ToArray());
             //}
 
-            //LoadInstanced();
+            LoadInstanced();
 
-            await LoadDaeModelAsync();
+            //await LoadDaeModelAsync();
 
             //var level001Meshes = await ObjModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\level001.obj");
             //var level001Models = level001Meshes.Select(provider => Model.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, provider, new ModelCreationInfo { Position = new Vector3(-50, -980, -50) }, textureView: emptyTexture, name: "level001", deviceBufferPool)).ToArray();
@@ -369,36 +470,37 @@ namespace NtFreX.BuildingBlocks.Sample
 
             //await LoadFloorAsync(stoneTexture);
             //await LoadRacingTracksAsync();
-            await LoadCarsAsync(emptyTexture);
-            LoadLargeModelsAsync();
+            //await LoadCarsAsync(emptyTexture);
+            //await LoadLargeModelsAsync();
 
-            //LoadCenterQubes(blueTexture);
+            //centerQubeComponent = new CenterQubeComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, CurrentScene, blueTexture);
+            //sunComponent = new SunComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, GraphicsSystem.LightSystem, CurrentScene);
+
             LoadXYZLineModels();
             //LoadPhysicObjects();
-            LoadFloor();
+            //LoadFloor();
 
-            sun = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, red: 1f, green: 1, alpha: 1f, radius: 25f, sectorCount: 25, stackCount: 25);
-            goblin = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
-            dragon = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
+            //goblin = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
+            //dragon = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
 
-            GraphicsSystem.AddModels(sun);
-            GraphicsSystem.AddModels(goblin);
-            GraphicsSystem.AddModels(dragon);
+            //CurrentScene.AddCullRenderables(sun);
+            //CurrentScene.AddCullRenderables(goblin);
+            //CurrentScene.AddCullRenderables(dragon);
 
-            DrawBoundingBoxes(shaders, emptyTexture);
+            //DrawBoundingBoxes();
 
-            thirdPersonCamera = new ThirdPersonCamera(GraphicsDevice, ResourceFactory, Shell.Width, Shell.Height, new Vector3(0, 0, -1), new Vector3(0, 1, 3));
+            //thirdPersonCamera = new ThirdPersonCamera(GraphicsDevice, ResourceFactory, Shell.Width, Shell.Height, new Vector3(0, 0, -1), new Vector3(0, 1, 3));
 
-            AudioSystem.StopAll();
-            AudioSystem.PlaceWav(detective, loop: true, position: Vector3.Zero, intensity: 100f);
+            //AudioSystem.StopAll();
+            //AudioSystem.PlaceWav(detective, loop: true, position: Vector3.Zero, intensity: 100f);
 
-            await CreateAndSaveLoadModelAsync();
+            //await CreateAndSaveLoadModelAsync();
         }
 
-        protected override void OnRendering(float deleta, CommandList commandList) 
-        {
-            //particleSystem.Draw(commandList);
-        }
+        //protected override void OnRendering(float deleta, CommandList commandList) 
+        //{
+        //    //particleSystem.Draw(commandList);
+        //}
 
         private async Task CreateAndSaveLoadModelAsync()
         {
@@ -420,29 +522,31 @@ namespace NtFreX.BuildingBlocks.Sample
             }
         }
 
-        private void DrawBoundingBoxes(Shader[] shaders, TextureView texture)
+        private void DrawBoundingBoxes()
         {
-            foreach(var model in GraphicsSystem.Models)
+            //TODO: why are they not drawn?
+            foreach (var model in CurrentScene.CullRenderables)
             {
-                var boundingBox = BoundingBoxModel.CreateBoundingBoxModel(GraphicsDevice, ResourceFactory, GraphicsSystem, model, shaders, texture);
+                var boundingBox = BoundingBoxModel.CreateBoundingBoxModel(GraphicsDevice, ResourceFactory, GraphicsSystem, model);
                 boundingBox.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
-                GraphicsSystem.AddModels(boundingBox);
+                boundingBox.MeshBuffer.Material.Value = new MaterialInfo();
+                CurrentScene.AddCullRenderables(boundingBox);
             }
         }
 
         private void LoadFloor()
         {
-            GraphicsSystem.AddModels(
-                PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
-                    shaders, rows: 200, columns: 200, texture: TextureFactory.GetDefaultTexture(TextureUsage.Sampled), material: new MaterialInfo(shininessStrength: .001f),
-                    creationInfo: new ModelCreationInfo { Position = GraphicsSystem.Camera.Value.Up.Value * -1000f, Scale = Vector3.One * 100f },
-                    name: "floor", physicsBufferPool: Simulation.BufferPool
-                ).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)));
+            // TODO: add all models as updatables???
+            var plane = PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
+                    rows: 200, columns: 200, texture: TextureFactory.GetDefaultTexture(TextureUsage.Sampled), material: new MaterialInfo(shininessStrength: .001f),
+                    transform: new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -1000f, Scale = Vector3.One * 100f },
+                    name: "floor", physicsBufferPool: Simulation.BufferPool);
+            CurrentScene.AddUpdateables(new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, plane));
+            CurrentScene.AddCullRenderables(plane);
         }
 
         private void LoadInstanced()
         {
-            //TODO: fix textures
             for (var i = 0; i < 3; i++)
             {
                 var convertingMesh = QubeModel.CreateMesh();
@@ -459,68 +563,23 @@ namespace NtFreX.BuildingBlocks.Sample
                     .SelectMany(x => x)
                     .ToArray();
 
-                var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, convertingMesh, textureView: emptyTexture);
-                var model = new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, data, creationInfo: new ModelCreationInfo { Position = new Vector3(30, -10 + i, 0) }, name: "qubeInstanced");
-                GraphicsSystem.AddModels(model);
+                var data = MeshDeviceBuffer.Create(GraphicsDevice, ResourceFactory, convertingMesh);
+                var model = new MeshRenderer(GraphicsDevice, ResourceFactory, GraphicsSystem, data, transform: new Transform { Position = new Vector3(30, -10 + i, 0) }, name: "qubeInstanced");
+                CurrentScene.AddCullRenderables(model);
             }
         }
 
-        private void LoadCenterQubes(TextureView blueTexture)
-        {
-            // TODO: why the hell are those not drawn anymore?
-            var qubeSideLength = .5f;
-            centerQubes = new Model[] {
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, -4) }, texture: blueTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, -3) }, texture: emptyTexture, sideLength: qubeSideLength, blue: 1f).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, -2) }, texture: emptyTexture, sideLength: qubeSideLength, green: 1f).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, -1) }, texture: emptyTexture, sideLength: qubeSideLength, red: 1f).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, 1) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, 2) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, 3) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 0, 4) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, -4, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, -3, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, -2, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, -1, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 1, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 2, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 3, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(0, 4, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-4, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-3, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-2, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-1, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(1, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(2, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(3, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(4, 0, 0) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-4, -4, -4) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-3, -3, -3) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-2, -2, -2) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(-1, -1, -1) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(1, 1, 1) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(2, 2, 2) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(3, 3, 3) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, creationInfo: new ModelCreationInfo { Position = new Vector3(4, 4, 4) }, texture: emptyTexture, sideLength: qubeSideLength).AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Box>(Simulation, x)),
-            };
-            GraphicsSystem.AddModels(centerQubes);
-        }
 
         private void LoadXYZLineModels()
         {
             var lineLength = 10000f;
-            GraphicsSystem.AddModels(
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, Vector3.UnitX * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, red: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, -Vector3.UnitX * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, red: .5f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, Vector3.UnitY * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, green: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, -Vector3.UnitY * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, green: .5f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, Vector3.UnitZ * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, blue: 1f, alpha: 1f),
-                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, Vector3.Zero, -Vector3.UnitZ * lineLength, creationInfo: new ModelCreationInfo { Position = Vector3.Zero }, texture: emptyTexture, blue: .5f, alpha: 1f));
+            CurrentScene.AddCullRenderables(
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, Vector3.UnitX * lineLength, transform: new Transform { Position = Vector3.Zero }, red: 1f, name: "lineXPositive"),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, -Vector3.UnitX * lineLength, transform: new Transform { Position = Vector3.Zero }, red: .5f, name: "lineXNegative"),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, Vector3.UnitY * lineLength, transform: new Transform { Position = Vector3.Zero }, green: 1f, name: "lineYPositive"),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, -Vector3.UnitY * lineLength, transform: new Transform { Position = Vector3.Zero }, green: .5f, name: "lineYNegative"),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, Vector3.UnitZ * lineLength, transform: new Transform { Position = Vector3.Zero }, blue: 1f, name: "linZPositive"),
+                LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Vector3.Zero, -Vector3.UnitZ * lineLength, transform: new Transform { Position = Vector3.Zero }, blue: .5f, name: "lineZNegative"));
         }
 
         private async Task LoadDaeModelAsync()
@@ -528,12 +587,12 @@ namespace NtFreX.BuildingBlocks.Sample
             //TODO: make this work
             var daeMeshProvider = await DaeFileReader.BinaryMeshFromFileAsync(@"C:\Users\FTR\Documents\tunnel.dae");
             var definedMeshProviders = daeMeshProvider.Select(provider => provider
-                .Define<VertexPositionColorNormalTexture, Index32>(data => VertexPositionColorNormalTexture.Build(data, provider.VertexLayout))
-                .MutateVertices(vertex => new VertexPositionColorNormalTexture(Vector3.Transform(vertex.Position, provider.Transform * Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90))), vertex.Color, vertex.TextureCoordinate, vertex.Normal)));//.Combine();
-            var models = definedMeshProviders.Select(definedMeshProvider => Model.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, definedMeshProvider, new ModelCreationInfo { Position = new Vector3(0, 500, 0), Scale = Vector3.One * 20 }, textureView: TextureFactory.GetDefaultTexture(TextureUsage.Sampled))).ToArray();
+                .Define<VertexPositionNormalTextureColor, Index32>(data => VertexPositionNormalTextureColor.Build(data, provider.VertexLayout))
+                .MutateVertices(vertex => new VertexPositionNormalTextureColor(Vector3.Transform(vertex.Position, provider.Transform * Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90))), vertex.Color, vertex.TextureCoordinate, vertex.Normal)));//.Combine();
+            var models = definedMeshProviders.Select(definedMeshProvider => MeshRenderer.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, definedMeshProvider, new Transform { Position = new Vector3(0, 500, 0), Scale = Vector3.One * 20 }, textureView: TextureFactory.GetDefaultTexture(TextureUsage.Sampled))).ToArray();
 
-            GraphicsSystem.AddModels(await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(500, 1000, 0), Scale = Vector3.One * 20, Rotation = Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90))) }, shaders, @"C:\Users\FTR\Documents\tunnel.dae"));
-            
+            CurrentScene.AddCullRenderables(await AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(500, 1000, 0), Scale = Vector3.One * 20, Rotation = Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90)) }, @"C:\Users\FTR\Documents\tunnel.dae"));
+
 
             //var triangles = daeMeshProvider.SelectMany(x => x.GetTriangles()).ToArray();
             //var triangleMeshProvider = new MeshDataProvider<VertexPositionColorNormalTexture, Index32>(
@@ -545,97 +604,97 @@ namespace NtFreX.BuildingBlocks.Sample
             //var shape = daeMeshProvider.CombineVertexPosition32Bit().GetPhysicsMesh(Simulation.BufferPool);
             //var colliderBehavoir = new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, models, shape: shape);
             //models.First().AddBehavoirs(colliderBehavoir);
-            GraphicsSystem.AddModels(models);
+            CurrentScene.AddCullRenderables(models);
         }
 
-        private void LoadPhysicObjects()
-        {
-            for (var j = -10; j < 10; j++)
-            {
-                for (var i = -5; i < 5; i++)
-                {
-                    var m = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
-                        shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25, red: 1, blue: 1, green: 1,
-                        creationInfo: new ModelCreationInfo { Position = new Vector3(i * 5, i + 5 + 15 + j + 5 + 50 * 3, j * 5) },
-                        name: $"physicsSphere{j}:{i}").AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Sphere>(Simulation, x, bodyType: BepuPhysicsBodyType.Dynamic));
-                    m.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
-                    GraphicsSystem.AddModels(m);
-                }
-            }
-        }
+        //private void LoadPhysicObjects()
+        //{
+        //    for (var j = -10; j < 10; j++)
+        //    {
+        //        for (var i = -5; i < 5; i++)
+        //        {
+        //            var m = SphereModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
+        //                shaders, texture: emptyTexture, sectorCount: 25, stackCount: 25, red: 1, blue: 1, green: 1,
+        //                creationInfo: new ModelCreationInfo { Position = new Vector3(i * 5, i + 5 + 15 + j + 5 + 50 * 3, j * 5) },
+        //                name: $"physicsSphere{j}:{i}").AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<Sphere>(Simulation, x, bodyType: BepuPhysicsBodyType.Dynamic));
+        //            m.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
+        //            CurrentScene.AddCullRenderables(m);
+        //        }
+        //    }
+        //}
 
         private async Task LoadLargeModelsAsync()
         {
             // currently the obj file doens doesn't support mtlib file names with spaces and the mtl file does not support map_Ks values (released version)
-            var modelLoaders = new List<Task<Model[]>>();
-            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(1000, 100, 0), Rotation = Quaternion.CreateFromYawPitchRoll(0, -1.5f, 0) }, shaders, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(-1000, 100, 0) }, shaders, @"resources/models/Space Station Scene.obj"));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, shaders, @"resources/models/sponza.obj"));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(0, 100, 1000) }, shaders, @"resources/models/Space Station Scene dark.obj"));
+            var modelLoaders = new List<Task<MeshRenderer[]>>();
+            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(1000, 100, 0), Rotation = Matrix4x4.CreateFromYawPitchRoll(0, -1.5f, 0) }, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(-1000, 100, 0) }, @"resources/models/Space Station Scene.obj"));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, @"resources/models/sponza.obj"));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, 1000) }, @"resources/models/Space Station Scene dark.obj"));
 
             var completedModels = await Task.WhenAll(modelLoaders);
-            GraphicsSystem.AddModels(completedModels.SelectMany(x => x).ToArray());
+            CurrentScene.AddCullRenderables(completedModels.SelectMany(x => x).ToArray());
         }
 
-        private async Task LoadCarsAsync(TextureView texture)
-        {
-            var carModels = new List<(MeshDataProvider<VertexPositionColorNormalTexture, Index32>[] Model, Vector3 Forward, Vector3 Up)>();
+        //private async Task LoadCarsAsync(TextureView texture)
+        //{
+        //    var carModels = new List<(MeshDataProvider<VertexPositionColorNormalTexture, Index32>[] Model, Vector3 Forward, Vector3 Up)>();
             
-            //TODO: make those work
-            //carModels.Add((Model: await DaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae"), Forward: new Vector3(1, 0, 0), Up: new Vector3(0, 0, 1)));
-            //carModels.Add((Model: await AssimpDaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae"), Forward: new Vector3(1, 0, 0), Up: new Vector3(0, 0, 1)));
+        //    //TODO: make those work
+        //    carModels.Add((Model: await DaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae"), Forward: new Vector3(1, 0, 0), Up: new Vector3(0, 0, 1)));
+        //    //carModels.Add((Model: await AssimpDaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae"), Forward: new Vector3(1, 0, 0), Up: new Vector3(0, 0, 1)));
 
-            //TODO: use same mesh data and buffer just different difuse texture (cords)
-            var objMesh = await ObjModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car_base.obj");
-            //var objMesh = await AssimpDaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae");
-            var newColors = new[] { RgbaFloat.Red, RgbaFloat.Green, RgbaFloat.Yellow, RgbaFloat.Orange, RgbaFloat.Pink, RgbaFloat.Blue, RgbaFloat.Green, RgbaFloat.White, RgbaFloat.DarkRed, RgbaFloat.CornflowerBlue };
-            carModels.AddRange(CreateColoredCarMeshes(objMesh, newColors).Select(providers => (Model: providers, Forward: new Vector3(-1, 0, 0), Up: Vector3.UnitY)).ToArray());
+        //    //TODO: use same mesh data and buffer just different difuse texture (cords)
+        //    var objMesh = await ObjModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car_base.obj");
+        //    //var objMesh = await AssimpDaeModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\car.dae");
+        //    //var newColors = new[] { RgbaFloat.Red, RgbaFloat.Green, RgbaFloat.Yellow, RgbaFloat.Orange, RgbaFloat.Pink, RgbaFloat.Blue, RgbaFloat.Green, RgbaFloat.White, RgbaFloat.DarkRed, RgbaFloat.CornflowerBlue };
+        //    //carModels.AddRange(CreateColoredCarMeshes(objMesh, newColors).Select(providers => (Model: providers, Forward: new Vector3(-1, 0, 0), Up: Vector3.UnitY)).ToArray());
 
-            for (var i = 0; i < 20; i++)
-            {
-                var meshIndex = i;
-                while (meshIndex >= carModels.Count)
-                {
-                    meshIndex -= carModels.Count;
-                }
-                var mesh = carModels[meshIndex];
-                var creationInfo = new ModelCreationInfo { Position = new Vector3(20 * i, -985, 10 * i) };
+        //    for (var i = 0; i < 20; i++)
+        //    {
+        //        var meshIndex = i;
+        //        while (meshIndex >= carModels.Count)
+        //        {
+        //            meshIndex -= carModels.Count;
+        //        }
+        //        var mesh = carModels[meshIndex];
+        //        var creationInfo = new ModelCreationInfo { Position = new Vector3(20 * i, -985, 10 * i) };
 
-                // TODO support different up then desired up
-                var carConfig = new CarConfiguration
-                {
-                    DriveType = (CarDriveType)Standard.Random.GetRandomNumber(0, 3),
-                    ForwardSpeed = Standard.Random.GetRandomNumber(160, 200),
-                    BackwardSpeed = Standard.Random.GetRandomNumber(70, 90),
-                    Mass = Standard.Random.GetRandomNumber(80, 120),
-                    Forward = mesh.Forward,
-                    DesiredForward = -Vector3.UnitX,
-                    Up = mesh.Up,
-                    DesiredUp = GraphicsSystem.Camera.Value!.Up,
-                    CenterOffset = mesh.Forward * 2.7f + mesh.Up * -0.75f,
-                    AngluarIncrease = 1.25f,
-                    AngluarMax = .95f,
-                    SuspensionDirection = -GraphicsSystem.Camera.Value!.Up.Value,
-                    SuspensionLength = 0.01f,
-                    CarLength = 3.3f,
-                    CarWidth = 2.1f,
-                    WheelLength = 0.8f,
-                    WheelMass = 3f,
-                    WheelRadius = 0.9f
-                };
+        //        // TODO support different up then desired up
+        //        var carConfig = new CarConfiguration
+        //        {
+        //            DriveType = (CarDriveType)Standard.Random.GetRandomNumber(0, 3),
+        //            ForwardSpeed = Standard.Random.GetRandomNumber(160, 200),
+        //            BackwardSpeed = Standard.Random.GetRandomNumber(70, 90),
+        //            Mass = Standard.Random.GetRandomNumber(80, 120),
+        //            Forward = mesh.Forward,
+        //            DesiredForward = -Vector3.UnitX,
+        //            Up = mesh.Up,
+        //            DesiredUp = GraphicsSystem.Camera.Value!.Up,
+        //            CenterOffset = mesh.Forward * 2.7f + mesh.Up * -0.75f,
+        //            AngluarIncrease = 1.25f,
+        //            AngluarMax = .95f,
+        //            SuspensionDirection = -GraphicsSystem.Camera.Value!.Up.Value,
+        //            SuspensionLength = 0.01f,
+        //            CarLength = 3.3f,
+        //            CarWidth = 2.1f,
+        //            WheelLength = 0.8f,
+        //            WheelMass = 3f,
+        //            WheelRadius = 0.9f
+        //        };
 
-                cars.Add(Car.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, collidableProperties, carConfig, mesh.Model, shaders, texture, creationInfo, deviceBufferPool, commandListPool));
-            }
-        }
+        //        cars.Add(Car.Create(CurrentScene, GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, collidableProperties, carConfig, mesh.Model, shaders, texture, creationInfo, deviceBufferPool, commandListPool));
+        //    }
+        //}
 
-        private MeshDataProvider<VertexPositionColorNormalTexture, Index32>[][] CreateColoredCarMeshes(MeshDataProvider<VertexPositionColorNormalTexture, Index32>[] providers, RgbaFloat[] newColors)
+        private MeshDataProvider<VertexPositionNormalTextureColor, Index32>[][] CreateColoredCarMeshes(MeshDataProvider<VertexPositionNormalTextureColor, Index32>[] providers, RgbaFloat[] newColors)
             => newColors.Select(newColor => providers.Select(provider => provider.Vertices.First().Color == RgbaFloat.Black ? ChangeCarColor(provider, newColor) : provider).ToArray()).ToArray();
 
 
-        private MeshDataProvider<VertexPositionColorNormalTexture, Index32> ChangeCarColor(MeshDataProvider<VertexPositionColorNormalTexture, Index32> provider, RgbaFloat newColor)
+        private MeshDataProvider<VertexPositionNormalTextureColor, Index32> ChangeCarColor(MeshDataProvider<VertexPositionNormalTextureColor, Index32> provider, RgbaFloat newColor)
         {
-            return new MeshDataProvider<VertexPositionColorNormalTexture, Index32>(
-                provider.Vertices.Select(vertex => new VertexPositionColorNormalTexture(vertex.Position, newColor, vertex.TextureCoordinate, vertex.Normal)).ToArray(), provider.Indices,
+            return new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(
+                provider.Vertices.Select(vertex => new VertexPositionNormalTextureColor(vertex.Position, newColor, vertex.TextureCoordinate, vertex.Normal)).ToArray(), provider.Indices,
                 provider.PrimitiveTopology, provider.MaterialName, provider.TexturePath, provider.Material);
         }
 
@@ -643,27 +702,27 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             var modelMesh = await ObjModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\terrain001.obj");
             var triangles = modelMesh.SelectMany(x => x.GetTriangles()).ToArray();
-            var meshProvider = new MeshDataProvider<VertexPositionColorNormalTexture, Index32>(
-                triangles.SelectMany(x => new[] { x.A, x.B, x.C }).Select(x => new VertexPositionColorNormalTexture(x, RgbaFloat.Red)).ToArray(), Enumerable.Range(0, triangles.Length * 3).Select(x => (Index32)x).ToArray(), PrimitiveTopology.TriangleList);
-            var colliderModel = Model.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, meshProvider, textureView: texture);
+            var meshProvider = new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(
+                triangles.SelectMany(x => new[] { x.A, x.B, x.C }).Select(x => new VertexPositionNormalTextureColor(x, RgbaFloat.Red)).ToArray(), Enumerable.Range(0, triangles.Length * 3).Select(x => (Index32)x).ToArray(), PrimitiveTopology.TriangleList);
+            var colliderModel = MeshRenderer.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, meshProvider, textureView: texture);
             colliderModel.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
-            GraphicsSystem.AddModels(colliderModel);
+            CurrentScene.AddCullRenderables(colliderModel);
 
-            var floorModel = await ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, shaders, @"C:\Users\FTR\Documents\terrain001.obj", Simulation.BufferPool);
+            var floorModel = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, @"C:\Users\FTR\Documents\terrain001.obj", Simulation.BufferPool);
             floorModel[0].MeshBuffer.TextureView.Value = texture;
-            floorModel.AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x));
-            GraphicsSystem.AddModels(floorModel);
+            CurrentScene.AddUpdateables(floorModel.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            CurrentScene.AddCullRenderables(floorModel);
         }
 
         private async Task LoadRacingTracksAsync()
         {
-            var track = await ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -25) }, shaders, @"C:\Users\FTR\Documents\track001.obj", Simulation.BufferPool);
-            track.AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x));
-            GraphicsSystem.AddModels(track);
+            var track = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, 0, -25) }, @"C:\Users\FTR\Documents\track001.obj", Simulation.BufferPool);
+            CurrentScene.AddUpdateables(track.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            CurrentScene.AddCullRenderables(track);
 
-            var track2 = await ObjModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, -25, -25) }, shaders, @"C:\Users\FTR\Documents\track002.obj", Simulation.BufferPool);
-            track2.AddBehavoirs(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x));
-            GraphicsSystem.AddModels(track2);
+            var track2 = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, -25, -25) }, @"C:\Users\FTR\Documents\track002.obj", Simulation.BufferPool);
+            CurrentScene.AddUpdateables(track2.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            CurrentScene.AddCullRenderables(track2);
         }
 
         private void LoadParticleSystem()
@@ -720,9 +779,9 @@ namespace NtFreX.BuildingBlocks.Sample
         public ConstraintHandle LinearAxisServoHandle { get; init; }
         public ConstraintHandle PointOnLineServoHandle { get; init; }
         public BepuPhysicsCollidableBehavoir<Cylinder> CollidableBehavoir { get; init; }
-        public Model Model { get; init; }
+        public MeshRenderer Model { get; init; }
 
-        public Wheel(Vector3 suspensionDirection, AngularHinge hinge, ConstraintHandle hindgeHandle, ConstraintHandle motorHandle, ConstraintHandle linearAxisServoHandle, ConstraintHandle pointOnLineServoHandle, BepuPhysicsCollidableBehavoir<Cylinder> collidableBehavoir, Model model)
+        public Wheel(Vector3 suspensionDirection, AngularHinge hinge, ConstraintHandle hindgeHandle, ConstraintHandle motorHandle, ConstraintHandle linearAxisServoHandle, ConstraintHandle pointOnLineServoHandle, BepuPhysicsCollidableBehavoir<Cylinder> collidableBehavoir, MeshRenderer model)
         {
             SuspensionDirection = suspensionDirection;
             Hinge = hinge;
@@ -764,12 +823,11 @@ namespace NtFreX.BuildingBlocks.Sample
     }
     public class Car : IDisposable
     {
-        public readonly Quaternion InitialRotation;
-        public readonly IReadOnlyCollection<Model> Models;
+        public readonly Transform Transform;
+        public readonly IReadOnlyCollection<MeshRenderer> Models;
         public readonly CarConfiguration Configuration;
 
         private readonly Simulation simulation;
-        private readonly ModelCreationInfo creationInfo;
         private readonly Font font = SystemFonts.Families.First().CreateFont(50f);
         private readonly TextModelBuffer textModelBuffer;
         private readonly BepuPhysicsCollidableBehavoir<BepuPhysicsMesh> behavoir;
@@ -778,24 +836,23 @@ namespace NtFreX.BuildingBlocks.Sample
         private float previousSpeed = 0f;
         private float previousSteeringAngle = 0f;
 
-        private Car(Simulation simulation, Model[] models, BepuPhysicsCollidableBehavoir<BepuPhysicsMesh> behavoir, Wheel[] wheels, CarConfiguration carConfiguration, ModelCreationInfo creationInfo, TextModelBuffer textModelBuffer)
+        private Car(Simulation simulation, MeshRenderer[] models, BepuPhysicsCollidableBehavoir<BepuPhysicsMesh> behavoir, Wheel[] wheels, CarConfiguration carConfiguration, Transform transform, TextModelBuffer textModelBuffer)
         {
             this.Models = models;
-            this.InitialRotation = models.First().Rotation.Value;
+            this.Transform = transform;
             this.Configuration = carConfiguration;
 
             this.textModelBuffer = textModelBuffer;
             this.behavoir = behavoir;
             this.wheels = wheels;
             this.simulation = simulation;
-            this.creationInfo = creationInfo;
         }
 
         private static Wheel CreateWheel(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, 
+            Scene scene, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, 
             CollidableProperty<SubgroupCollisionFilter> collidableProperty, CarConfiguration carConfiguration, 
             in BodyHandle bodyHandle, in RigidPose bodyPose, in AngularHinge hindge, in Vector3 bodyToWheelSuspension, in Vector3 left,
-            Shader[] wheelShaders, TextureView wheelTexture, DeviceBufferPool? deviceBufferPool = null)
+            TextureView wheelTexture, DeviceBufferPool? deviceBufferPool = null)
         {
             var wheelShape = new Cylinder(carConfiguration.WheelRadius, carConfiguration.WheelLength);
             var inertia = wheelShape.ComputeInertia(carConfiguration.WheelMass);
@@ -808,8 +865,8 @@ namespace NtFreX.BuildingBlocks.Sample
                 Matrix.CreateFromAxisAngle(carConfiguration.DesiredUp, MathHelper.ToDegrees(90))), 
                 bodyPose.Orientation, out wheelPose.Orientation);
 
-            var creationInfo = new ModelCreationInfo { Position = wheelPose.Position, Rotation = wheelPose.Orientation, Scale = new Vector3(carConfiguration.WheelRadius * 2, carConfiguration.WheelLength, carConfiguration.WheelRadius * 2) };
-            var model = SphereModel.Create(graphicsDevice, resourceFactory, graphicsSystem, wheelShaders, creationInfo: creationInfo, sectorCount: 12, stackCount: 12, texture: wheelTexture, deviceBufferPool: deviceBufferPool, radius: carConfiguration.WheelRadius / 2f);
+            var transform = new Transform { Position = wheelPose.Position, Rotation = Matrix4x4.CreateFromQuaternion(wheelPose.Orientation), Scale = new Vector3(carConfiguration.WheelRadius * 2, carConfiguration.WheelLength, carConfiguration.WheelRadius * 2) };
+            var model = SphereModel.Create(graphicsDevice, resourceFactory, graphicsSystem, transform: transform, sectorCount: 12, stackCount: 12, texture: wheelTexture, deviceBufferPool: deviceBufferPool, radius: carConfiguration.WheelRadius / 2f);
             model.Name = "wheel";
             model.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
 
@@ -842,37 +899,34 @@ namespace NtFreX.BuildingBlocks.Sample
             ref var wheelProperties = ref collidableProperty.Allocate(behavoir.Collider.BodyHandle!.Value);
             wheelProperties = new SubgroupCollisionFilter { GroupId = bodyHandle.Value };
 
-            model.AddBehavoirs(behavoir);
-            graphicsSystem.AddModels(model);
+            scene.AddUpdateables(behavoir);
+            scene.AddCullRenderables(model);
             return new Wheel(carConfiguration.SuspensionDirection, hindge, hindgeHandle, motor, linearAxisServo, pointOnLineServo, behavoir, model);
         }
 
         public static Car Create(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, 
+            Scene scene, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, 
             CollidableProperty<SubgroupCollisionFilter> collidableProperty, CarConfiguration carConfiguration, 
-            MeshDataProvider[] meshDataProviders, Shader[] shaders, TextureView texture, ModelCreationInfo creationInfo, 
+            MeshDataProvider[] meshDataProviders, TextureView texture, Transform transform, 
             DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
         {
             var left = Vector3.Normalize(Vector3.One - Vector3.Abs(carConfiguration.Up) - Vector3.Abs(carConfiguration.Forward) * carConfiguration.Forward.Length());
 
+            // TODO: apply transform before creating model
+            var angle = (float)Math.Acos(Vector3.Dot(carConfiguration.DesiredForward, carConfiguration.Forward) / (carConfiguration.DesiredForward.Length() * carConfiguration.Forward.Length()));
+            var realTransform = transform with { Rotation = transform.Rotation * Matrix4x4.CreateFromAxisAngle(carConfiguration.Up, angle) };
+
             var buffers = meshDataProviders.Select(meshData => MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, meshData, textureView: texture, deviceBufferPool: deviceBufferPool, commandListPool: commandListPool)).ToArray();
-            var models = buffers.Select(buffer => new Model(graphicsDevice, resourceFactory, graphicsSystem, shaders, buffer, creationInfo: creationInfo, name: "car")).ToArray();
-            graphicsSystem.AddModels(models);
+            var models = buffers.Select(buffer => new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, buffer, transform: realTransform, name: "car")).ToArray();
+            scene.AddCullRenderables(models);
 
             var shape = meshDataProviders.CombineVertexPosition32Bit().GetPhysicsMesh(simulation.BufferPool);
             var colliderBehavoir = new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(simulation, models, carConfiguration.Mass, BepuPhysicsBodyType.Dynamic, shape: shape);
             var body = simulation.Bodies[colliderBehavoir.Collider.BodyHandle ?? throw new Exception()];
             ref var bodyProperties = ref collidableProperty.Allocate(body.Handle);
             bodyProperties = new SubgroupCollisionFilter { GroupId = body.Handle.Value };
+            scene.AddUpdateables(colliderBehavoir);
 
-            models.First().AddBehavoirs(colliderBehavoir);
-
-            var angle = (float) Math.Acos(Vector3.Dot(carConfiguration.DesiredForward, carConfiguration.Forward) / (carConfiguration.DesiredForward.Length() * carConfiguration.Forward.Length()));
-            var rotation = creationInfo.Rotation * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateFromAxisAngle(carConfiguration.Up, angle));
-            for (var i = 1; i < models.Length; i++)
-            {
-                models[0].Rotation.Value = rotation;
-            }
 
             // TODO: do depending on up
             QuaternionEx.TransformUnitY(QuaternionEx.CreateFromAxisAngle(carConfiguration.Forward, MathF.PI * 0.5f), out var wheelAxis);
@@ -882,15 +936,16 @@ namespace NtFreX.BuildingBlocks.Sample
                 LocalHingeAxisB = carConfiguration.Up,
                 SpringSettings = new SpringSettings(30, 1)
             };
-            var handles1 = CreateWheel(graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, carConfiguration.Forward * carConfiguration.CarLength + left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, shaders, texture, deviceBufferPool);
-            var handles2 = CreateWheel(graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, carConfiguration.Forward * carConfiguration.CarLength - left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, shaders, texture, deviceBufferPool);
-            var handles3 = CreateWheel(graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, -carConfiguration.Forward * carConfiguration.CarLength + left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, shaders, texture, deviceBufferPool);
-            var handles4 = CreateWheel(graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, -carConfiguration.Forward * carConfiguration.CarLength - left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, shaders, texture, deviceBufferPool);
+            var handles1 = CreateWheel(scene, graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, carConfiguration.Forward * carConfiguration.CarLength + left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, texture, deviceBufferPool);
+            var handles2 = CreateWheel(scene, graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, carConfiguration.Forward * carConfiguration.CarLength - left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, texture, deviceBufferPool);
+            var handles3 = CreateWheel(scene, graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, -carConfiguration.Forward * carConfiguration.CarLength + left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, texture, deviceBufferPool);
+            var handles4 = CreateWheel(scene, graphicsDevice, resourceFactory, graphicsSystem, simulation, collidableProperty, carConfiguration, body.Handle, body.Pose, hindge, -carConfiguration.Forward * carConfiguration.CarLength - left * carConfiguration.CarWidth + carConfiguration.CenterOffset, left, texture, deviceBufferPool);
 
-            var textBuffer = new TextModelBuffer(graphicsDevice, resourceFactory, graphicsSystem, shaders, deviceBufferPool, commandListPool);
-            textBuffer.AddBehavoir(model => new AlwaysFaceCameraBehavior(model, Matrix4x4.CreateRotationX(MathHelper.ToRadians(90))));
+            var createTextBufferBehavoir = new Action<MeshRenderer>(meshRenderer => scene.AddUpdateables(new AlwaysFaceCameraBehavior(meshRenderer, Matrix4x4.CreateRotationX(MathHelper.ToRadians(90)))));
+            var textBuffer = new TextModelBuffer(scene, graphicsDevice, resourceFactory, graphicsSystem, deviceBufferPool, commandListPool, createTextBufferBehavoir);
             textBuffer.SetTransform(scale: Vector3.One * 0.05f);
-            return new Car(simulation, models, colliderBehavoir, new[] { handles1, handles2, handles3, handles4 }, carConfiguration, creationInfo, textBuffer);
+
+            return new Car(simulation, models, colliderBehavoir, new[] { handles1, handles2, handles3, handles4 }, carConfiguration, realTransform, textBuffer);
         }
 
         public void Reset()
@@ -899,13 +954,11 @@ namespace NtFreX.BuildingBlocks.Sample
             body.Velocity = Vector3.Zero;
             foreach (var model in Models)
             {
-                model.Rotation.Value = creationInfo.Rotation;
-                model.Scale.Value = creationInfo.Scale;
-                model.Position.Value = creationInfo.Position;
+                model.Transform.Value = Transform;
             }
             foreach (var wheel in wheels)
             {
-                wheel.Model.Position.Value = creationInfo.Position;
+                wheel.Model.Transform.Value = wheel.Model.Transform.Value with { Position = Transform.Position };
             }
         }
 
@@ -976,7 +1029,7 @@ namespace NtFreX.BuildingBlocks.Sample
             var speedText = Math.Round(body.Velocity.Linear.Length(), 2).ToString("0.00");
             var text = $"{speedText} m/s";
             textModelBuffer.Write(font, text, RgbaFloat.Black);
-            textModelBuffer.SetTransform(position: mainModel.Position.Value + Configuration.DesiredUp * 5f);
+            textModelBuffer.SetTransform(position: mainModel.Transform.Value.Position + Configuration.DesiredUp * 5f);
         }
 
         public void Dispose()

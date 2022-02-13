@@ -20,6 +20,7 @@
 		<PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
 		<PackageReference Include="Veldrid.Utilities" Version="$(VeldridVersion)" />
 		<PackageReference Include="Veldrid.StartupUtilities" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.SPIRV" Version="1.0.14" />
 		<PackageReference Include="AssimpNet" Version="4.1.0" />
 	</ItemGroup>
 
@@ -29,5 +30,12 @@
 		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuPhysics\BepuPhysics.csproj" />
 		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />
 		<ProjectReference Include="..\..\dependencies\SDL2-CS\SDL2-CS.Core.csproj" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+		<None Update="Resources\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 </Project>

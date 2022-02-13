@@ -58,12 +58,12 @@ namespace NtFreX.BuildingBlocks.Cameras
 
             if (previousMousePos != null && (inputs.IsMouseDown(MouseButton.Left) || inputs.IsMouseDown(MouseButton.Right)))
             {
-                Vector2 mouseDelta = inputs.MousePosition - previousMousePos.Value;
+                Vector2 mouseDelta = inputs.CurrentSnapshot.MousePosition - previousMousePos.Value;
                 yawn += -mouseDelta.X * 0.01f;
                 pitch += -mouseDelta.Y * 0.01f;
                 SetLookAt();
             }
-            previousMousePos = inputs.MousePosition;
+            previousMousePos = inputs.CurrentSnapshot.MousePosition;
         }
         
         private void SetLookAt()

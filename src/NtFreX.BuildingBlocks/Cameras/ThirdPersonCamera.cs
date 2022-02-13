@@ -7,7 +7,7 @@ namespace NtFreX.BuildingBlocks.Cameras
 {
     public class ThirdPersonCamera : Camera
     {
-        public Model? Model { get; set; }
+        public MeshRenderer? Model { get; set; }
         public Vector3 Forward { get; set; }
         public Vector3 Offset { get; set; }
         public Vector3 LookAtOffset { get; set; }
@@ -27,8 +27,8 @@ namespace NtFreX.BuildingBlocks.Cameras
             if (Model == null)
                 return;
 
-            Position.Value = Model.Position.Value + Vector3.Transform(Offset, Model.Rotation.Value);
-            LookAt.Value = Position.Value + Vector3.Transform(Forward + LookAtOffset, Model.Rotation.Value);
+            Position.Value = Model.Transform.Value.Position + Vector3.Transform(Offset, Model.Transform.Value.Rotation);
+            LookAt.Value = Position.Value + Vector3.Transform(Forward + LookAtOffset, Model.Transform.Value.Rotation);
         }
     }
 }

@@ -7,12 +7,13 @@ using NtFreX.BuildingBlocks.Audio;
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Mesh.Import;
+using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Texture;
 using System.Diagnostics;
-using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
@@ -29,13 +30,11 @@ namespace NtFreX.BuildingBlocks
         public AssimpDaeModelImporter AssimpDaeModelImporter { get; private set; }
         public DaeModelImporter DaeModelImporter { get; private set; }
         public ObjModelImporter ObjModelImporter { get; private set; }
-
         public TextureFactory TextureFactory { get; private set; }
         public GraphicsSystem GraphicsSystem { get; private set; }
         public GraphicsDevice GraphicsDevice { get; private set; }
         public SdlAudioSystem AudioSystem { get; private set; }
         public DisposeCollectorResourceFactory ResourceFactory { get; private set; }
-        public ImGuiRenderer UiRenderer { get; private set; }
         public Simulation? Simulation { get; private set; }
         public IContactEventHandler ContactEventHandler { get; set; } = new NullContactEventHandler();
         public IShell Shell { get; private set; }
@@ -44,17 +43,16 @@ namespace NtFreX.BuildingBlocks
         public RenderDoc? RenderDoc { get; private set; }
         public ILogger<Game> Logger { get; private set; }
         public IThreadDispatcher ThreadDispatcher { get; private set; }
-
-        private CommandList commandList;
+        public Scene CurrentScene { get; private set; } = new Scene();
 
         private double? previousRenderingElapsed;
         private double? previousUpdaingElapsed;
 
+        private ImGuiRenderable imGuiRenderable;
         private DebugExecutionTimer timerAudioUpdate;
         private DebugExecutionTimer timerRendering;
         private DebugExecutionTimer timerUpdating;
         private DebugExecutionTimer timerUpdateInput;
-        private DebugExecutionTimer timerUpdateUi;
         private DebugExecutionTimer timerAfterGraphicsUpdate;
         private DebugExecutionTimer timerBeforeGraphicsUpdate;
         private DebugExecutionTimer timerUpdateGraphics;
@@ -76,6 +74,10 @@ namespace NtFreX.BuildingBlocks
             TextureFactory = new TextureFactory(this, loggerFactory.CreateLogger<TextureFactory>());
             InputHandler = new InputHandler();
 
+            imGuiRenderable = new ImGuiRenderable((int)Shell.Width, (int)Shell.Height);
+            CurrentScene.AddUpdateables(imGuiRenderable);
+            CurrentScene.AddFreeRenderables(imGuiRenderable);
+
             shell.Resized += () => OnWindowResized();
 
             if (shell.IsDebug)
@@ -87,29 +89,29 @@ namespace NtFreX.BuildingBlocks
             }
         }
 
-        //TODO: support no simulation
-        protected virtual Simulation? LoadSimulation() => Simulation.Create(new BufferPool(), new NullNarrowPhaseCallbacks(new NullContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
-
+        // TODO: move camera to scene and rename to get default scene
         protected abstract Camera GetDefaultCamera();
-        protected abstract void OnRendering(float deleta, CommandList commandList);
-        protected abstract void BeforeGraphicsSystemUpdate(float delta);
-        protected abstract void AfterGraphicsSystemUpdate(float delta);
-        protected abstract Task LoadResourcesAsync();
+        //TODO: support no simulation?
+        protected virtual Simulation? LoadSimulation() => Simulation.Create(new BufferPool(), new NullNarrowPhaseCallbacks(new NullContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+        protected virtual void BeforeGraphicsSystemUpdate(float delta) { }
+        protected virtual void AfterGraphicsSystemUpdate(float delta) { }
+        protected virtual Task LoadResourcesAsync() => Task.CompletedTask;
 
-        protected virtual void OnWindowResized()
+        private void OnWindowResized()
         {
+            imGuiRenderable.WindowResized((int)Shell.Width, (int)Shell.Height);
             GraphicsDevice.ResizeMainWindow(Shell.Width, Shell.Height);
-            UiRenderer.WindowResized((int)Shell.Width, (int)Shell.Height);
             GraphicsSystem.OnWindowResized((int)Shell.Width, (int)Shell.Height);
         }
 
         private void OnGraphicsDeviceDestroyed()
         {
+            MeshRenderPassFactory.Unload();
+            CurrentScene.DestroyAllDeviceObjects();
             GraphicsDevice.WaitForIdle();
             ResourceFactory.DisposeCollector.DisposeAll();
             TextureFactory.Dispose();
             GraphicsDevice.Dispose();
-            UiRenderer.Dispose();
             AudioSystem.Dispose();
             Simulation?.Dispose();
         }
@@ -119,7 +121,6 @@ namespace NtFreX.BuildingBlocks
             GraphicsDevice = graphicsDevice;
             ThreadDispatcher = new SimpleThreadDispatcher(Math.Max(1, Environment.ProcessorCount > 4 ? Environment.ProcessorCount - 2 : Environment.ProcessorCount - 1));
             ResourceFactory = new DisposeCollectorResourceFactory(resourceFactory);
-            UiRenderer = new ImGuiRenderer(GraphicsDevice, GraphicsDevice.MainSwapchain.Framebuffer.OutputDescription, (int)Shell.Width, (int)Shell.Height);
             GraphicsSystem = new GraphicsSystem(LoggerFactory, GraphicsDevice, ResourceFactory, GetDefaultCamera());
             AudioSystem = new SdlAudioSystem(GraphicsSystem);
             Simulation = LoadSimulation();
@@ -133,11 +134,19 @@ namespace NtFreX.BuildingBlocks
             timerUpdateInput = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Input"));
             timerUpdateSimulation = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Simulation"));
             timerUpdateGraphics = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Graphics"));
-            timerUpdateUi = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Ui"));
             timerAfterGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game After Graphics Update"));
             timerBeforeGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Before Graphics Update"));
-            commandList = ResourceFactory.CreateCommandList();
-            
+
+            MeshRenderPassFactory.Load(ResourceFactory, Shell.IsDebug);
+
+            // TODO: improve
+            var cl = resourceFactory.CreateCommandList();
+            cl.Begin();
+            CurrentScene.CreateAllDeviceObjects(graphicsDevice, cl, new RenderContext(graphicsDevice.MainSwapchain.Framebuffer));
+            cl.End();
+            graphicsDevice.SubmitCommands(cl);
+            cl.Dispose();
+
             await LoadResourcesAsync();
         }
 
@@ -162,12 +171,6 @@ namespace NtFreX.BuildingBlocks
             }
             
             {
-                timerUpdateUi.Start();
-                UiRenderer.Update(updateDelta, inputSnapshot);
-                timerUpdateUi.Stop();
-            }
-
-            {
                 timerBeforeGraphicsUpdate.Start();
                 BeforeGraphicsSystemUpdate(updateDelta);
                 timerBeforeGraphicsUpdate.Stop();
@@ -175,7 +178,7 @@ namespace NtFreX.BuildingBlocks
             
             {
                 timerUpdateGraphics.Start();
-                GraphicsSystem.Update( updateDelta, InputHandler);
+                GraphicsSystem.Update( updateDelta, InputHandler, CurrentScene);
                 timerUpdateGraphics.Stop();
             }
             
@@ -202,23 +205,12 @@ namespace NtFreX.BuildingBlocks
             var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value);
             previousRenderingElapsed = elapsed;
 
-            commandList.Begin();
-            commandList.SetFramebuffer(GraphicsDevice.SwapchainFramebuffer);
-            commandList.SetFullViewports();
-
-            float depthClear = GraphicsDevice.IsDepthRangeZeroToOne ? 1f : 0f;
-            commandList.ClearDepthStencil(depthClear);
-            commandList.ClearColorTarget(0, RgbaFloat.Pink);
-            
-            GraphicsSystem.Draw(commandList);
-
             if (Shell.IsDebug)
             {
                 ImGui.Begin("Debug info");
                 ImGui.Text(timerUpdating.Source.Average.TotalMilliseconds + "ms update time");
                 ImGui.Text(" - " + timerUpdateSimulation.Source.Average.TotalMilliseconds + "ms update simulation time");
                 ImGui.Text(" - " + timerUpdateInput.Source.Average.TotalMilliseconds + "ms read input time");
-                ImGui.Text(" - " + timerUpdateUi.Source.Average.TotalMilliseconds + "ms update ui time");
                 ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.Average.TotalMilliseconds + "ms before graphics update app time");
                 ImGui.Text(" - " + timerUpdateGraphics.Source.Average.TotalMilliseconds + "ms update graphics time");
                 ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.Average.TotalMilliseconds + "ms after graphics update app time");
@@ -233,14 +225,9 @@ namespace NtFreX.BuildingBlocks
                 ImGui.End();
             }
 
-            OnRendering(renderDelta, commandList);
-
-            UiRenderer.Render(GraphicsDevice, commandList);
-            commandList.End();
-            GraphicsDevice.SubmitCommands(commandList);
-            GraphicsDevice.SwapBuffers();
-            GraphicsDevice.WaitForIdle();
-
+            // TODO: make this async?
+            Task.WaitAll(GraphicsSystem.DrawAsync(CurrentScene));
+            
             timerRendering.Stop();
         }
     }

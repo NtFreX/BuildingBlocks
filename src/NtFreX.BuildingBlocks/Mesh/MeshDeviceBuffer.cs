@@ -1,5 +1,6 @@
 ﻿using BepuPhysics.Collidables;
 using NtFreX.BuildingBlocks.Standard;
+using NtFreX.BuildingBlocks.Standard.Extensions;
 using System.Buffers;
 using System.Numerics;
 using Veldrid;
@@ -112,7 +113,7 @@ namespace NtFreX.BuildingBlocks.Mesh
             BoundingBox? current = null;
             foreach(var instance in this.Instances.Value)
             {
-                var worldMatrix = Transform.CreateWorldMatrix(instance.Position, Matrix4x4.CreateRotationX(instance.Rotation.X) * Matrix4x4.CreateRotationY(instance.Rotation.Y) * Matrix4x4.CreateRotationZ(instance.Rotation.Z), instance.Scale);
+                var worldMatrix = new Transform(instance.Position, Matrix4x4.CreateRotationX(instance.Rotation.X) * Matrix4x4.CreateRotationY(instance.Rotation.Y) * Matrix4x4.CreateRotationZ(instance.Rotation.Z), instance.Scale).CreateWorldMatrix();
                 var box = Veldrid.Utilities.BoundingBox.Transform(this.BoundingBox.Value, worldMatrix);
                 current = current == null ? box : Veldrid.Utilities.BoundingBox.Combine(current.Value, box);
             }

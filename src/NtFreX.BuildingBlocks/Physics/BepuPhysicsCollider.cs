@@ -1,6 +1,6 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
-using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Physics
@@ -15,13 +15,13 @@ namespace NtFreX.BuildingBlocks.Physics
         private readonly StaticHandle? staticHandle;
         private readonly Simulation simulation;
 
-        public unsafe BepuPhysicsCollider(TShape shape, Simulation simulation, BodyInertia inertia, ModelCreationInfo creationInfo = default, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, ContinuousDetectionMode continuousDetectionMode = ContinuousDetectionMode.Discrete, BodyVelocity? velocity = null)
+        public unsafe BepuPhysicsCollider(TShape shape, Simulation simulation, BodyInertia inertia, Transform transform = default, BepuPhysicsBodyType bodyType = BepuPhysicsBodyType.Static, ContinuousDetectionMode continuousDetectionMode = ContinuousDetectionMode.Discrete, BodyVelocity? velocity = null)
         {
             BodyType = bodyType;
 
             var modelIndex = simulation.Shapes.Add(shape);
 
-            var pose = new RigidPose(creationInfo.Position, creationInfo.Rotation);
+            var pose = new RigidPose(transform.Position, Quaternion.CreateFromRotationMatrix(transform.Rotation));
             var collidable = new CollidableDescription(modelIndex, new ContinuousDetection { Mode = continuousDetectionMode });
             if (BodyType == BepuPhysicsBodyType.Dynamic)
             {

@@ -6,6 +6,7 @@ using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Light
 {
+    //TODO: support unlimited lights by doing multiple render passes and combining them (each render pass could support a fixed size of lights and output a texture, then we just need to combine the textures, there could be a stage which does just texture combining maybe it can support a batch for each pass)
     public class LightSystem : IDisposable
     {
         private LightInfo lightInfo = new LightInfo();
@@ -13,6 +14,7 @@ namespace NtFreX.BuildingBlocks.Light
 
         private readonly GraphicsDevice graphicsDevice;
 
+        // TODO: directional light
         public Vector3 AmbientLight { get => lightInfo.AmbientLight; set => lightInfo.AmbientLight = value; }
 
         public DeviceBuffer LightBuffer { get; private set; }
@@ -28,6 +30,7 @@ namespace NtFreX.BuildingBlocks.Light
             LightInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(lightInfoLayout, LightBuffer));
         }
 
+        // TODO: call this internal (use data structure for point lights with isactive flag)
         public void SetPointLights(params PointLightInfo[] lights)
         {
             if (LightInfo.MaxLights < lights.Length)

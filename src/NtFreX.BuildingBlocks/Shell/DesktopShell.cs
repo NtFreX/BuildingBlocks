@@ -58,6 +58,7 @@ namespace NtFreX.BuildingBlocks.Shell
 
             while (window.Exists)
             {
+                // TODO: pump window events independetly? (seperate task/thread)
                 var inputSnapshot = window.PumpEvents();
                 if (window.Exists)
                 {

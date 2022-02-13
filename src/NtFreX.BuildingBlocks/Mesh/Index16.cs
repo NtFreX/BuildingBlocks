@@ -52,6 +52,14 @@ public struct Index16 : IIndex<Index16>, IEquatable<Index16>
     public override string ToString()
         => Value.ToString() + " ushort";
 
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        var objType = obj.GetType();
+        if (objType != typeof(Index16) && objType != typeof(uint) && objType != typeof(ushort) && objType != typeof(Index32)) return false;
+        return Equals((Index16)obj);
+    }
+
     public bool Equals(Index16 other)
         => other.Value == Value;
 }

@@ -51,6 +51,14 @@ public struct Index32 : IIndex<Index32>, IEquatable<Index32>
     public override string ToString()
         => Value.ToString() + " uint";
 
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        var objType = obj.GetType();
+        if (objType != typeof(Index16) && objType != typeof(uint) && objType != typeof(ushort) && objType != typeof(Index32)) return false;
+        return Equals((Index32)obj);
+    }
+
     public bool Equals(Index32 other)
         => Value == other.Value;
 }

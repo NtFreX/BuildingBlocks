@@ -1,4 +1,5 @@
 ﻿using NtFreX.BuildingBlocks.Standard;
+using NtFreX.BuildingBlocks.Standard.Extensions;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -590,6 +591,14 @@ namespace NtFreX.BuildingBlocks.Mesh
                 throw new NotSupportedException();
 
             return Indices.Cast<Index32>().ToArray();
+        }
+
+        public override bool Equals(object? obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            var objType = obj.GetType();
+            if (objType != typeof(MeshDataProvider<TVertex, TIndex>)) return false;
+            return Equals((MeshDataProvider<TVertex, TIndex>)obj);
         }
 
         public bool Equals(MeshDataProvider<TVertex, TIndex>? other)

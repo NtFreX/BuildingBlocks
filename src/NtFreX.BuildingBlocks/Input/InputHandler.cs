@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Numerics;
-using Veldrid;
+﻿using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Input
 {
@@ -9,11 +7,11 @@ namespace NtFreX.BuildingBlocks.Input
         private static HashSet<Key> _pressedKeys = new HashSet<Key>();
         private static HashSet<MouseButton> _pressedMouseButtons = new HashSet<MouseButton>();
 
-        public Vector2 MousePosition { get; private set; }
+        public InputSnapshot CurrentSnapshot { get; private set; } = new EmptyInputSnapshot();
 
         public void Update(InputSnapshot snapshot)
         {
-            MousePosition = snapshot.MousePosition;
+            CurrentSnapshot = snapshot;
 
             for (int i = 0; i < snapshot.KeyEvents.Count; i++)
             {

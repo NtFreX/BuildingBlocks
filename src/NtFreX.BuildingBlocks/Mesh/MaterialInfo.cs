@@ -49,6 +49,14 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         public override int GetHashCode() => (Opacity, Shininess, ShininessStrength, Reflectivity, AmbientColor, DiffuseColor, EmissiveColor, ReflectiveColor, SpecularColor, TransparentColor).GetHashCode();
 
+        public override bool Equals(object? obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            var objType = obj.GetType();
+            if (objType != typeof(MaterialInfo)) return false;
+            return Equals((MaterialInfo)obj);
+        }
+
         public bool Equals(MaterialInfo other)
         {
             return

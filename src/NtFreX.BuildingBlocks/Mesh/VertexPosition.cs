@@ -28,6 +28,14 @@ public struct VertexPosition : IVertex, IEquatable<VertexPosition>
     public override string ToString()
         => "Position: " + Position.ToString();
 
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        var objType = obj.GetType();
+        if (objType != typeof(VertexPosition)) return false;
+        return Equals((VertexPosition)obj);
+    }
+
     public bool Equals(VertexPosition other)
         => Position == other.Position;
 }

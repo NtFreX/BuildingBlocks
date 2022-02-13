@@ -1,10 +1,17 @@
 ﻿using System.Numerics;
 using System.Runtime.CompilerServices;
+using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh
 {
     public struct InstanceInfo : IEquatable<InstanceInfo>
     {
+        public static VertexLayoutDescription VertexLayout => new VertexLayoutDescription(
+                new VertexElementDescription("InstancePosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
+                new VertexElementDescription("InstanceRotation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
+                new VertexElementDescription("InstanceScale", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
+                new VertexElementDescription("InstanceTexArrayIndex", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Int1)) {  InstanceStepRate = 1 };
+
         public static InstanceInfo[] Single { get; } = new InstanceInfo[] { new() };
         public static uint Size { get; } = (uint)Unsafe.SizeOf<InstanceInfo>();
 
@@ -30,6 +37,14 @@ namespace NtFreX.BuildingBlocks.Mesh
         }
 
         public override int GetHashCode() => (Position, Rotation, Scale, TexArrayIndex).GetHashCode();
+
+        public override bool Equals(object? obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            var objType = obj.GetType();
+            if (objType != typeof(InstanceInfo)) return false;
+            return Equals((InstanceInfo)obj);
+        }
 
         public bool Equals(InstanceInfo other)
         {
