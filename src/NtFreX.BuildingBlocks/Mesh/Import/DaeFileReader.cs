@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using NtFreX.BuildingBlocks.Standard;
+using System.Numerics;
 using System.Xml.Linq;
 using Veldrid;
 
@@ -8,14 +9,15 @@ public static class DaeFileReader
 {
     public class DaeFile
     {
-
         public readonly Mesh[] Meshes;
         public readonly Scene[] Scenes;
+        public readonly Material[] Materials;
 
-        public DaeFile(Mesh[] meshes, Scene[] scenes)
+        public DaeFile(Mesh[] meshes, Scene[] scenes, Material[] materials)
         {
             Meshes = meshes;
             Scenes = scenes;
+            Materials = materials;
         }
     }
     public class Scene
@@ -31,13 +33,24 @@ public static class DaeFileReader
     {
         public readonly Matrix4x4 Transform;
         public readonly Node[] Children;
-        public readonly string[] InstanceMeshes;
+        public readonly NodeGeometry[] InstanceMeshes;
 
-        public Node(Matrix4x4 transform, Node[] children, string[] instanceMeshes)
+        public Node(Matrix4x4 transform, Node[] children, NodeGeometry[] instanceMeshes)
         {
             Transform = transform;
             Children = children;
             InstanceMeshes = instanceMeshes;
+        }
+    }
+    public class NodeGeometry
+    {
+        public readonly string Name;
+        public readonly string? MaterialName;
+
+        public NodeGeometry(string name, string? materialName)
+        {
+            Name = name;
+            MaterialName = materialName;
         }
     }
     public class Mesh
@@ -61,6 +74,19 @@ public static class DaeFileReader
             Colors = colors;
             Indices = indices;
             Layout = layout;
+        }
+    }
+    public class Material
+    {
+        public readonly string Name;
+        public readonly Vector3? DiffuseColor;
+        public readonly string? DiffuseTexture;
+
+        public Material(string name, Vector3? diffuseColor, string? diffuseTexture)
+        {
+            Name = name;
+            DiffuseColor = diffuseColor;
+            DiffuseTexture = diffuseTexture;
         }
     }
 
@@ -92,8 +118,44 @@ public static class DaeFileReader
         var root = document.Element(name + "COLLADA");
         var meshes = LoadMeshes(root?.Element(name + "library_geometries"));
         var scenes = LoadScenes(root?.Element(name + "library_visual_scenes"));
-        return new DaeFile(meshes, scenes);
+        var materials = LoadMaterials(root);
+        return new DaeFile(meshes, scenes, materials);
     }
+
+    private static Material[] LoadMaterials(XElement? root)
+    {
+        var materials = root?.Element(Name + "library_materials")?.Elements(Name + "material") ?? Array.Empty<XElement>();
+        var effects = root?.Element(Name + "library_effects")?.Elements(Name + "effect") ?? Array.Empty<XElement>();
+        var images = root?.Element(Name + "library_images")?.Elements(Name + "image")?.Select(image => (Id: image.Attribute("id")?.Value ?? throw new Exception(), Path: image.Element(Name + "init_from")?.Value ?? throw new Exception())).ToArray();
+
+        return materials.Select(material =>
+        {
+            var effectUrl = material.Element(Name + "instance_effect")?.Attribute("url")?.Value ?? string.Empty;
+            var effect = effects.First(effect => effect.Attribute("id")?.Value == effectUrl.Replace("#", ""));
+            var commonProfile = effect.Element(Name + "profile_COMMON");
+            var commonTechinque = commonProfile?.Elements(Name + "technique").First(x => x.Attribute("sid")?.Value == "common") ?? throw new Exception();
+            var lambertElement = commonTechinque.Element(Name + "lambert");
+            var diffuseTexture = lambertElement?.Element(Name + "diffuse")?.Element(Name + "texture")?.Attribute("texture")?.Value ?? null;
+            var diffuseSampler = diffuseTexture == null ? null : ResolveSampler(commonProfile, diffuseTexture);
+            var diffuseSurface = diffuseSampler == null ? null : ResolveSurface2D(commonProfile, diffuseSampler);
+            var diffuseColor = ParseColor(lambertElement?.Element(Name + "diffuse")?.Element(Name + "color")?.Value ?? string.Empty);
+
+            return new Material(material.Attribute("id")?.Value ?? throw  new Exception(), diffuseColor, images.First(img => img.Id == diffuseSurface).Path);
+        }).ToArray();
+    }
+
+    private static Vector3? ParseColor(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+
+        var parts = value.Split(' ');
+        return new Vector3(float.Parse(parts[0]), float.Parse(parts[1]), float.Parse(parts[2]));
+    }
+    private static string ResolveSurface2D(XElement root, string name)
+        => root.Elements(Name + "newparam").First(x => x.Attribute("sid")?.Value == name)?.Element(Name + "surface")?.Element(Name + "init_from")?.Value ?? throw new Exception();
+    private static string ResolveSampler(XElement root, string name)
+        => root.Elements(Name + "newparam").First(x => x.Attribute("sid")?.Value == name)?.Element(Name + "sampler2D")?.Element(Name + "source")?.Value ?? throw new Exception();
 
     private static Scene[] LoadScenes(XElement? sceneElement)
     {
@@ -109,7 +171,11 @@ public static class DaeFileReader
     {
         var transformText = rootNode.Element(Name + "matrix")?.Value;
         var transform = string.IsNullOrEmpty(transformText) ? Matrix4x4.Identity : ToMatrix(transformText.Split(' ').Select(x => float.Parse(x)).ToArray());
-        var instanceGeometries = rootNode.Elements(Name + "instance_geometry").Select(x => x.Attribute("url")?.Value ?? throw new Exception("The given instance geometry has no url attribute")).ToArray();
+        var instanceGeometries = rootNode.Elements(Name + "instance_geometry").Select(x => {
+            var name = x.Attribute("url")?.Value ?? throw new Exception("The given instance geometry has no url attribute");
+            var materialName = x.Element(Name + "bind_material")?.Element(Name + "technique_common")?.Element(Name + "instance_material")?.Attribute("symbol")?.Value ?? null;
+            return new NodeGeometry(name, materialName);
+        }).ToArray();
         var children = new List<Node>();
         foreach(var element in rootNode.Elements(Name + "node"))
         {
@@ -216,20 +282,47 @@ public static class DaeFileReader
         return allNodes;
     }
 
-    public static Task<BinaryMeshDataProvider[]> BinaryMeshFromFileAsync(string filePath)
+    private static uint GetMeshIndex(DaeFile daeFile, string meshName)
+    {
+        var meshID = meshName.Replace("#", "");
+        for (uint i = 0; i < daeFile.Meshes.Length; i++)
+        {
+            if (daeFile.Meshes[i].Id == meshID)
+                return i;
+        }
+        throw new Exception($"A mesh with the name {meshName} was not found");
+    }
+    private static string? GetSurfaceTexture(DaeFile daeFile, string? name)
+    {
+        if (name == null)
+            return null;
+
+        return daeFile.Materials.First(x => x.Name == name).DiffuseTexture;
+    }
+    private static MaterialInfo? GetMaterial(DaeFile daeFile, string? name)
+    {
+        if (name == null)
+            return null;
+
+        var material = new MaterialInfo();
+        var color = daeFile.Materials.First(x => x.Name == name).DiffuseColor;
+        if (color != null)
+            material = material with { DiffuseColor = new Vector4(color.Value, 1) };
+
+        return material;
+    }
+
+    public static Task<ImportedMeshCollection<BinaryMeshDataProvider>> BinaryMeshFromFileAsync(string filePath)
     {
         var daeFile = LoadFile(filePath);
-        var meshes = new List<BinaryMeshDataProvider>();
-        // TODO: only return meshes instance once and return different usages (reduce doublicated mesh buffers)
-        var importedMeshes = daeFile.Scenes.SelectMany(scene => AggregateNodes(scene.Nodes)).SelectMany(node => node.InstanceMeshes.SelectMany(meshName => daeFile.Meshes.Where(mesh => mesh.Id == meshName.Replace("#", "")).Select(mesh => (Mesh: mesh, Transform: node.Transform)))).ToArray();
-        for (var meshIndex = 0; meshIndex < importedMeshes.Length; meshIndex++)
-        {
-            // TODO: index16 support?
-            // TODO: read material
-            var binaryMesh = BinaryMeshDataProvider.Create(importedMeshes[meshIndex].Mesh.Positions, importedMeshes[meshIndex].Mesh.Normals, importedMeshes[meshIndex].Mesh.TexCoords, importedMeshes[meshIndex].Mesh.Colors, importedMeshes[meshIndex].Mesh.Indices, importedMeshes[meshIndex].Mesh.Layout);
-            binaryMesh.Transform = importedMeshes[meshIndex].Transform;
-            meshes.Add(binaryMesh);
-        }
-        return Task.FromResult(meshes.ToArray());
+        var collection = new ImportedMeshCollection<BinaryMeshDataProvider>();
+        var nodesAggregated = daeFile.Scenes.SelectMany(scene => AggregateNodes(scene.Nodes));
+        collection.Meshes = daeFile.Meshes.Select(mesh => BinaryMeshDataProvider.Create(mesh.Positions, mesh.Normals, mesh.TexCoords, mesh.Colors, mesh.Indices, mesh.Layout)).ToArray();
+        collection.Instaces = nodesAggregated.SelectMany(node => node.InstanceMeshes.Select(nodeGeometry => new MeshTransform { 
+            MeshIndex = GetMeshIndex(daeFile, nodeGeometry.Name), 
+            Transform = new Transform(node.Transform), 
+            SurfaceTexture = GetSurfaceTexture(daeFile, nodeGeometry.MaterialName),
+            Material = GetMaterial(daeFile, nodeGeometry.MaterialName) })).ToArray();
+        return Task.FromResult(collection);
     }
 }

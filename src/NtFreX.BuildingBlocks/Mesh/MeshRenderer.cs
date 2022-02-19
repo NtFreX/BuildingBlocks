@@ -1,9 +1,9 @@
 ﻿using BepuPhysics.Collidables;
-using NtFreX.BuildingBlocks.Behaviors;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Standard.Extensions;
+using NtFreX.BuildingBlocks.Standard.Pools;
 using System.Diagnostics;
 using System.Numerics;
 using Veldrid;
@@ -14,12 +14,16 @@ namespace NtFreX.BuildingBlocks.Mesh
     //TODO: wrap with model which creates device resources and contains multiple meshes (bone transforms?)
     public class MeshRenderer : CullRenderable, IUpdateable
     {
+        // TODO: make configurable
+        private readonly MeshRenderPass[] meshRenderPasses = MeshRenderPassFactory.RenderPasses.ToArray();
+        private readonly List<MeshRenderPass> meshRenderPassesWorkList = new List<MeshRenderPass>();
         private readonly GraphicsDevice graphicsDevice;
         private readonly ResourceFactory resourceFactory;
         private readonly Cached<Vector3> centerCache;
 
         private BoundingBox boundingBox;
         private bool hasWorldChanged = true;
+        private bool hasMeshRenderPassDataChanged = true; // TODO: initialise render passes in costructor and make it up to the user to update them?!
 
         public readonly Mutable<bool> IsActive;
         public readonly MeshDeviceBuffer MeshBuffer;
@@ -28,18 +32,19 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         public string? Name { get; set; }
 
-        public ResourceSet MaterialInfoResourceSet { get; private set; } // TODO: move the resource set to the buffer?
-        public ResourceSet SurfaceTextureResourceSet { get; private set; } // TODO: move the resource set to the buffer?
+        public ResourceSet? MaterialInfoResourceSet { get; private set; } // TODO: move the resource set to the buffer?
+        public ResourceSet? SurfaceTextureResourceSet { get; private set; } // TODO: move the resource set to the buffer?
+        public ResourceSet? AlphaMapTextureResourceSet { get; private set; } // TODO: move the resource set to the buffer?
+        public ResourceSet? BonesTransformationsResourceSet { get; private set; } // TODO: move the resource set to the buffer?
         public ResourceSet ProjectionViewWorldResourceSet { get; private set; }
         public DeviceBuffer WorldBuffer { get; private set; }
         public Matrix4x4 WorldMatrix { get; private set; }
+        public MeshRenderPass[] CurrentMeshRenderPasses { get; private set; }
 
         public override BoundingBox GetBoundingBox() => boundingBox;
         public override Vector3 GetCenter() => centerCache.Get();
-        public override RenderPasses RenderPasses => MeshBuffer.Material.Value.Opacity == 1f ? RenderPasses.Standard : RenderPasses.AlphaBlend;
+        public override RenderPasses RenderPasses => MeshBuffer.Material.Value == null ? RenderPasses.Standard : (MeshBuffer.Material.Value.Value.Opacity == 1f ? RenderPasses.Standard : RenderPasses.AlphaBlend);
 
-        // TODO: make configurable
-        private readonly MeshRenderPass[] meshRenderPasses = MeshRenderPassFactory.RenderPasses.ToArray();
 
         // give possibilities to customize render passes
         // TODO: do not pass graphics system but mutable camera? or move camera dependency out
@@ -68,11 +73,15 @@ namespace NtFreX.BuildingBlocks.Mesh
 
             this.MeshBuffer.Material.ValueChanged += (_, _) => UpdateShouldRender();
             this.MeshBuffer.TextureView.ValueChanged += (_, _) => UpdateTextureResourceSet();
+            this.MeshBuffer.AlphaMap.ValueChanged += (_, _) => UpdateAlphaMapResourceSet();
+            this.MeshBuffer.BoneTransformationBuffer.ValueChanged += (_, _) => UpdateBonesTransformationsResourceSet();
             this.MeshBuffer.MaterialInfoBuffer.ValueChanged += (_, _) => UpdateMaterialInfoResourceSet();
             this.MeshBuffer.InstanceBoundingBox.ValueChanged += (_, _) => UpdateBoundingBox();
 
             UpdateMaterialInfoResourceSet();
             UpdateProjectionViewWorldResourceSet();
+            UpdateAlphaMapResourceSet();
+            UpdateBonesTransformationsResourceSet();
             UpdateTextureResourceSet();
             InvalidateWorldCache();
             UpdateBoundingBox();
@@ -82,25 +91,30 @@ namespace NtFreX.BuildingBlocks.Mesh
         }
 
         public static unsafe MeshRenderer Create<TShape>(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, MeshDataProvider mesh, TShape shape,
-            Transform? transform = null, TextureView ? textureView = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, BaseMeshDataProvider mesh, TShape shape,
+            Transform? transform = null, TextureView ? textureView = null, TextureView? alphaMap = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
                 where TShape : unmanaged, IShape
         {
-            var data = PhysicsMeshDeviceBuffer<TShape>.Create(graphicsDevice, resourceFactory, mesh, shape, textureView: textureView, deviceBufferPool: deviceBufferPool);
+            var data = PhysicsMeshDeviceBuffer<TShape>.Create(graphicsDevice, resourceFactory, mesh, shape, textureView: textureView, alphaMap: alphaMap, deviceBufferPool: deviceBufferPool);
             return new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, data, transform: transform, name: name);
         }
 
         public static unsafe MeshRenderer Create(
             GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, 
-            MeshDataProvider mesh, Transform? transform = null, TextureView? textureView = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
+            BaseMeshDataProvider mesh, Transform? transform = null, TextureView? textureView = null, TextureView? alphaMap = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
         {
-            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, textureView: textureView, deviceBufferPool: deviceBufferPool);
+            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, textureView: textureView, alphaMap: alphaMap, deviceBufferPool: deviceBufferPool);
             return new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, data, transform: transform, name: name);
         }
 
         private void UpdateMaterialInfoResourceSet()
         {
+            hasMeshRenderPassDataChanged = true;
+
             this.MaterialInfoResourceSet?.Dispose();
+
+            if (MeshBuffer.MaterialInfoBuffer.Value == null)
+                return;
 
             //TODO: move to mesh buffer?
             var materialLayout = ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory);
@@ -109,6 +123,8 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         private void UpdateProjectionViewWorldResourceSet()
         {
+            hasMeshRenderPassDataChanged = true;
+
             this.ProjectionViewWorldResourceSet?.Dispose();
 
             if (GraphicsSystem.Camera.Value == null)
@@ -119,8 +135,36 @@ namespace NtFreX.BuildingBlocks.Mesh
             this.ProjectionViewWorldResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(projectionViewWorldLayout, GraphicsSystem.Camera.Value.ProjectionBuffer, GraphicsSystem.Camera.Value.ViewBuffer, WorldBuffer));
         }
 
+        private void UpdateAlphaMapResourceSet()
+        {
+            hasMeshRenderPassDataChanged = true;
+
+            this.AlphaMapTextureResourceSet?.Dispose();
+
+            if (MeshBuffer.AlphaMap.Value == null)
+                return;
+
+            var alphaMapTextureLayout = ResourceLayoutFactory.GetAlphaMapTextureLayout(resourceFactory);
+            this.AlphaMapTextureResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(alphaMapTextureLayout, MeshBuffer.AlphaMap.Value, graphicsDevice.Aniso4xSampler)); // TODO: make samplers customizable
+        }
+
+        private void UpdateBonesTransformationsResourceSet()
+        {
+            hasMeshRenderPassDataChanged = true;
+
+            this.BonesTransformationsResourceSet?.Dispose();
+
+            if (MeshBuffer.BoneTransformationBuffer.Value == null)
+                return;
+
+            var boneTransformationLayout = ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory);
+            this.BonesTransformationsResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(boneTransformationLayout, MeshBuffer.BoneTransformationBuffer.Value.RealDeviceBuffer));
+        }
+
         private void UpdateTextureResourceSet()
         {
+            hasMeshRenderPassDataChanged = true;
+
             this.SurfaceTextureResourceSet?.Dispose();
 
             if (MeshBuffer.TextureView.Value == null)
@@ -133,6 +177,7 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         private void UpdateBoundingBox()
         {
+            // TODO: apply bone transforms!!
             var newBoundingBox = MeshBuffer.InstanceBoundingBox.Value.TransformBoundingBox(Transform.Value);
 
             Debug.Assert(!newBoundingBox.ContainsNaN(), "The new bounding box should never contain NaN");
@@ -146,6 +191,8 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         private void InvalidateWorldCache()
         {
+            hasMeshRenderPassDataChanged = true;
+
             var newWorldMatrix = Transform.Value.CreateWorldMatrix();
 
             Debug.Assert(!newWorldMatrix.ContainsNaN(), "The new world matrix should never contain NaN");
@@ -159,7 +206,7 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         private void UpdateShouldRender()
         {
-            var shouldRender = IsActive && MeshBuffer.Material.Value.Opacity > 0f;
+            var shouldRender = IsActive && (MeshBuffer.Material.Value == null || MeshBuffer.Material.Value.Value.Opacity > 0f);
             if(this.ShouldRender != shouldRender)
             {
                 this.ShouldRender = shouldRender;
@@ -175,28 +222,44 @@ namespace NtFreX.BuildingBlocks.Mesh
                 hasWorldChanged = false;
 
             }
+
+            if (MeshBuffer.BoneTransformationBuffer.Value != null)
+            {
+                foreach (var boneAnimation in MeshBuffer.BoneAnimationProviders ?? Array.Empty<IBoneAnimationProvider>())
+                {
+                    if (boneAnimation.IsRunning)
+                    {
+                        boneAnimation.UpdateAnimation(deltaSeconds);
+                        graphicsDevice.UpdateBuffer(MeshBuffer.BoneTransformationBuffer.Value.RealDeviceBuffer, 0, boneAnimation.Transforms);
+                        break;
+                    }
+                }
+            }
         }
 
         public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
         {
             Debug.Assert(RenderPasses.HasFlag(renderPass));
 
-            // todo group models by mesh render pass (do in graphics system)
-            var instanceCount = MeshBuffer.Instances.Value?.Count ?? 1;
-            foreach (var meshRednerPass in meshRenderPasses.Where(x => x.CanBindMeshRenderer(this)))
+            if (hasMeshRenderPassDataChanged)
             {
-                //todo: seperate in bind model and bind renderpass?
-                meshRednerPass.Bind(resourceFactory, this, renderContext, commandList);
+                meshRenderPassesWorkList.Clear();
+                foreach (var meshRednerPass in meshRenderPasses)
+                {
+                    // TODO: cache mesh render passes that match this mesh
+                    if (meshRednerPass.CanBindMeshRenderer(this))
+                    {
+                        meshRenderPassesWorkList.Add(meshRednerPass);
+                    }
+                }
+                CurrentMeshRenderPasses = meshRenderPassesWorkList.ToArray();
+            }
 
-                commandList.SetVertexBuffer(0, MeshBuffer.VertexBuffer.Value.RealDeviceBuffer);
-                commandList.SetIndexBuffer(MeshBuffer.IndexBuffer.Value.RealDeviceBuffer, MeshBuffer.IndexFormat);
-                
-                commandList.DrawIndexed(
-                    indexCount: MeshBuffer.IndexLength,
-                    instanceCount: (uint) instanceCount,
-                    indexStart: 0,
-                    vertexOffset: 0,
-                    instanceStart: 0);
+            // todo group models by mesh render pass (do in graphics system)
+            foreach (var meshRednerPass in CurrentMeshRenderPasses)
+            {
+                meshRednerPass.Bind(graphicsDevice, resourceFactory, this, renderContext, commandList);
+                meshRednerPass.Draw(this, commandList);
             }
         }
 
@@ -223,7 +286,7 @@ namespace NtFreX.BuildingBlocks.Mesh
         public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, RenderContext rc)
         { }
 
-        public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, RenderContext rc)
+        public override void CreateDeviceObjects(GraphicsDevice gd, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, CommandList cl, RenderContext sc)
         { }
 
         public override void DestroyDeviceObjects()
@@ -251,7 +314,7 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         public static Pipeline[] GetAll() => graphicPipelines.Values.ToArray();
         public static Pipeline GetGraphicsPipeline(
-            ResourceFactory resourceFactory, 
+            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, 
             ResourceLayout[] resourceLayouts, Framebuffer framebuffer, ShaderSetDescription shaders, 
             PrimitiveTopology primitiveTopology, PolygonFillMode fillMode, 
             BlendStateDescription blendStateDescription, FaceCullMode faceCullMode = FaceCullMode.None)
@@ -259,7 +322,7 @@ namespace NtFreX.BuildingBlocks.Mesh
             var pipelineDescription = new GraphicsPipelineDescription();
             pipelineDescription.BlendState = blendStateDescription;
 
-            pipelineDescription.DepthStencilState = DepthStencilStateDescription.DepthOnlyLessEqual;
+            pipelineDescription.DepthStencilState = graphicsDevice.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual;
 
             pipelineDescription.RasterizerState = new RasterizerStateDescription(
                 cullMode: faceCullMode,
@@ -311,6 +374,32 @@ namespace NtFreX.BuildingBlocks.Mesh
 
             return surfaceTextureLayout;
         }
+
+        private static ResourceLayout? alphaMapTextureLayout;
+        public static ResourceLayout GetAlphaMapTextureLayout(ResourceFactory resourceFactory)
+        {
+            if (alphaMapTextureLayout != null)
+                return alphaMapTextureLayout;
+
+            alphaMapTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
+                new ResourceLayoutElementDescription("AlphaMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+
+            return alphaMapTextureLayout;
+        }
+
+        private static ResourceLayout? boneTransformationLayout;
+        public static ResourceLayout GetBoneTransformationLayout(ResourceFactory resourceFactory)
+        {
+            if (boneTransformationLayout != null)
+                return boneTransformationLayout;
+
+            boneTransformationLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("Bones", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+
+            return boneTransformationLayout;
+        }
+        
 
         private static ResourceLayout? cameraInfoLayout;
         public static ResourceLayout GetCameraInfoLayout(ResourceFactory resourceFactory)

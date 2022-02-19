@@ -13,7 +13,7 @@ namespace NtFreX.BuildingBlocks.Android
 
         public bool IsDebug { get;private set; }
 
-        public event Action? Rendering;
+        public event Func<Task>? RenderingAsync;
         public event Action<InputSnapshot>? Updating;
         public event Func<GraphicsDevice, ResourceFactory, Swapchain, Task>? GraphicsDeviceCreated;
         public event Action? GraphicsDeviceDestroyed;
@@ -22,7 +22,7 @@ namespace NtFreX.BuildingBlocks.Android
         public AndroidShell(Context context, bool isDebug)
         {
             this.View = new VeldridSurfaceView(context, isDebug);
-            this.View.Rendering += OnRendering;
+            this.View.RenderingAsync += OnRenderingAsync;
             this.View.DeviceCreated += OnDeviceCreated;
             this.View.Resized += () => Resized?.Invoke();
             this.View.DeviceDisposed += () => GraphicsDeviceDestroyed?.Invoke();
@@ -45,10 +45,11 @@ namespace NtFreX.BuildingBlocks.Android
             View.OnResume();
         }
 
-        private void OnRendering()
+        private async Task OnRenderingAsync()
         {
             Updating?.Invoke(new AndroidInputSnapshot());
-            Rendering?.Invoke();
+            if(RenderingAsync != null)
+                await RenderingAsync.Invoke();
         }
 
         public async Task RunAsync()

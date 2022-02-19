@@ -5,27 +5,29 @@ using BepuPhysics.Constraints;
 using BepuUtilities;
 using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
-using NtFreX.BuildingBlocks.Behaviors;
 using NtFreX.BuildingBlocks.Cameras;
-using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Light;
 using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Mesh.Common;
 using NtFreX.BuildingBlocks.Mesh.Import;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
 using NtFreX.BuildingBlocks.Model;
+using NtFreX.BuildingBlocks.Model.Behaviors;
 using NtFreX.BuildingBlocks.Model.Common;
 using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Standard;
-using NtFreX.BuildingBlocks.Standard.Extensions;
+using NtFreX.BuildingBlocks.Standard.Pools;
 using NtFreX.BuildingBlocks.Texture;
 using NtFreX.BuildingBlocks.Texture.Text;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Diagnostics;
 using System.Numerics;
 using Veldrid;
-using Veldrid.SPIRV;
+
 using BepuPhysicsMesh = BepuPhysics.Collidables.Mesh;
 
 namespace NtFreX.BuildingBlocks.Sample
@@ -143,8 +145,6 @@ namespace NtFreX.BuildingBlocks.Sample
     //        cl.Draw((uint)particles.Length, 1, 0, 0);
     //    }
     //}
-
-
     public class CenterQubeComponent
     {
         private MeshRenderer[] centerQubes = Array.Empty<MeshRenderer>();
@@ -200,7 +200,7 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             foreach (var model in centerQubes)
             {
-                model.MeshBuffer.Material.Value = model.MeshBuffer.Material.Value with { Opacity = value };
+                model.MeshBuffer.Material.Value = model.MeshBuffer.Material.Value == null ? new MaterialInfo { Opacity = value } : model.MeshBuffer.Material.Value.Value with { Opacity = value };
             }
         }
     }
@@ -282,6 +282,9 @@ namespace NtFreX.BuildingBlocks.Sample
         public SampleGame(IShell shell, ILoggerFactory loggerFactory) 
             : base(shell, loggerFactory) 
         {
+            EnableImGui = shell.IsDebug;
+            AudioSystemType = AudioSystemType.Sdl2;
+            //EnableSimulation = true;
             //font = SystemFonts.Families.Select(x => x.CreateFont(48, FontStyle.Regular)).ToArray();
         }
 
@@ -306,6 +309,7 @@ namespace NtFreX.BuildingBlocks.Sample
         protected override void AfterGraphicsSystemUpdate(float delta)
         {
             base.AfterGraphicsSystemUpdate(delta);
+
             //if (InputHandler.IsKeyDown(Key.Delete))
             //{
             //    foreach (var car in cars)
@@ -457,7 +461,8 @@ namespace NtFreX.BuildingBlocks.Sample
             //    GraphicsSystem.AddModels(Enumerable.Range(0, 100).Select(x => new Model(GraphicsDevice, ResourceFactory, GraphicsSystem, shaders, data, creationInfo: new ModelCreationInfo { Position = Vector3.One * x * 2 + Vector3.UnitY * 50 }, name: $"goblin{x}")).ToArray());
             //}
 
-            LoadInstanced();
+
+            //LoadInstanced();
 
             //await LoadDaeModelAsync();
 
@@ -477,8 +482,12 @@ namespace NtFreX.BuildingBlocks.Sample
             //sunComponent = new SunComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, GraphicsSystem.LightSystem, CurrentScene);
 
             LoadXYZLineModels();
+            CreateSkybox();
             //LoadPhysicObjects();
-            //LoadFloor();
+            LoadFloor();
+
+
+            await CreateAnimatedModelAsync(@"D:\projects\veldrid-samples\assets\models\goblin.dae"); //@"C:\Users\FTR\Documents\Space Station Scene.dae");
 
             //goblin = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
             //dragon = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
@@ -487,7 +496,7 @@ namespace NtFreX.BuildingBlocks.Sample
             //CurrentScene.AddCullRenderables(goblin);
             //CurrentScene.AddCullRenderables(dragon);
 
-            //DrawBoundingBoxes();
+            DrawBoundingBoxes();
 
             //thirdPersonCamera = new ThirdPersonCamera(GraphicsDevice, ResourceFactory, Shell.Width, Shell.Height, new Vector3(0, 0, -1), new Vector3(0, 1, 3));
 
@@ -501,6 +510,43 @@ namespace NtFreX.BuildingBlocks.Sample
         //{
         //    //particleSystem.Draw(commandList);
         //}
+
+        private async Task CreateAnimatedModelAsync(string path)
+        {
+            var goblinModels = await AssimpDaeModelImporter.ModelFromFileAsync(path);
+            foreach (var model in goblinModels)
+            {
+                if (model.MeshBuffer.Material.Value != null)
+                    model.MeshBuffer.Material.Value = model.MeshBuffer.Material.Value.Value with { Opacity = 1f };
+
+                // TODO: support cull renderable for animations?
+                var animation = model.MeshBuffer.BoneAnimationProviders?.FirstOrDefault();
+                if (animation != null)
+                {
+                    animation.IsRunning = true;
+                    CurrentScene.AddUpdateables(model);
+                }
+                CurrentScene.AddFreeRenderables(model);
+            }
+        }
+        private void CreateSkybox()
+        {
+            // TODO: create device resource pattern
+            var cl = ResourceFactory.CreateCommandList();
+            cl.Begin();
+            CurrentScene.AddFreeRenderables(new Skybox(
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_ft.png"),
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_bk.png"),
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_lf.png"),
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_rt.png"),
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_up.png"),
+                Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_dn.png"),
+                GraphicsDevice, ResourceFactory, GraphicsSystem, cl, new RenderContext() { MainSceneFramebuffer = GraphicsDevice.SwapchainFramebuffer },
+                Shell.IsDebug));
+            cl.End();
+            GraphicsDevice.SubmitCommands(cl);
+            cl.Dispose();
+        }
 
         private async Task CreateAndSaveLoadModelAsync()
         {
@@ -540,8 +586,9 @@ namespace NtFreX.BuildingBlocks.Sample
             var plane = PlaneModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem,
                     rows: 200, columns: 200, texture: TextureFactory.GetDefaultTexture(TextureUsage.Sampled), material: new MaterialInfo(shininessStrength: .001f),
                     transform: new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -1000f, Scale = Vector3.One * 100f },
-                    name: "floor", physicsBufferPool: Simulation.BufferPool);
-            CurrentScene.AddUpdateables(new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, plane));
+                    name: "floor", physicsBufferPool: BepuSimulation?.BufferPool);
+            if(BepuSimulation != null)
+                CurrentScene.AddUpdateables(new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, plane));
             CurrentScene.AddCullRenderables(plane);
         }
 
@@ -627,7 +674,7 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             // currently the obj file doens doesn't support mtlib file names with spaces and the mtl file does not support map_Ks values (released version)
             var modelLoaders = new List<Task<MeshRenderer[]>>();
-            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(1000, 100, 0), Rotation = Matrix4x4.CreateFromYawPitchRoll(0, -1.5f, 0) }, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
+            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(1000, 100, 0) }, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
             modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(-1000, 100, 0) }, @"resources/models/Space Station Scene.obj"));
             modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, @"resources/models/sponza.obj"));
             modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, 1000) }, @"resources/models/Space Station Scene dark.obj"));
@@ -695,7 +742,7 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             return new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(
                 provider.Vertices.Select(vertex => new VertexPositionNormalTextureColor(vertex.Position, newColor, vertex.TextureCoordinate, vertex.Normal)).ToArray(), provider.Indices,
-                provider.PrimitiveTopology, provider.MaterialName, provider.TexturePath, provider.Material);
+                provider.PrimitiveTopology, provider.MaterialName, provider.TexturePath, provider.AlphaMapPath, provider.Material);
         }
 
         private async Task LoadFloorAsync(TextureView texture)
@@ -708,20 +755,20 @@ namespace NtFreX.BuildingBlocks.Sample
             colliderModel.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
             CurrentScene.AddCullRenderables(colliderModel);
 
-            var floorModel = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, @"C:\Users\FTR\Documents\terrain001.obj", Simulation.BufferPool);
+            var floorModel = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, @"C:\Users\FTR\Documents\terrain001.obj", BepuSimulation.BufferPool);
             floorModel[0].MeshBuffer.TextureView.Value = texture;
-            CurrentScene.AddUpdateables(floorModel.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            CurrentScene.AddUpdateables(floorModel.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(floorModel);
         }
 
         private async Task LoadRacingTracksAsync()
         {
-            var track = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, 0, -25) }, @"C:\Users\FTR\Documents\track001.obj", Simulation.BufferPool);
-            CurrentScene.AddUpdateables(track.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            var track = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, 0, -25) }, @"C:\Users\FTR\Documents\track001.obj", BepuSimulation.BufferPool);
+            CurrentScene.AddUpdateables(track.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(track);
 
-            var track2 = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, -25, -25) }, @"C:\Users\FTR\Documents\track002.obj", Simulation.BufferPool);
-            CurrentScene.AddUpdateables(track2.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(Simulation, x)).ToArray());
+            var track2 = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, -25, -25) }, @"C:\Users\FTR\Documents\track002.obj", BepuSimulation.BufferPool);
+            CurrentScene.AddUpdateables(track2.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(track2);
         }
 
@@ -907,7 +954,7 @@ namespace NtFreX.BuildingBlocks.Sample
         public static Car Create(
             Scene scene, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, Simulation simulation, 
             CollidableProperty<SubgroupCollisionFilter> collidableProperty, CarConfiguration carConfiguration, 
-            MeshDataProvider[] meshDataProviders, TextureView texture, Transform transform, 
+            BaseMeshDataProvider[] meshDataProviders, TextureView texture, Transform transform, 
             DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
         {
             var left = Vector3.Normalize(Vector3.One - Vector3.Abs(carConfiguration.Up) - Vector3.Abs(carConfiguration.Forward) * carConfiguration.Forward.Length());
@@ -1045,10 +1092,10 @@ namespace NtFreX.BuildingBlocks.Sample
         private const string contactSound = @"resources/audio/contact.wav";
 
         private readonly Game game;
-        private readonly SdlAudioSystem audioSystem;
+        private readonly IAudioSystem audioSystem;
         private readonly ILogger<SampleContactEventHandler> logger = ApplicationContext.LoggerFactory.CreateLogger<SampleContactEventHandler>();
 
-        public SampleContactEventHandler(Game game, SdlAudioSystem audioSystem)
+        public SampleContactEventHandler(Game game, IAudioSystem audioSystem)
         {
             this.game = game;
             this.audioSystem = audioSystem;
@@ -1069,7 +1116,7 @@ namespace NtFreX.BuildingBlocks.Sample
             if (volume > 3f)
             {
                 var dynamicBody = pair.A.Mobility == CollidableMobility.Dynamic ? pair.A : pair.B;
-                var body = game.Simulation.Bodies.GetBodyReference(dynamicBody.BodyHandle);
+                var body = game.BepuSimulation.Bodies.GetBodyReference(dynamicBody.BodyHandle);
                 var position = offset + body.Pose.Position;
                 logger.LogInformation($"A colision with a deth of {depth} occured which will create a sound with a volume of {volume} at {position}");
                 audioSystem.PlaceWav(contactSound, position, maxIntensity / maxVolume * volume, (int)volume);

@@ -20,7 +20,7 @@ namespace NtFreX.BuildingBlocks.Android
         public GraphicsDevice? GraphicsDevice { get; protected set; }
         public Swapchain? MainSwapchain { get; protected set; }
 
-        public event Action? Rendering;
+        public event Func<Task>? RenderingAsync;
         public event Action? DeviceCreated;
         public event Action? DeviceDisposed;
         public event Action? Resized;
@@ -135,7 +135,8 @@ namespace NtFreX.BuildingBlocks.Android
 
                     if (GraphicsDevice != null)
                     {
-                        Rendering?.Invoke();
+                        // TODO: better await
+                        RenderingAsync?.Invoke().Wait();
                     }
                 }
                 catch (Exception e)

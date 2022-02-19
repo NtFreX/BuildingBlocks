@@ -52,7 +52,7 @@ namespace NtFreX.BuildingBlocks.Texture
             if (!textures.TryGetValue(usage, out var view))
             {
                 using var surfaceTexture = texture.CreateDeviceTexture(game.GraphicsDevice, game.ResourceFactory, usage);
-                view = game.ResourceFactory.CreateTextureView(surfaceTexture);
+                view = game.ResourceFactory.CreateTextureView(surfaceTexture); //TODO: texture view type for array support?
                 textures.Add(usage, view);
             }
             return view;

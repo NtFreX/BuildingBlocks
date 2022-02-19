@@ -12,7 +12,7 @@ namespace NtFreX.BuildingBlocks.Standard
 
         public TimeSpan Average => TimeSpan.FromTicks((long)bucket.Average());
 
-        public DebugExecutionTimerSource(ILogger<DebugExecutionTimerSource> logger, string name, int bucketSize = 100)
+        public DebugExecutionTimerSource(ILogger<DebugExecutionTimerSource> logger, string name, int bucketSize = 1000)
         {
             this.logger = logger;
             this.name = name;

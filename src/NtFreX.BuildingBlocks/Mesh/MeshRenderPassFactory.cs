@@ -33,10 +33,10 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         public static readonly List<MeshRenderPass> RenderPasses = new List<MeshRenderPass>();
 
-        public static void Load(ResourceFactory resourceFactory, bool isDebug)
+        public static void Load(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, bool isDebug)
         {
             // TODO: make nicer?
-            RenderPasses.AddRange(VertexPositionColorNormalTextureMeshRenderPass.GetAllCombinations(resourceFactory, isDebug));
+            RenderPasses.AddRange(DefaultMeshRenderPass.GetAllDefaultMeshRenderPassConfigurations(graphicsDevice, resourceFactory, isDebug));
         }
 
         public static void Unload()

@@ -2,6 +2,7 @@
 using NtFreX.BuildingBlocks.Shell;
 using System.Reflection;
 using System.Threading.Tasks;
+using Veldrid.StartupUtilities;
 
 namespace NtFreX.BuildingBlocks.Desktop
 {
@@ -33,9 +34,16 @@ namespace NtFreX.BuildingBlocks.Desktop
         static async Task Main(string[] args)
         {
             // sdl c# import or own bindings (licence both wrapper and main lib)
-            var shell = new DesktopShell(Assembly.GetEntryAssembly().FullName, ApplicationContext.IsDebug);
-            var game = new SampleGame(shell, ApplicationContext.LoggerFactory);
-            await shell.RunAsync();
+            await SampleGame.RunAsync(
+                new DesktopShell(new WindowCreateInfo()
+                {
+                    X = 100,
+                    Y = 100,
+                    WindowWidth = 960,
+                    WindowHeight = 540,
+                    WindowTitle = Assembly.GetEntryAssembly().FullName
+                }, isDebug: ApplicationContext.IsDebug), 
+                ApplicationContext.LoggerFactory);
         }
     }
 

@@ -1,4 +1,4 @@
-mat3 createRotationMatrix(vec3 rotation) 
+mat3 matrix3x3CreateRotationMatrix(vec3 rotation) 
 {
     float cosX = cos(rotation.x);
     float sinX = sin(rotation.x);
@@ -24,12 +24,17 @@ mat3 createRotationMatrix(vec3 rotation)
     return rotX * rotY * rotZ;
 }
 
-mat3 createScalingMatrix(vec3 scale)
+mat3 matrix3x3CreateScalingMatrix(vec3 scale)
 {
     return mat3(scale.x, 0, 0, 0, scale.y, 0, 0, 0, scale.z);
 }
 
-vec3 transform(vec3 position, vec3 scale, vec3 rotation)
+vec3 matrix3x3Transform(vec3 position, vec3 scale, vec3 rotation)
 {
-    return createScalingMatrix(scale) * createRotationMatrix(rotation) * position;
+    return matrix3x3CreateScalingMatrix(scale) * matrix3x3CreateRotationMatrix(rotation) * position;
+}
+
+mat3 matrix3x3Identity()
+{
+    return mat3(1,0,0, 0,1,0, 0,0,1);
 }

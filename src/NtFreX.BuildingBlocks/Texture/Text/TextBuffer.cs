@@ -1,6 +1,8 @@
 ﻿using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Standard.Extensions;
+using NtFreX.BuildingBlocks.Standard.Pools;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using System.Buffers;
@@ -91,12 +93,8 @@ public class TextBuffer
 
             CommandListPool.TryClean(graphicsDevice, commandList, commandListPool);
 
-            // TODO: better buffer factories
-            var materialBuffer = resourceFactory.GetMaterialBuffer(graphicsDevice, mesh.Material, deviceBufferPool);
-            var instanceBuffer = resourceFactory.GetInstanceBuffer(graphicsDevice, InstanceInfo.Single, deviceBufferPool);
-
             var texture = TextAtlas.ForFont(graphicsDevice, resourceFactory, part.Font).Texture;
-            buffers[index++] = new MeshDeviceBuffer(vertexBuffer, IndexBuffer!, (uint)textLength * 6, boundingBox, mesh.VertexLayout, mesh.IndexFormat, mesh.PrimitiveTopology, materialBuffer, mesh.Material, instanceInfoBuffer: instanceBuffer, instances: InstanceInfo.Single, textureView: texture);
+            buffers[index++] = new MeshDeviceBuffer(vertexBuffer, IndexBuffer!, (uint)textLength * 6, boundingBox, mesh.VertexLayout, mesh.IndexFormat, mesh.PrimitiveTopology, textureView: texture);
         }
         data = buffers.AsSpan(0, textBufferParts.Count);
         return buffers;

@@ -7,8 +7,10 @@ namespace NtFreX.BuildingBlocks.Shell
     public class DesktopShell : IShell
     {
         private readonly Sdl2Window window;
+        private readonly GraphicsDeviceOptions? graphicsDeviceOptions;
+        private readonly GraphicsBackend? preferredBackend;
 
-        public event Action? Rendering;
+        public event Func<Task>? RenderingAsync;
         public event Action<InputSnapshot>? Updating;
         public event Func<GraphicsDevice, ResourceFactory, Swapchain, Task>? GraphicsDeviceCreated;
         public event Action? GraphicsDeviceDestroyed;
@@ -19,30 +21,23 @@ namespace NtFreX.BuildingBlocks.Shell
 
         public bool IsDebug { get; private set; }
 
-        public DesktopShell(string title, bool isDebug)
+        public DesktopShell(WindowCreateInfo windowCreateInfo, GraphicsDeviceOptions? graphicsDeviceOptions = null, GraphicsBackend? preferredBackend = null, bool isDebug = false)
         {
-            var windowCreateInfo = new WindowCreateInfo()
-            {
-                X = 100,
-                Y = 100,
-                WindowWidth = 960,
-                WindowHeight = 540,
-                WindowTitle = title
-            };
-
             window = VeldridStartup.CreateWindow(windowCreateInfo);
             window.Resized += () => Resized?.Invoke();
+            this.graphicsDeviceOptions = graphicsDeviceOptions;
+            this.preferredBackend = preferredBackend;
             IsDebug = isDebug;
         }
 
         public async Task RunAsync()
         {
-           var graphicsDeviceOptions = new GraphicsDeviceOptions
+           var graphicsDeviceOptions = this.graphicsDeviceOptions ?? new GraphicsDeviceOptions
            {
-                SwapchainDepthFormat = PixelFormat.R16_UNorm,
+                SwapchainDepthFormat = PixelFormat.R32_Float,
                 HasMainSwapchain = true,
                 SwapchainSrgbFormat = true,
-                SyncToVerticalBlank = true,
+                SyncToVerticalBlank = true, //TODO: disable from time to time to make sure perf is top notch
                 ResourceBindingModel = ResourceBindingModel.Improved,
                 PreferStandardClipSpaceYDirection = true,
                 PreferDepthRangeZeroToOne = true,
@@ -50,7 +45,7 @@ namespace NtFreX.BuildingBlocks.Shell
             };
 
             //TODO: make this work with other graphic backends
-            var graphicsDevice = VeldridStartup.CreateGraphicsDevice(window, graphicsDeviceOptions);
+            var graphicsDevice = preferredBackend == null ? VeldridStartup.CreateGraphicsDevice(window, graphicsDeviceOptions) : VeldridStartup.CreateGraphicsDevice(window, graphicsDeviceOptions, preferredBackend.Value);
             if (GraphicsDeviceCreated != null)
             {
                 await GraphicsDeviceCreated.Invoke(graphicsDevice, graphicsDevice.ResourceFactory, graphicsDevice.MainSwapchain);
@@ -63,7 +58,9 @@ namespace NtFreX.BuildingBlocks.Shell
                 if (window.Exists)
                 {
                     Updating?.Invoke(inputSnapshot);
-                    Rendering?.Invoke();
+                    //TODO: make this work with await
+                    RenderingAsync!.Invoke().Wait();
+                    //new Task(async () => await RenderingAsync!.Invoke()).RunSynchronously();
                 }
             }
 

@@ -15,6 +15,8 @@
 		<PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta13" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+		<PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+		<PackageReference Include="Veldrid.ImageSharp" Version="4.8.0" />
 		<PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
 		<PackageReference Include="Veldrid" Version="$(VeldridVersion)" />
 		<PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
@@ -25,11 +27,17 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--<PackageReference Include="BepuPhysics" Version="2.3.0" />-->
-
 		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuPhysics\BepuPhysics.csproj" />
-		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />
+		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />		
 		<ProjectReference Include="..\..\dependencies\SDL2-CS\SDL2-CS.Core.csproj" />
+
+
+		<!--
+		
+		<PackageReference Include="BepuPhysics" Version="2.4.0-beta9" />
+		<PackageReference Include="SDL2-CS.NetCore" Version="2.0.8" />
+		
+		-->
 	</ItemGroup>
 
 

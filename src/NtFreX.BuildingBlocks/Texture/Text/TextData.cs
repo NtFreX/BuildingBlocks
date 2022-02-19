@@ -17,6 +17,20 @@ public struct TextData : IEquatable<TextData>
         Color = color;
     }
 
+    public static bool operator !=(TextData? one, TextData? two)
+        => !(one == two);
+
+    public static bool operator ==(TextData? one, TextData? two)
+    {
+        if (!one.HasValue && !two.HasValue)
+            return true;
+        if (!one.HasValue)
+            return false;
+        if (!two.HasValue)
+            return false;
+        return one.Equals(two);
+    }
+
     public override int GetHashCode() => (Font, Value, Color).GetHashCode();
 
     public override string ToString()

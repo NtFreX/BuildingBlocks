@@ -1,0 +1,34 @@
+ - multithreading
+ - render passes
+ - shadows
+ - full material support
+
+ - object creation and deletion (graphics device created and destroyed)
+
+ - smoke/cloud/fog shader
+ - bloom shader
+ - fire shader
+ - water shader
+
+ - particle systems
+ - animations
+  - fix assimp bone animation
+  - transform animations
+
+ - model import
+  - import mesh groups and models (provide options if the user wants to import all meshes as copies or keep the same object mesh relation as in the source file)
+  - custom dae importer 
+   - textures
+   - animations
+   - materials
+
+
+
+ - cleanup code
+  - graphics system
+   - camera/scene/light system
+  - remove all todos
+  - ..
+ 
+ - changeble scenes and demos
+ - readme and documention

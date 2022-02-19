@@ -4,11 +4,13 @@ using BepuUtilities.Memory;
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
+using NtFreX.BuildingBlocks.Audio.Sdl2;
 using NtFreX.BuildingBlocks.Cameras;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Mesh;
 using NtFreX.BuildingBlocks.Mesh.Import;
 using NtFreX.BuildingBlocks.Model;
+using NtFreX.BuildingBlocks.Model.Common;
 using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Shell;
 using NtFreX.BuildingBlocks.Standard;
@@ -22,8 +24,8 @@ namespace NtFreX.BuildingBlocks
     //TODO: memory leaks in sample game update
     //TODO: app update performance improvement
     //TODO: update graphics time performance
-    //TODO: multitheading (create different steps to parallelize: maybe pyhisics independend update, pre phciscs update, post physics update)
-    //TODO: text atlas offset wrong when using multile fonts
+    //TODO: multitheading (create different steps to parallelize: maybe pyhisics independend update, pre phciscs update, post physics update, multitheaded rendering)
+    //TODO: text atlas offset wrong when using multile fonts?
     public abstract class Game
     {
         public Stopwatch Stopwatch { get; private set; } = Stopwatch.StartNew();
@@ -33,10 +35,10 @@ namespace NtFreX.BuildingBlocks
         public TextureFactory TextureFactory { get; private set; }
         public GraphicsSystem GraphicsSystem { get; private set; }
         public GraphicsDevice GraphicsDevice { get; private set; }
-        public SdlAudioSystem AudioSystem { get; private set; }
+        public IAudioSystem? AudioSystem { get; private set; }
         public DisposeCollectorResourceFactory ResourceFactory { get; private set; }
-        public Simulation? Simulation { get; private set; }
-        public IContactEventHandler ContactEventHandler { get; set; } = new NullContactEventHandler();
+        public Simulation? BepuSimulation { get; private set; }
+        public IContactEventHandler BepuContactEventHandler { get; set; } = new NullContactEventHandler();
         public IShell Shell { get; private set; }
         public ILoggerFactory LoggerFactory { get; private set; }
         public InputHandler InputHandler { get; private set; }
@@ -45,10 +47,14 @@ namespace NtFreX.BuildingBlocks
         public IThreadDispatcher ThreadDispatcher { get; private set; }
         public Scene CurrentScene { get; private set; } = new Scene();
 
+        public AudioSystemType AudioSystemType { get; set; }
+        public bool EnableBepuSimulation { get; set; }
+        public bool EnableImGui { get; set; }
+
         private double? previousRenderingElapsed;
         private double? previousUpdaingElapsed;
 
-        private ImGuiRenderable imGuiRenderable;
+        private Model.Common.ImGuiRenderer? imGuiRenderable;
         private DebugExecutionTimer timerAudioUpdate;
         private DebugExecutionTimer timerRendering;
         private DebugExecutionTimer timerUpdating;
@@ -65,7 +71,7 @@ namespace NtFreX.BuildingBlocks
         {
             shell.GraphicsDeviceCreated += OnGraphicsDeviceCreatedAsync;
             shell.GraphicsDeviceDestroyed += OnGraphicsDeviceDestroyed;
-            shell.Rendering += OnRendering;
+            shell.RenderingAsync += OnRenderingAsync;
             shell.Updating += OnUpdating;
 
             Shell = shell;
@@ -73,10 +79,6 @@ namespace NtFreX.BuildingBlocks
             Logger = LoggerFactory.CreateLogger<Game>();
             TextureFactory = new TextureFactory(this, loggerFactory.CreateLogger<TextureFactory>());
             InputHandler = new InputHandler();
-
-            imGuiRenderable = new ImGuiRenderable((int)Shell.Width, (int)Shell.Height);
-            CurrentScene.AddUpdateables(imGuiRenderable);
-            CurrentScene.AddFreeRenderables(imGuiRenderable);
 
             shell.Resized += () => OnWindowResized();
 
@@ -91,15 +93,14 @@ namespace NtFreX.BuildingBlocks
 
         // TODO: move camera to scene and rename to get default scene
         protected abstract Camera GetDefaultCamera();
-        //TODO: support no simulation?
-        protected virtual Simulation? LoadSimulation() => Simulation.Create(new BufferPool(), new NullNarrowPhaseCallbacks(new NullContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
+        protected virtual Simulation? LoadBeupSimulation() => Simulation.Create(new BufferPool(), new NullNarrowPhaseCallbacks(new NullContactEventHandler()), new NullPoseIntegratorCallbacks(), new SolveDescription(1, 4));
         protected virtual void BeforeGraphicsSystemUpdate(float delta) { }
         protected virtual void AfterGraphicsSystemUpdate(float delta) { }
         protected virtual Task LoadResourcesAsync() => Task.CompletedTask;
 
         private void OnWindowResized()
         {
-            imGuiRenderable.WindowResized((int)Shell.Width, (int)Shell.Height);
+            imGuiRenderable?.WindowResized((int)Shell.Width, (int)Shell.Height);
             GraphicsDevice.ResizeMainWindow(Shell.Width, Shell.Height);
             GraphicsSystem.OnWindowResized((int)Shell.Width, (int)Shell.Height);
         }
@@ -112,18 +113,26 @@ namespace NtFreX.BuildingBlocks
             ResourceFactory.DisposeCollector.DisposeAll();
             TextureFactory.Dispose();
             GraphicsDevice.Dispose();
-            AudioSystem.Dispose();
-            Simulation?.Dispose();
+            AudioSystem?.Dispose();
+            BepuSimulation?.Dispose();
         }
 
         private async Task OnGraphicsDeviceCreatedAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Swapchain _)
         {
+
+            if (EnableImGui)
+            {
+                imGuiRenderable = new Model.Common.ImGuiRenderer((int)Shell.Width, (int)Shell.Height);
+                CurrentScene.AddUpdateables(imGuiRenderable);
+                CurrentScene.AddFreeRenderables(imGuiRenderable);
+            }
+
             GraphicsDevice = graphicsDevice;
             ThreadDispatcher = new SimpleThreadDispatcher(Math.Max(1, Environment.ProcessorCount > 4 ? Environment.ProcessorCount - 2 : Environment.ProcessorCount - 1));
             ResourceFactory = new DisposeCollectorResourceFactory(resourceFactory);
             GraphicsSystem = new GraphicsSystem(LoggerFactory, GraphicsDevice, ResourceFactory, GetDefaultCamera());
-            AudioSystem = new SdlAudioSystem(GraphicsSystem);
-            Simulation = LoadSimulation();
+            AudioSystem = AudioSystemType == AudioSystemType.Sdl2 ? new SdlAudioSystem(GraphicsSystem) : null;
+            BepuSimulation = EnableBepuSimulation ? LoadBeupSimulation() : null;
             DaeModelImporter = new DaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
             AssimpDaeModelImporter = new AssimpDaeModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
             ObjModelImporter = new ObjModelImporter(GraphicsDevice, ResourceFactory, TextureFactory, GraphicsSystem);
@@ -137,12 +146,12 @@ namespace NtFreX.BuildingBlocks
             timerAfterGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game After Graphics Update"));
             timerBeforeGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Before Graphics Update"));
 
-            MeshRenderPassFactory.Load(ResourceFactory, Shell.IsDebug);
+            MeshRenderPassFactory.Load(GraphicsDevice, ResourceFactory, Shell.IsDebug);
 
             // TODO: improve
             var cl = resourceFactory.CreateCommandList();
             cl.Begin();
-            CurrentScene.CreateAllDeviceObjects(graphicsDevice, cl, new RenderContext(graphicsDevice.MainSwapchain.Framebuffer));
+            CurrentScene.CreateAllDeviceObjects(graphicsDevice, ResourceFactory, GraphicsSystem, cl, new RenderContext { MainSceneFramebuffer = graphicsDevice.MainSwapchain.Framebuffer });
             cl.End();
             graphicsDevice.SubmitCommands(cl);
             cl.Dispose();
@@ -155,12 +164,12 @@ namespace NtFreX.BuildingBlocks
             timerUpdating.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
-            var updateDelta = (float)(previousUpdaingElapsed == null ? .00000001f : elapsed - previousUpdaingElapsed.Value);
+            var updateDelta = (float)(previousUpdaingElapsed == null ? float.MinValue: elapsed - previousUpdaingElapsed.Value);
             previousUpdaingElapsed = elapsed;
                         
             {
                 timerUpdateSimulation.Start();
-                Simulation?.Timestep(updateDelta, ThreadDispatcher);
+                BepuSimulation?.Timestep(updateDelta, ThreadDispatcher);
                 timerUpdateSimulation.Stop();
             }
             
@@ -190,14 +199,14 @@ namespace NtFreX.BuildingBlocks
 
             {
                 timerAudioUpdate.Start();
-                AudioSystem.Update(GraphicsSystem.Camera.Value?.Position.Value);
+                AudioSystem?.Update(GraphicsSystem.Camera.Value?.Position.Value);
                 timerAudioUpdate.Stop();
             }
 
             timerUpdating.Stop();
         }
 
-        private void OnRendering()
+        private async Task OnRenderingAsync()
         {
             timerRendering.Start();
 
@@ -205,7 +214,7 @@ namespace NtFreX.BuildingBlocks
             var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value);
             previousRenderingElapsed = elapsed;
 
-            if (Shell.IsDebug)
+            if (Shell.IsDebug && EnableImGui)
             {
                 ImGui.Begin("Debug info");
                 ImGui.Text(timerUpdating.Source.Average.TotalMilliseconds + "ms update time");
@@ -225,9 +234,8 @@ namespace NtFreX.BuildingBlocks
                 ImGui.End();
             }
 
-            // TODO: make this async?
-            Task.WaitAll(GraphicsSystem.DrawAsync(CurrentScene));
-            
+            await GraphicsSystem.DrawAsync(CurrentScene);
+
             timerRendering.Stop();
         }
     }

@@ -47,6 +47,20 @@ namespace NtFreX.BuildingBlocks.Mesh
             this.TransparentColor = transparentColor ?? Vector4.Zero;
         }
 
+        public static bool operator !=(MaterialInfo? one, MaterialInfo? two)
+            => !(one == two);
+
+        public static bool operator ==(MaterialInfo? one, MaterialInfo? two)
+        {
+            if (!one.HasValue && !two.HasValue)
+                return true;
+            if (!one.HasValue)
+                return false;
+            if (!two.HasValue)
+                return false;
+            return one.Equals(two);
+        }
+
         public override int GetHashCode() => (Opacity, Shininess, ShininessStrength, Reflectivity, AmbientColor, DiffuseColor, EmissiveColor, ReflectiveColor, SpecularColor, TransparentColor).GetHashCode();
 
         public override bool Equals(object? obj)

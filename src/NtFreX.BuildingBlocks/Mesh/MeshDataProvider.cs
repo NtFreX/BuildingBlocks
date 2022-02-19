@@ -1,5 +1,6 @@
-﻿using NtFreX.BuildingBlocks.Standard;
+﻿using NtFreX.BuildingBlocks.Mesh.Primitives;
 using NtFreX.BuildingBlocks.Standard.Extensions;
+using NtFreX.BuildingBlocks.Standard.Pools;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,339 +10,7 @@ using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Mesh
 {
-    public abstract class MeshDataProvider : MeshData
-    {
-        public IndexFormat IndexFormat { get; set; }
-        public PrimitiveTopology PrimitiveTopology { get; set; }
-        public VertexLayoutDescription VertexLayout { get; set; }
-        public string? MaterialName { get; set; }
-        public string? TexturePath { get; set; }
-
-        public MaterialInfo Material { get; set; }
-        public InstanceInfo[] Instances { get; set; } = InstanceInfo.Single;
-
-        public DeviceBuffer CreateIndexBuffer(ResourceFactory factory, CommandList cl, out int indexCount) => CreateIndexBuffer(factory, cl, out indexCount, null).RealDeviceBuffer;
-        public DeviceBuffer CreateVertexBuffer(ResourceFactory factory, CommandList cl) => CreateVertexBuffer(factory, cl, null).RealDeviceBuffer;
-        public abstract PooledDeviceBuffer CreateIndexBuffer(ResourceFactory factory, CommandList cl, out int indexCount, DeviceBufferPool? deviceBufferPool = null);
-        public abstract PooledDeviceBuffer CreateVertexBuffer(ResourceFactory factory, CommandList cl, DeviceBufferPool? deviceBufferPool = null);
-        public abstract BoundingBox GetBoundingBox();
-        public abstract BoundingSphere GetBoundingSphere();
-        public abstract ushort[] GetIndices();
-        public abstract Index16[] GetIndices16Bit();
-        public abstract Index32[] GetIndices32Bit();
-        public abstract Vector3[] GetVertexPositions();
-        public abstract bool RayCast(Ray ray, out float distance);
-        public abstract int RayCast(Ray ray, List<float> distances);
-    }
-
-    // TODO complete use and make ref struct?
-    public class BinaryMeshDataProvider : MeshDataProvider
-    {
-        private readonly byte[] positionValues;
-        private readonly byte[] normalValues;
-        private readonly byte[] texCoordValues;
-        private readonly byte[] colorValues;
-        private readonly byte[] indices;
-
-        // TODO: maybe apply transform earlier!!! or move to base class and use in buffer/meshrenderer
-        public Matrix4x4 Transform { get; set; }
-
-        private static unsafe Span<byte> GetSpan<T>(T[] data)
-            where T: unmanaged
-        {
-            if (data == null || data.Length == 0)
-                return new Span<byte>();
-
-            fixed (T* ptr = &data[0])
-            {
-                return new Span<byte>((byte*)ptr, data.Length * Marshal.SizeOf<T>());
-            }
-        }
-
-        public static unsafe BinaryMeshDataProvider Create(float[] positionValues, float[] normalValues, float[] texCoordValues, float[] colorValues, uint[] indexValues, VertexLayoutDescription vertexLayout)
-        {
-            var positions = GetSpan(positionValues);
-            var normals = GetSpan(normalValues);
-            var texCoords = GetSpan(texCoordValues);
-            var colors = GetSpan(colorValues);
-            var indices = GetSpan(indexValues);
-            return new BinaryMeshDataProvider(positions.ToArray(), normals.ToArray(), texCoords.ToArray(), colors.ToArray(), indices.ToArray())
-            {
-                IndexFormat = IndexFormat.UInt32,
-                PrimitiveTopology = PrimitiveTopology.TriangleList,
-                VertexLayout = vertexLayout,
-                Material = new ()
-            };
-        }
-
-        public BinaryMeshDataProvider(byte[] positionValues, byte[] normalValues, byte[] texCoordValues, byte[] colorValues, byte[] indices)
-        {
-            this.positionValues = positionValues;
-            this.normalValues = normalValues;
-            this.texCoordValues = texCoordValues;
-            this.colorValues = colorValues;
-            this.indices = indices;
-        }
-
-        // TODO: do not doublicate the following methods!!!
-        public override unsafe BoundingSphere GetBoundingSphere()
-        {
-            var vertexCount = GetVertexCount();
-            var vertexSize = GetVertexSize();
-            fixed (byte* ptr = &positionValues[0])
-            {
-                return BoundingSphere.CreateFromPoints((Vector3*)ptr, vertexCount, vertexSize);
-            }
-        }
-
-        public override unsafe BoundingBox GetBoundingBox()
-        {
-            var vertexCount = GetVertexCount();
-            var vertexSize = GetVertexSize();
-            fixed (byte* ptr = &positionValues[0])
-            {
-                return BoundingBox.CreateFromPoints(
-                    (Vector3*)ptr,
-                    vertexCount,
-                    vertexSize,
-                    Quaternion.Identity,
-                    Vector3.Zero,
-                    Vector3.One);
-            }
-
-        }
-
-        public override unsafe bool RayCast(Ray ray, out float distance)
-        {
-            var indexCount = GetIndexCount();
-
-            distance = float.MaxValue;
-            bool result = false;
-
-            fixed (byte* ptr = &positionValues[0])
-            {
-                for (int i = 0; i < indexCount - 2; i += 3)
-                {
-                    var v0 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 0));
-                    var v1 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 1));
-                    var v2 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 2));
-
-                    float newDistance;
-                    if (ray.Intersects(ref v0, ref v1, ref v2, out newDistance))
-                    {
-                        if (newDistance < distance)
-                        {
-                            distance = newDistance;
-                        }
-
-                        result = true;
-                    }
-                }
-            }
-            return result;
-        }
-
-        public override int RayCast(Ray ray, List<float> distances)
-        {
-            var indexCount = GetIndexCount();
-
-            int hits = 0;
-            for (int i = 0; i < indexCount - 2; i += 3)
-            {
-                var v0 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 0));
-                var v1 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 1));
-                var v2 = GetVertexPositionAt((int)(object)GetIndexPositionAt(i + 2));
-
-                float newDistance;
-                if (ray.Intersects(ref v0, ref v1, ref v2, out newDistance))
-                {
-                    hits++;
-                    distances.Add(newDistance);
-                }
-            }
-
-            return hits;
-        }
-
-        private unsafe uint GetIndexPositionAt(int index)
-        {
-            fixed (byte* ptr = &indices[0])
-            {
-                var vertexPtr = ptr + index;
-
-                return *(uint*)ptr;
-            }
-        }
-
-        private unsafe Vector3 GetVertexPositionAt(int index)
-        {
-            fixed (byte* ptr = &positionValues[0])
-            {
-                var vertexPtr = ptr + index;
-
-                return *(Vector3*)ptr;
-            }
-        }
-
-        public unsafe override ushort[] GetIndices()
-        {
-            checked
-            {
-                return IndexFormat == IndexFormat.UInt16
-                    ? GetIndices16Bit().Select(x => x.Value).ToArray()
-                    : GetIndices32Bit().Select(x => { checked { return (ushort)x.Value; } }).ToArray();
-            }
-        }
-
-        public unsafe override Index16[] GetIndices16Bit()
-        {
-            if (IndexFormat != IndexFormat.UInt16)
-                throw new NotSupportedException();
-
-            var indices16 = new Index16[GetIndexCount() * VertexLayout.Elements.Length];
-            fixed (Index16* ptr = &indices16[0])
-            {
-                Marshal.Copy(indices, 0, new IntPtr(ptr), indices.Length);
-            }
-            return indices16.Where((item, index) => index % VertexLayout.Elements.Length == 0).ToArray();
-        }
-
-        public unsafe override Index32[] GetIndices32Bit()
-        {
-            if (IndexFormat != IndexFormat.UInt32)
-                throw new NotSupportedException();
-
-            var indices32 = new Index32[GetIndexCount() * VertexLayout.Elements.Length];
-            fixed (Index32* ptr = &indices32[0])
-            {
-                Marshal.Copy(indices, 0, new IntPtr(ptr), indices.Length);
-            }
-            return indices32.Where((item, index) => index % VertexLayout.Elements.Length == 0).ToArray();
-        }
-
-        public unsafe override Vector3[] GetVertexPositions()
-        {
-            var positions = new Vector3[GetVertexCount()];
-            fixed (Vector3* ptr = &positions[0])
-            {
-                Marshal.Copy(positionValues, 0, new IntPtr(ptr), positions.Length);
-            }
-            return positions;
-        }
-
-        public override PooledDeviceBuffer CreateVertexBuffer(ResourceFactory factory, CommandList commandList, DeviceBufferPool? deviceBufferPool = null)
-        {
-            var indexCount = GetIndexCount();
-            var vertexSize = GetVertexSize();
-            var vertices = Enumerable.Range(0, indexCount - 1).Select(GetVertexData).SelectMany(x => x).ToArray();
-            var desc = new BufferDescription((uint)(indexCount * vertexSize), BufferUsage.VertexBuffer);
-            var vb = factory.CreatedPooledBuffer(desc, deviceBufferPool);
-            commandList.UpdateBuffer(vb.RealDeviceBuffer, 0, vertices);
-            return vb;
-        }
-
-        public override PooledDeviceBuffer CreateIndexBuffer(ResourceFactory factory, CommandList commandList, out int indexCount, DeviceBufferPool? deviceBufferPool = null)
-        {
-            var indexSize = GetIndexSize();
-            indexCount = GetIndexCount();
-            var indices = Enumerable.Range(0, indexCount - 1).Select(x => GetIndexData(x).ToArray()).SelectMany(x => x).ToArray();
-
-            var desc = new BufferDescription((uint)indices.Length, BufferUsage.IndexBuffer);
-            var ib = factory.CreatedPooledBuffer(desc, deviceBufferPool);
-            commandList.UpdateBuffer(ib.RealDeviceBuffer, 0, indices);
-            return ib;
-        }
-
-        public Span<byte> GetIndexData(int index, VertexElementSemantic semantic = VertexElementSemantic.Position)
-        {
-            var position = 0;
-            var size = GetIndexSize();
-            foreach (var element in VertexLayout.Elements)
-            {
-                if (element.Semantic == semantic)
-                    break;
-
-                position += size;
-            }
-            var count = VertexLayout.Elements.Length;
-
-            return indices.AsSpan(index * size * count + position, size);
-        }
-
-        public byte[] GetVertexData(int index)
-        {
-            var data = new byte[GetVertexSize()];
-            var position = 0;
-            for(var i = 0; i < VertexLayout.Elements.Count(); i++)
-            {
-                var element = VertexLayout.Elements[i];
-                if(element.Semantic == VertexElementSemantic.Position)
-                    CopyVertexData(in element, positionValues.AsSpan(), To32BitIndex(GetIndexData(index, VertexElementSemantic.Position)), data.AsSpan(), ref position);
-                else if (element.Semantic == VertexElementSemantic.Normal)
-                    CopyVertexData(in element, normalValues.AsSpan(), To32BitIndex(GetIndexData(index, VertexElementSemantic.Normal)), data.AsSpan(), ref position);
-                else if (element.Semantic == VertexElementSemantic.TextureCoordinate)
-                    CopyVertexData(in element, texCoordValues.AsSpan(), To32BitIndex(GetIndexData(index, VertexElementSemantic.TextureCoordinate)), data.AsSpan(), ref position);
-                else if (element.Semantic == VertexElementSemantic.Color)
-                    CopyVertexData(in element, colorValues.AsSpan(), To32BitIndex(GetIndexData(index, VertexElementSemantic.Color)), data.AsSpan(), ref position);
-            }
-            return data;
-        }
-
-        public int GetVertexCount()
-        {
-            if (!VertexLayout.Elements.Any(x => x.Semantic == VertexElementSemantic.Position))
-                throw new Exception("A position is required to calculate the vertex count");
-
-            var postionElement = VertexLayout.Elements.First(x => x.Semantic == VertexElementSemantic.Position);
-            return positionValues.Length / GetByteCount(postionElement.Format);
-        }
-
-        public int GetIndexCount()
-            => indices.Length / GetIndexSize() / VertexLayout.Elements.Length;
-
-        public int GetIndexSize()
-            => IndexFormat == IndexFormat.UInt16 ? 2 :
-               IndexFormat == IndexFormat.UInt32 ? 4 :
-               throw new NotSupportedException();
-
-        public int GetVertexSize()
-            => VertexLayout.Elements.Sum(element => GetByteCount(element.Format));
-
-        private uint To32BitIndex(Span<byte> data)
-        {
-            if (data.Length == 4)
-                return BitConverter.ToUInt32(data);
-            if (data.Length == 2)
-                return BitConverter.ToUInt16(data);
-            throw new NotSupportedException();
-        }
-
-        private void CopyVertexData(in VertexElementDescription element, Span<byte> sourceData, uint index, Span<byte> targetData, ref int position)
-        {
-            var size = GetByteCount(element.Format);
-            var source = GetData(sourceData, index, size);
-            var destination = targetData.Slice(position, size);
-            source.CopyTo(destination);
-            position += size;
-        }
-
-        private Span<byte> GetData(in Span<byte> data, uint index, int size)
-            => data.Slice((int)(index * size), size);
-
-        private static byte GetByteCount(VertexElementFormat format)
-        {
-            return format switch
-            {
-                VertexElementFormat.Float1 => 4,
-                VertexElementFormat.Float2 => 8,
-                VertexElementFormat.Float3 => 12,
-                VertexElementFormat.Float4 => 16,
-                _ => throw new NotSupportedException()
-            };
-        }
-    }
-
-    public class MeshDataProvider<TVertex, TIndex> : MeshDataProvider, IEquatable<MeshDataProvider<TVertex, TIndex>>
+    public class MeshDataProvider<TVertex, TIndex> : BaseMeshDataProvider, IEquatable<MeshDataProvider<TVertex, TIndex>>
         where TVertex : unmanaged, IVertex
         where TIndex : unmanaged, IIndex
     {
@@ -350,7 +19,7 @@ namespace NtFreX.BuildingBlocks.Mesh
         public TVertex[] Vertices { get; set; }
         public TIndex[] Indices { get; set; }
 
-        public MeshDataProvider(TVertex[] vertices, TIndex[] indices, PrimitiveTopology primitiveTopology, string? materialName = null, string? texturePath = null, MaterialInfo? material = null)
+        public MeshDataProvider(TVertex[] vertices, TIndex[] indices, PrimitiveTopology primitiveTopology, string? materialName = null, string? texturePath = null, string? alphaMapPath = null, MaterialInfo? material = null)
         {
             Vertices = vertices;
             Indices = indices;
@@ -359,11 +28,13 @@ namespace NtFreX.BuildingBlocks.Mesh
             Material = material ?? new MaterialInfo();
             PrimitiveTopology = primitiveTopology;
             TexturePath = texturePath;
+            AlphaMapPath = alphaMapPath;
             VertexLayout = TVertex.VertexLayout;
         }
 
         public virtual async Task SaveAsync(Stream stream)
         {
+            // TODO: support null values
             stream.WriteByte((byte)PrimitiveTopology);
             stream.WriteByte((byte)(MaterialName == null ? 0 : 1));
             if (MaterialName != null)
@@ -377,7 +48,13 @@ namespace NtFreX.BuildingBlocks.Mesh
                 await stream.WriteAsync(BitConverter.GetBytes(TexturePath.Length));
                 await stream.WriteAsync(Encoding.UTF8.GetBytes(TexturePath));
             }
-            await stream.WriteAsync(BitConverterExtensions.ToBytes(Material));
+            stream.WriteByte((byte)(AlphaMapPath == null ? 0 : 1));
+            if (AlphaMapPath != null)
+            {
+                await stream.WriteAsync(BitConverter.GetBytes(AlphaMapPath.Length));
+                await stream.WriteAsync(Encoding.UTF8.GetBytes(AlphaMapPath));
+            }
+            await stream.WriteAsync(BitConverterExtensions.ToBytes(Material.Value));
             await stream.WriteAsync(BitConverter.GetBytes(Instances.Length));
             foreach(var instance in Instances)
                 await stream.WriteAsync(BitConverterExtensions.ToBytes(instance));
@@ -407,6 +84,14 @@ namespace NtFreX.BuildingBlocks.Mesh
                 var textureBuffer = new byte[Unsafe.SizeOf<char>() * BitConverter.ToInt32(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() })];
                 await stream.ReadAsync(textureBuffer);
                 texturePath = Encoding.UTF8.GetString(textureBuffer);
+            }
+
+            string? alphaMapPath = null;
+            if (stream.ReadByte() == 1)
+            {
+                var textureBuffer = new byte[Unsafe.SizeOf<char>() * BitConverter.ToInt32(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() })];
+                await stream.ReadAsync(textureBuffer);
+                alphaMapPath = Encoding.UTF8.GetString(textureBuffer);
             }
 
             var materialInfoBuffer = new byte[Unsafe.SizeOf<MaterialInfo>()];
@@ -440,7 +125,7 @@ namespace NtFreX.BuildingBlocks.Mesh
                 indices[i] = BitConverterExtensions.FromBytes<TIndex>(indexBuffer);
             }
 
-            return new MeshDataProvider<TVertex, TIndex>(vertices, indices, primitiveTopology, materialName, texturePath, material) { Instances = instances };
+            return new MeshDataProvider<TVertex, TIndex>(vertices, indices, primitiveTopology, materialName, texturePath, alphaMapPath, material) { Instances = instances };
         }
 
         public override PooledDeviceBuffer CreateVertexBuffer(ResourceFactory factory, CommandList commandList, DeviceBufferPool? deviceBufferPool = null)
@@ -480,7 +165,6 @@ namespace NtFreX.BuildingBlocks.Mesh
                     Vector3.Zero,
                     Vector3.One);
             }
-
         }
 
         public override unsafe bool RayCast(Ray ray, out float distance)
@@ -593,6 +277,20 @@ namespace NtFreX.BuildingBlocks.Mesh
             return Indices.Cast<Index32>().ToArray();
         }
 
+        public static bool operator !=(MeshDataProvider<TVertex, TIndex>? one, MeshDataProvider<TVertex, TIndex>? two)
+            => !(one == two);
+
+        public static bool operator ==(MeshDataProvider<TVertex, TIndex>? one, MeshDataProvider<TVertex, TIndex>? two)
+        {
+            if (ReferenceEquals(one, two))
+                return true;
+            if (ReferenceEquals(one, null))
+                return false;
+            if (ReferenceEquals(two, null))
+                return false;
+            return one.Equals(two);
+        }
+
         public override bool Equals(object? obj)
         {
             if (ReferenceEquals(null, obj)) return false;
@@ -607,21 +305,7 @@ namespace NtFreX.BuildingBlocks.Mesh
                 return false;
             if (ReferenceEquals(this, other))
                 return true;
-            if (other.IndexFormat != IndexFormat)
-                return false;
-            if (other.PrimitiveTopology != PrimitiveTopology)
-                return false;
-            if (!other.VertexLayout.Equals(VertexLayout))
-                return false;
-            if (other.MaterialName != MaterialName)
-                return false;
-            if (other.TexturePath != TexturePath)
-                return false;
-            if (!other.Material.Equals(Material))
-                return false;
-            if (Instances == null && other.Instances != null ||
-               Instances != null && other.Instances == null ||
-               Instances != null && other.Instances != null && !other.Instances.SequenceEqual(Instances))
+            if (!base.Equals(other))
                 return false;
             if (Vertices == null && other.Vertices != null ||
                Vertices != null && other.Vertices == null ||

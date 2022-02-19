@@ -4,7 +4,7 @@ namespace NtFreX.BuildingBlocks.Shell
 {
     public interface IShell
     {
-        event Action Rendering;
+        event Func<Task> RenderingAsync;
         event Action<InputSnapshot> Updating;
         event Func<GraphicsDevice, ResourceFactory, Swapchain, Task> GraphicsDeviceCreated;
         event Action GraphicsDeviceDestroyed;

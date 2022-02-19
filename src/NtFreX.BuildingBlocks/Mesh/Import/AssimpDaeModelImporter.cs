@@ -3,30 +3,43 @@ using NtFreX.BuildingBlocks.Standard.Extensions;
 using NtFreX.BuildingBlocks.Texture;
 using System.Numerics;
 using Veldrid;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
+using NtFreX.BuildingBlocks.Model;
+
+using Matrix4x4 = System.Numerics.Matrix4x4;
+using AssimpMatrix4x4 = Assimp.Matrix4x4;
+using AssimpScene = Assimp.Scene;
+using NtFreX.BuildingBlocks.Standard;
 
 namespace NtFreX.BuildingBlocks.Mesh.Import;
 
 public class AssimpDaeModelImporter : ModelImporter
 {
+    private const PostProcessSteps DefaultPostProcessSteps = PostProcessSteps.None;
+    //PostProcessSteps.FlipWindingOrder | PostProcessSteps.Triangulate | PostProcessSteps.PreTransformVertices
+    //| PostProcessSteps.CalculateTangentSpace | PostProcessSteps.GenerateSmoothNormals; // TODO: what is needed?
+
     public AssimpDaeModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem)
         : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem) { }
 
-    public override Task<MeshDataProvider<VertexPositionNormalTextureColor, Index32>[]> PositionColorNormalTexture32BitMeshFromFileAsync(string filePath)
+    public override Task<ImportedMeshCollection<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>> PositionColorNormalTexture32BitMeshFromFileAsync(string filePath)
     {
+        var importCollection = new ImportedMeshCollection<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>();
         var assimpContext = new AssimpContext();
         using (var stream = File.OpenRead(filePath))
         {
-            var scene = assimpContext.ImportFileFromStream(stream, Path.GetExtension(filePath));
-            var meshes = new List<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>();
+            var scene = assimpContext.ImportFileFromStream(stream, DefaultPostProcessSteps, Path.GetExtension(filePath));
+            var meshes = new List<(MeshDataProvider<VertexPositionNormalTextureColor, Index32> Mesh, Dictionary<string, uint> BoneNames)>();
             for (var meshIndex = 0; meshIndex < scene.Meshes.Count; meshIndex++)
             {
                 var mesh = scene.Meshes[meshIndex];
-                    var type = mesh.PrimitiveType == PrimitiveType.Point ? PrimitiveTopology.PointList :
-                            mesh.PrimitiveType == PrimitiveType.Line ? PrimitiveTopology.LineList :
-                            mesh.PrimitiveType == PrimitiveType.Triangle ? PrimitiveTopology.TriangleList :
-                            throw new ArgumentException();
+                var type = mesh.PrimitiveType == PrimitiveType.Point ? PrimitiveTopology.PointList :
+                        mesh.PrimitiveType == PrimitiveType.Line ? PrimitiveTopology.LineList :
+                        mesh.PrimitiveType == PrimitiveType.Triangle ? PrimitiveTopology.TriangleList :
+                        throw new ArgumentException();
 
-                var shaderReadyVertices = new List<VertexPositionNormalTextureColor>();
+                var shaderReadyVertices = new VertexPositionNormalTextureColor[mesh.VertexCount];
+                var boneInfos = new BoneInfoVertex[mesh.VertexCount];
                 for (var i = 0; i < mesh.VertexCount; i++)
                 {
                     var position = mesh.HasVertices ? new Vector3(mesh.Vertices[i].X, mesh.Vertices[i].Y, mesh.Vertices[i].Z) : Vector3.Zero;
@@ -48,7 +61,24 @@ public class AssimpDaeModelImporter : ModelImporter
                         color = new RgbaFloat(assimpColor.R, assimpColor.G, assimpColor.B, assimpColor.A);
                     }
 
-                    shaderReadyVertices.Add(new VertexPositionNormalTextureColor(position, color, textureCordinate, normal));
+                    boneInfos[i] = new BoneInfoVertex();
+                    shaderReadyVertices[i] = new VertexPositionNormalTextureColor(position, color, textureCordinate, normal);
+                }
+
+                var boneIdNames = new Dictionary<string, uint>();
+                var transforms = Enumerable.Repeat(Matrix4x4.Identity, mesh.BoneCount).ToArray(); //new Matrix4x4[DefaultMeshRenderPass.MaxBoneTransforms];
+                if (mesh.HasBones)
+                {
+                    for (uint boneId = 0; boneId < mesh.BoneCount; boneId++)
+                    {
+                        var bone = mesh.Bones[(int)boneId];
+                        boneIdNames.Add(bone.Name, boneId);
+                        foreach (VertexWeight weight in bone.VertexWeights)
+                        {
+                            boneInfos[weight.VertexID].AddBone(boneId, weight.Weight);
+                        }
+                        transforms[boneId] = bone.OffsetMatrix.ToSystemMatrix();
+                    }
                 }
 
                 //TODO: load all textures            
@@ -68,28 +98,61 @@ public class AssimpDaeModelImporter : ModelImporter
                     shininess: meshMaterial.Shininess,
                     shininessStrength: meshMaterial.ShininessStrength);
 
-                var vertices = shaderReadyVertices.ToArray();
                 var indices = mesh.GetUnsignedIndices().Select(x => (Index32)x).ToArray();
-                meshes.Add(new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(vertices, indices, type, material: material, texturePath: texture));
+                var meshProvider = new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(shaderReadyVertices, indices, type, material: material, texturePath: texture)
+                {
+                    Bones = mesh.HasBones ? boneInfos : null,
+                    BoneTransforms = mesh.HasBones ? transforms : null
+                };
+                meshes.Add((Mesh: meshProvider, BoneNames: boneIdNames));
             }
 
-            var results = new List<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>();
-            Transform(results, meshes.ToArray(), scene.RootNode);
+            SetBoneAnimationProviders(meshes, scene);
+            importCollection.Instaces = ToMeshTransforms(scene, scene.RootNode, AssimpMatrix4x4.Identity).ToArray();
+            importCollection.Meshes = meshes.Select(x => x.Mesh).ToArray();
 
-            return Task.FromResult(results.ToArray());
+            return Task.FromResult(importCollection);
         }
     }
 
-    private void Transform(List<MeshDataProvider<VertexPositionNormalTextureColor, Index32>> results, MeshDataProvider<VertexPositionNormalTextureColor, Index32>[] meshes, Node node)
+    private List<MeshTransform> ToMeshTransforms(AssimpScene scene, Node node, AssimpMatrix4x4 baseTransform)
     {
-        foreach (var mesh in node.MeshIndices)
+        var meshTransforms = new List<MeshTransform>();
+        var nodeTransform = node.Transform * baseTransform;
+
+        foreach (var meshIndex in node.MeshIndices)
         {
-            var transform = node.Transform.ToNumericsMatrix();
-            results.Add(meshes[mesh].MutateVertices(vertex => new VertexPositionNormalTextureColor(Vector3.Transform(vertex.Position, transform), vertex.Color, vertex.TextureCoordinate, vertex.Normal)));
+            meshTransforms.Add(new MeshTransform { MeshIndex = (uint) meshIndex, Transform = new Transform(nodeTransform.ToSystemMatrix()) });
         }
+
         foreach (var child in node.Children)
         {
-            Transform(results, meshes, child);
+            meshTransforms.AddRange(ToMeshTransforms(scene, child, nodeTransform));
+        }
+        return meshTransforms;
+    }
+
+    private void SetBoneAnimationProviders(List<(MeshDataProvider<VertexPositionNormalTextureColor, Index32> Mesh, Dictionary<string, uint> BoneNames)> meshes, AssimpScene scene)
+    {
+        var rootInverseTransform = scene.RootNode.Transform;
+        rootInverseTransform.Inverse();
+
+        for(int meshIndex = 0; meshIndex < meshes.Count; meshIndex++)
+        {
+            var boneAnimations = new List<IBoneAnimationProvider>();
+            foreach (var animation in scene.Animations)
+            {
+                var boneTransForms = meshes[meshIndex].Mesh.BoneTransforms;
+                if (boneTransForms != null)
+                {
+                    var transformBuffer = new Matrix4x4[DefaultMeshRenderPass.MaxBoneTransforms];
+                    boneTransForms.CopyTo(transformBuffer, 0);
+
+                    boneAnimations.Add(new AssimpBoneAnimationProvider(transformBuffer, animation, animation.NodeAnimationChannels, meshes[meshIndex].BoneNames, boneTransForms.Select(x => x.ToAssimpMatrix()).ToArray(), scene.RootNode, rootInverseTransform));
+                }
+            }
+
+            meshes[meshIndex].Mesh.BoneAnimationProviders = boneAnimations.ToArray();
         }
     }
 }

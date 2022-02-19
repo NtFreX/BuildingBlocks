@@ -3,8 +3,12 @@ using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
+
 using BepuPhysicsMesh = BepuPhysics.Collidables.Mesh;
 using BepuBufferPool = BepuUtilities.Memory.BufferPool;
+using VertexPosition = NtFreX.BuildingBlocks.Mesh.Primitives.VertexPosition;
+using NtFreX.BuildingBlocks.Standard.Pools;
 
 namespace NtFreX.BuildingBlocks.Mesh
 {
@@ -28,10 +32,10 @@ namespace NtFreX.BuildingBlocks.Mesh
         }
 
         public static Triangle[] GetTriangles(this MeshData mesh)
-            => mesh is MeshDataProvider dataProvider 
+            => mesh is BaseMeshDataProvider dataProvider 
                 ? GetTriangles(dataProvider) 
                 : mesh.GetTriangles(mesh.GetIndices().Select(x => (Index32)x).ToArray());
-        public static Triangle[] GetTriangles(this MeshDataProvider mesh)
+        public static Triangle[] GetTriangles(this BaseMeshDataProvider mesh)
         {
             if (mesh.PrimitiveTopology != PrimitiveTopology.TriangleList)
                 throw new Exception("Only meshes with triangle lists are supported");
@@ -49,7 +53,7 @@ namespace NtFreX.BuildingBlocks.Mesh
             return triangles;
         }
 
-        public static MeshDataProvider<VertexPosition, Index32> CombineVertexPosition32Bit(this IEnumerable<MeshDataProvider> meshDataProviders)
+        public static MeshDataProvider<VertexPosition, Index32> CombineVertexPosition32Bit(this IEnumerable<BaseMeshDataProvider> meshDataProviders)
         {
             var indices = new List<Index32>();
             var vertices = new List<VertexPosition>();
@@ -77,6 +81,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             string? materialName = null;
             MaterialInfo? material = null;
             string? texture = null;
+            string? alphaMap = null;
+            InstanceInfo[]? instanceInfo = null;
+            BoneInfoVertex[]? boneInfos = null;
+            Matrix4x4[]? boneTransforms = null;
+            IBoneAnimationProvider[]? animationProviders = null;
             foreach (var data in meshDataProviders)
             {
                 if (data.PrimitiveTopology != PrimitiveTopology.TriangleList)
@@ -89,9 +98,20 @@ namespace NtFreX.BuildingBlocks.Mesh
                 materialName = data.MaterialName;
                 material = data.Material;
                 texture = data.TexturePath;
+                alphaMap = data.AlphaMapPath;
+                instanceInfo = data.Instances;
+                boneInfos = data.Bones;
+                boneTransforms = data.BoneTransforms;
+                animationProviders = data.BoneAnimationProviders;
             }
 
-            return new MeshDataProvider<TVertex, TIndex>(vertices.ToArray(), indices.ToArray(), PrimitiveTopology.TriangleList, materialName: materialName, texturePath: texture, material: material);
+            return new MeshDataProvider<TVertex, TIndex>(vertices.ToArray(), indices.ToArray(), PrimitiveTopology.TriangleList, materialName: materialName, texturePath: texture, alphaMapPath: alphaMap, material: material)
+            {
+                Instances = instanceInfo,
+                Bones = boneInfos,
+                BoneTransforms = boneTransforms,
+                BoneAnimationProviders = animationProviders,
+            };
         }
 
         public static MeshDataProvider<TVertex, TIndex> Define<TVertex, TIndex>(this BinaryMeshDataProvider binaryMesh, Func<byte[], TVertex> buildVertex)
@@ -117,7 +137,13 @@ namespace NtFreX.BuildingBlocks.Mesh
                 }
             }
 
-            return new MeshDataProvider<TVertex, TIndex>(vertices.ToArray(), indices, binaryMesh.PrimitiveTopology, binaryMesh.MaterialName, binaryMesh.TexturePath, binaryMesh.Material);
+            return new MeshDataProvider<TVertex, TIndex>(vertices.ToArray(), indices, binaryMesh.PrimitiveTopology, binaryMesh.MaterialName, binaryMesh.TexturePath, binaryMesh.AlphaMapPath, binaryMesh.Material)
+            {
+                Instances = binaryMesh.Instances,
+                Bones = binaryMesh.Bones,
+                BoneTransforms = binaryMesh.BoneTransforms,
+                BoneAnimationProviders = binaryMesh.BoneAnimationProviders
+            };
         }
 
         public static MeshDataProvider<TVertex, Index16> MutateTo16BitIndex<TVertex>(this MeshDataProvider<TVertex, Index32> meshDataProvider)
@@ -148,9 +174,10 @@ namespace NtFreX.BuildingBlocks.Mesh
             => new MeshDataProvider<TVertexOut, TIndexOut>(
                 meshDataProvider.Vertices.Select(mutateVertexFnc).ToArray(), 
                 meshDataProvider.Indices.Select(mutateIndexFnc).ToArray(), 
-                meshDataProvider.PrimitiveTopology, meshDataProvider.MaterialName, meshDataProvider.TexturePath, meshDataProvider.Material); 
+                meshDataProvider.PrimitiveTopology, meshDataProvider.MaterialName, meshDataProvider.TexturePath, meshDataProvider.AlphaMapPath, meshDataProvider.Material)
+            {  Bones = meshDataProvider.Bones, BoneTransforms = meshDataProvider.BoneTransforms, Instances = meshDataProvider.Instances, BoneAnimationProviders = meshDataProvider.BoneAnimationProviders };
 
-        public static (PooledDeviceBuffer VertexBuffer, PooledDeviceBuffer IndexBuffer, int IndexCount) BuildVertexAndIndexBuffer(this MeshDataProvider mesh, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
+        public static (PooledDeviceBuffer VertexBuffer, PooledDeviceBuffer IndexBuffer, int IndexCount) BuildVertexAndIndexBuffer(this BaseMeshDataProvider mesh, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
         {
             var commandList = CommandListPool.TryGet(resourceFactory, commandListPool);
             var vertexBuffer = mesh.CreateVertexBuffer(resourceFactory, commandList.Item, deviceBufferPool);

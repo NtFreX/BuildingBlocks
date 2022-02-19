@@ -17,7 +17,7 @@
             get => value;
             set
             {
-                this.value = value ?? throw new ArgumentNullException();
+                this.value = value;
                 ValueChanged?.Invoke(sender, value);
             }
         }

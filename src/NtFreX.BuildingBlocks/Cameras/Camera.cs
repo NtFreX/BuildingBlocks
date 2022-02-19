@@ -2,6 +2,7 @@
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Mesh;
 using NtFreX.BuildingBlocks.Standard;
+using NtFreX.BuildingBlocks.Standard.Extensions;
 using System.Numerics;
 using Veldrid;
 
@@ -70,7 +71,7 @@ namespace NtFreX.BuildingBlocks.Cameras
 
         private void UpdateProjectionMatrix()
         {
-            ProjectionMatrix = Matrix4x4.CreatePerspectiveFieldOfView(FieldOfView, WindowWidth / WindowHeight, NearDistance, FarDistance);
+            ProjectionMatrix = Matrix4x4Extensions.CreatePerspective(graphicsDevice.IsClipSpaceYInverted, graphicsDevice.IsDepthRangeZeroToOne, FieldOfView, WindowWidth / WindowHeight, NearDistance, FarDistance);
             hasProjectionChanged = true;
         }
         private void UpdateViewMatrix()

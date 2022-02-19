@@ -36,6 +36,20 @@ namespace NtFreX.BuildingBlocks.Mesh
             TexArrayIndex = texArrayIndex;
         }
 
+        public static bool operator !=(InstanceInfo? one, InstanceInfo? two)
+            => !(one == two);
+
+        public static bool operator ==(InstanceInfo? one, InstanceInfo? two)
+        {
+            if (!one.HasValue && !two.HasValue)
+                return true;
+            if (!one.HasValue)
+                return false;
+            if (!two.HasValue)
+                return false;
+            return one.Equals(two);
+        }
+
         public override int GetHashCode() => (Position, Rotation, Scale, TexArrayIndex).GetHashCode();
 
         public override bool Equals(object? obj)

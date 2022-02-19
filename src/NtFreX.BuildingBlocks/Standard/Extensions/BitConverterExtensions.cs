@@ -11,7 +11,7 @@ public static class BitConverterExtensions
         return result;
     }
 
-    public static T FromBytes<T>(byte[] data) where T : unmanaged
+    public static T FromBytes<T>(Span<byte> data) where T : unmanaged
         => Unsafe.As<byte, T>(ref data[0]);
 
 }

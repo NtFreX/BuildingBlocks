@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using NtFreX.BuildingBlocks.Mesh.Primitives;
+using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
