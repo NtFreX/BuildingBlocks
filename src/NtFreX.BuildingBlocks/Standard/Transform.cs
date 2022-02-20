@@ -8,15 +8,17 @@ public struct Transform : IEquatable<Transform>
     public Matrix4x4 Rotation { get; init; } = Matrix4x4.Identity; // TODO: use quaternion?
     public Vector3 Scale { get; init; } = Vector3.One;
 
+    //TODO make this correct!
     public static Transform operator *(Transform one, Transform two)
-        => new Transform(one.CreateWorldMatrix() * two.CreateWorldMatrix());
+        => new Transform(one.Position + two.Position, one.Rotation * two.Rotation, one.Scale * two.Scale); //new Transform(one.CreateWorldMatrix() * two.CreateWorldMatrix());
 
     public Transform() { }
     public Transform(Matrix4x4 transform)
     {
+        //TODO: test this!
         Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation);
 
-        Position = translation;
+        Position = new Vector3(transform.M14, transform.M24, transform.M34);
         Scale = scale;
         Rotation = Matrix4x4.CreateFromQuaternion(rotation);
     }

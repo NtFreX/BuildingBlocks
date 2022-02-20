@@ -279,12 +279,11 @@ namespace NtFreX.BuildingBlocks.Sample
 
         //private readonly CollidableProperty<SubgroupCollisionFilter> collidableProperties = new CollidableProperty<SubgroupCollisionFilter>();
 
-        public SampleGame(IShell shell, ILoggerFactory loggerFactory) 
-            : base(shell, loggerFactory) 
+        public SampleGame()
         {
-            EnableImGui = shell.IsDebug;
+            EnableImGui = Shell.IsDebug;
             AudioSystemType = AudioSystemType.Sdl2;
-            //EnableSimulation = true;
+            //EnableBepuSimulation = true;
             //font = SystemFonts.Families.Select(x => x.CreateFont(48, FontStyle.Regular)).ToArray();
         }
 
@@ -486,8 +485,13 @@ namespace NtFreX.BuildingBlocks.Sample
             //LoadPhysicObjects();
             LoadFloor();
 
+            CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\level_2902.dae")); 
+            CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\wall.dae"));
+            
+            //CurrentScene.AddCullRenderables(await AssimpDaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\cart_level002.dae", new ModelLoadOptions {  Transform = new Transform(position: new Vector3(-1000, 0, -1000)) }));
+            //CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\cart_level002.dae", new ModelLoadOptions { Transform = new Transform(position: new Vector3(1000, 0, 1000)) }));
 
-            await CreateAnimatedModelAsync(@"D:\projects\veldrid-samples\assets\models\goblin.dae"); //@"C:\Users\FTR\Documents\Space Station Scene.dae");
+            //await CreateAnimatedModelAsync(@"D:\projects\veldrid-samples\assets\models\goblin.dae"); //@"C:\Users\FTR\Documents\Space Station Scene.dae");
 
             //goblin = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, -15), Scale = new Vector3(.001f) }, shaders, @"resources/models/goblin.dae");
             //dragon = await AssimpDaeModelImporter.ModelFromFileAsync(new ModelCreationInfo { Position = new Vector3(10, 0, 15) }, shaders, @"resources/models/chinesedragon.dae");
@@ -534,7 +538,7 @@ namespace NtFreX.BuildingBlocks.Sample
             // TODO: create device resource pattern
             var cl = ResourceFactory.CreateCommandList();
             cl.Begin();
-            CurrentScene.AddFreeRenderables(new Skybox(
+            CurrentScene.AddFreeRenderables(new SkyboxRenderer(
                 Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_ft.png"),
                 Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_bk.png"),
                 Image.Load<Rgba32>(@"D:\projects\ntfrex_veldrid\src\NeoDemo\Assets\Textures\cloudtop\cloudtop_lf.png"),
@@ -633,12 +637,15 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             //TODO: make this work
             var daeMeshProvider = await DaeFileReader.BinaryMeshFromFileAsync(@"C:\Users\FTR\Documents\tunnel.dae");
-            var definedMeshProviders = daeMeshProvider.Select(provider => provider
+            var definedMeshProviders = daeMeshProvider.Meshes.Select(provider => provider
                 .Define<VertexPositionNormalTextureColor, Index32>(data => VertexPositionNormalTextureColor.Build(data, provider.VertexLayout))
-                .MutateVertices(vertex => new VertexPositionNormalTextureColor(Vector3.Transform(vertex.Position, provider.Transform * Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90))), vertex.Color, vertex.TextureCoordinate, vertex.Normal)));//.Combine();
-            var models = definedMeshProviders.Select(definedMeshProvider => MeshRenderer.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, definedMeshProvider, new Transform { Position = new Vector3(0, 500, 0), Scale = Vector3.One * 20 }, textureView: TextureFactory.GetDefaultTexture(TextureUsage.Sampled))).ToArray();
+                .MutateVertices(vertex => new VertexPositionNormalTextureColor(Vector3.Transform(vertex.Position, provider.Transform * Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90))), vertex.Color, vertex.TextureCoordinate, vertex.Normal)))
+                .ToArray();//.Combine();
 
-            CurrentScene.AddCullRenderables(await AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(500, 1000, 0), Scale = Vector3.One * 20, Rotation = Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90)) }, @"C:\Users\FTR\Documents\tunnel.dae"));
+            var flattenedProviders = definedMeshProviders.FlattenMeshDataProviders(daeMeshProvider.Instaces);
+            var models = flattenedProviders.Select(definedMeshProvider => MeshRenderer.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, definedMeshProvider, new Transform { Position = new Vector3(0, 500, 0), Scale = Vector3.One * 20 }, textureView: TextureFactory.GetDefaultTexture(TextureUsage.Sampled))).ToArray();
+
+            CurrentScene.AddCullRenderables(await AssimpDaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\tunnel.dae", new ModelLoadOptions { Transform = new Transform { Position = new Vector3(500, 1000, 0), Scale = Vector3.One * 20, Rotation = Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathHelper.ToRadians(90)) } }));
 
 
             //var triangles = daeMeshProvider.SelectMany(x => x.GetTriangles()).ToArray();
@@ -674,10 +681,10 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             // currently the obj file doens doesn't support mtlib file names with spaces and the mtl file does not support map_Ks values (released version)
             var modelLoaders = new List<Task<MeshRenderer[]>>();
-            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(1000, 100, 0) }, @"resources/models/Space Station Scene 3.dae"/*, ssvv*/));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(-1000, 100, 0) }, @"resources/models/Space Station Scene.obj"));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f }, @"resources/models/sponza.obj"));
-            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(0, 100, 1000) }, @"resources/models/Space Station Scene dark.obj"));
+            modelLoaders.Add(AssimpDaeModelImporter.ModelFromFileAsync(@"resources/models/Space Station Scene 3.dae", new ModelLoadOptions {  Transform = new Transform { Position = new Vector3(1000, 100, 0) } }/*, ssvv*/));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(@"resources/models/Space Station Scene.obj", new ModelLoadOptions {  Transform = new Transform { Position = new Vector3(-1000, 100, 0) } }));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(@"resources/models/sponza.obj", new ModelLoadOptions { Transform = new Transform { Position = new Vector3(0, 100, -1000), Scale = Vector3.One * 0.1f } }));
+            modelLoaders.Add(ObjModelImporter.ModelFromFileAsync(@"resources/models/Space Station Scene dark.obj", new ModelLoadOptions { Transform = new Transform { Position = new Vector3(0, 100, 1000) } }));
 
             var completedModels = await Task.WhenAll(modelLoaders);
             CurrentScene.AddCullRenderables(completedModels.SelectMany(x => x).ToArray());
@@ -748,14 +755,14 @@ namespace NtFreX.BuildingBlocks.Sample
         private async Task LoadFloorAsync(TextureView texture)
         {
             var modelMesh = await ObjModelImporter.PositionColorNormalTexture32BitMeshFromFileAsync(@"C:\Users\FTR\Documents\terrain001.obj");
-            var triangles = modelMesh.SelectMany(x => x.GetTriangles()).ToArray();
+            var triangles = modelMesh.Meshes.FlattenMeshDataProviders(modelMesh.Instaces).SelectMany(x => x.GetTriangles()).ToArray();
             var meshProvider = new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(
                 triangles.SelectMany(x => new[] { x.A, x.B, x.C }).Select(x => new VertexPositionNormalTextureColor(x, RgbaFloat.Red)).ToArray(), Enumerable.Range(0, triangles.Length * 3).Select(x => (Index32)x).ToArray(), PrimitiveTopology.TriangleList);
             var colliderModel = MeshRenderer.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, meshProvider, textureView: texture);
             colliderModel.MeshBuffer.FillMode.Value = PolygonFillMode.Wireframe;
             CurrentScene.AddCullRenderables(colliderModel);
 
-            var floorModel = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, @"C:\Users\FTR\Documents\terrain001.obj", BepuSimulation.BufferPool);
+            var floorModel = await ObjModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\terrain001.obj", new ModelLoadOptions { Transform = new Transform { Position = GraphicsSystem.Camera.Value.Up.Value * -8f }, PhysicsBufferPool = BepuSimulation?.BufferPool });
             floorModel[0].MeshBuffer.TextureView.Value = texture;
             CurrentScene.AddUpdateables(floorModel.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(floorModel);
@@ -763,11 +770,11 @@ namespace NtFreX.BuildingBlocks.Sample
 
         private async Task LoadRacingTracksAsync()
         {
-            var track = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, 0, -25) }, @"C:\Users\FTR\Documents\track001.obj", BepuSimulation.BufferPool);
+            var track = await ObjModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\track001.obj", new ModelLoadOptions { Transform = new Transform { Position = new Vector3(10, 0, -25) }, PhysicsBufferPool = BepuSimulation?.BufferPool });
             CurrentScene.AddUpdateables(track.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(track);
 
-            var track2 = await ObjModelImporter.ModelFromFileAsync(new Transform { Position = new Vector3(10, -25, -25) }, @"C:\Users\FTR\Documents\track002.obj", BepuSimulation.BufferPool);
+            var track2 = await ObjModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\track002.obj", new ModelLoadOptions { Transform = new Transform { Position = new Vector3(10, -25, -25) }, PhysicsBufferPool = BepuSimulation?.BufferPool });
             CurrentScene.AddUpdateables(track2.Select(x => new BepuPhysicsCollidableBehavoir<BepuPhysicsMesh>(BepuSimulation, x)).ToArray());
             CurrentScene.AddCullRenderables(track2);
         }

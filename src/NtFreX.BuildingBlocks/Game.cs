@@ -64,10 +64,7 @@ namespace NtFreX.BuildingBlocks
         private DebugExecutionTimer timerUpdateGraphics;
         private DebugExecutionTimer timerUpdateSimulation;
 
-        public Game(IShell shell)
-            : this(shell, Microsoft.Extensions.Logging.LoggerFactory.Create(x => x.AddConsole())) { }
-
-        public Game(IShell shell, ILoggerFactory loggerFactory)
+        private void Setup(IShell shell, ILoggerFactory loggerFactory)
         {
             shell.GraphicsDeviceCreated += OnGraphicsDeviceCreatedAsync;
             shell.GraphicsDeviceDestroyed += OnGraphicsDeviceDestroyed;
@@ -89,6 +86,21 @@ namespace NtFreX.BuildingBlocks
                 else
                     RenderDoc = renderDoc;
             }
+        }
+
+        public static async Task SetupShellAndRunAsync<T>(IShell shell, ILoggerFactory? loggerFactory = null)
+            where T : Game, new()
+        {
+            SetupShell<T>(shell, loggerFactory);
+            await shell.RunAsync();
+        }
+
+        public static void SetupShell<T>(IShell shell, ILoggerFactory? loggerFactory = null)
+            where T: Game, new()
+        {
+            loggerFactory = loggerFactory ?? Microsoft.Extensions.Logging.LoggerFactory.Create(x => x.AddConsole());
+            var game = new T();
+            game.Setup(shell, loggerFactory);
         }
 
         // TODO: move camera to scene and rename to get default scene

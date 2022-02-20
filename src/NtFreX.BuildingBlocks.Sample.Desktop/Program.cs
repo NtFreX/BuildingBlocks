@@ -34,16 +34,14 @@ namespace NtFreX.BuildingBlocks.Desktop
         static async Task Main(string[] args)
         {
             // sdl c# import or own bindings (licence both wrapper and main lib)
-            await SampleGame.RunAsync(
-                new DesktopShell(new WindowCreateInfo()
-                {
-                    X = 100,
-                    Y = 100,
-                    WindowWidth = 960,
-                    WindowHeight = 540,
-                    WindowTitle = Assembly.GetEntryAssembly().FullName
-                }, isDebug: ApplicationContext.IsDebug), 
-                ApplicationContext.LoggerFactory);
+            await Game.SetupShellAndRunAsync<SampleGame>(new DesktopShell(new WindowCreateInfo()
+            {
+                X = 100,
+                Y = 100,
+                WindowWidth = 960,
+                WindowHeight = 540,
+                WindowTitle = Assembly.GetEntryAssembly().FullName
+            }, isDebug: ApplicationContext.IsDebug), ApplicationContext.LoggerFactory);
         }
     }
 

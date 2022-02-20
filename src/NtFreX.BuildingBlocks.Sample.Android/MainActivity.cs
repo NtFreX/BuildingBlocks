@@ -17,7 +17,8 @@ namespace NtFreX.BuildingBlocks.Android
             base.OnCreate(savedInstanceState);
 
             shell = new AndroidShell(this, Sample.ApplicationContext.IsDebug);
-            var game = new SampleGame(shell, Sample.ApplicationContext.LoggerFactory);
+            Game.SetupShell<SampleGame>(shell, Sample.ApplicationContext.LoggerFactory);
+
             SetContentView(shell.View);
         }
 

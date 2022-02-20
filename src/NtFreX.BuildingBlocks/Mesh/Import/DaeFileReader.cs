@@ -139,8 +139,9 @@ public static class DaeFileReader
             var diffuseSampler = diffuseTexture == null ? null : ResolveSampler(commonProfile, diffuseTexture);
             var diffuseSurface = diffuseSampler == null ? null : ResolveSurface2D(commonProfile, diffuseSampler);
             var diffuseColor = ParseColor(lambertElement?.Element(Name + "diffuse")?.Element(Name + "color")?.Value ?? string.Empty);
+            var diffiuseTexture = images?.FirstOrDefault(img => img.Id == diffuseSurface).Path;
 
-            return new Material(material.Attribute("id")?.Value ?? throw  new Exception(), diffuseColor, images.First(img => img.Id == diffuseSurface).Path);
+            return new Material(material.Attribute("id")?.Value ?? throw  new Exception(), diffuseColor, diffiuseTexture);
         }).ToArray();
     }
 
@@ -266,18 +267,17 @@ public static class DaeFileReader
     private static int GetOffset(XElement element) 
         => int.Parse(element.Attribute("offset")?.Value ?? throw new Exception("The element geometry/mesh/triangles/input must have an offset attribute"));
 
-    private static List<Node> AggregateNodes(Node[] nodes)
+    private static List<Node> AggregateNodes(Node[] nodes, Matrix4x4 baseTransform)
     {
-        var allNodes = new List<Node>(nodes);
+        var allNodes = new List<Node>();
         foreach (var node in nodes)
         {
-            var children = AggregateNodes(node.Children);
-            var transformedChildren = new List<Node>();
-            foreach (var child in children)
+            var nodeTransform = baseTransform * node.Transform;
+            allNodes.Add(new Node(nodeTransform, Array.Empty<Node>(), node.InstanceMeshes));
+            foreach (var child in AggregateNodes(node.Children, nodeTransform))
             {
-                transformedChildren.Add(new Node(child.Transform * node.Transform, Array.Empty<Node>(), child.InstanceMeshes));
+                allNodes.Add(new Node(child.Transform * nodeTransform, Array.Empty<Node>(), child.InstanceMeshes));
             }
-            allNodes.AddRange(transformedChildren);
         }
         return allNodes;
     }
@@ -316,7 +316,7 @@ public static class DaeFileReader
     {
         var daeFile = LoadFile(filePath);
         var collection = new ImportedMeshCollection<BinaryMeshDataProvider>();
-        var nodesAggregated = daeFile.Scenes.SelectMany(scene => AggregateNodes(scene.Nodes));
+        var nodesAggregated = daeFile.Scenes.SelectMany(scene => AggregateNodes(scene.Nodes, Matrix4x4.Identity));
         collection.Meshes = daeFile.Meshes.Select(mesh => BinaryMeshDataProvider.Create(mesh.Positions, mesh.Normals, mesh.TexCoords, mesh.Colors, mesh.Indices, mesh.Layout)).ToArray();
         collection.Instaces = nodesAggregated.SelectMany(node => node.InstanceMeshes.Select(nodeGeometry => new MeshTransform { 
             MeshIndex = GetMeshIndex(daeFile, nodeGeometry.Name), 
