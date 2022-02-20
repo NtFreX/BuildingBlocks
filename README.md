@@ -1,4 +1,11 @@
-- This is a graphics library/framework based on [Veldrid](https://github.com/mellinoe/veldrid) (Veldrid is a cross-platform, graphics API-agnostic rendering and compute library for .NET). ([MIT License](https://github.com/mellinoe/veldrid/blob/master/LICENSE))
+#NtFrex.BuildingBlocks
+
+##Dependencies
+
+- This graphics library/framework is based on [Veldrid](https://github.com/mellinoe/veldrid) (Veldrid is a cross-platform, graphics API-agnostic rendering and compute library for .NET). ([MIT License](https://github.com/mellinoe/veldrid/blob/master/LICENSE))
+ - [Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) (Vortice.Windows is a collection of Win32 and UWP libraries with bindings support for DXGI, WIC, DirectWrite, Direct2D, Direct3D9, Direct3D11, Direct3D12, XInput, XAudio2, X3DAudio and DirectInput). ([MIT License](https://github.com/amerkoleci/Vortice.Windows/blob/main/LICENSE))
+ - [vk](https://github.com/mellinoe/vk) (This repository contains low-level bindings for the Vulkan graphics and compute API.) ([MIT License](https://github.com/mellinoe/vk/blob/master/LICENSE.md))
+ - [nativelibraryloader](https://github.com/mellinoe/nativelibraryloader) ([MIT License](https://github.com/mellinoe/nativelibraryloader/blob/master/LICENSE))
 - It provides a physics integration based on [BEPUphysics2](https://github.com/bepu/bepuphysics2) (BEPUphysics is a pure C# 3D physics library by BEPU). ([Apache License 2.0](https://github.com/bepu/bepuphysics2/blob/master/LICENSE.md))
 - Text and other image related features are implemented with [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) (ImageSharp is a new, fully featured, fully managed, cross-platform, 2D graphics library). ([Apache License 2.0](https://github.com/SixLabors/ImageSharp/blob/main/LICENSE))
 - Shader cross compilation is supported by [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) (SPIRV-Cross is a tool designed for parsing and converting SPIR-V to other shader languages). ([Apache License 2.0](https://github.com/KhronosGroup/SPIRV-Cross/blob/master/LICENSE))
@@ -10,7 +17,7 @@
 - Input handling and audio functionality is provided by [SDL2](https://www.libsdl.org/download-2.0.php) (Simple DirectMedia Layer is a cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D). ([zlib license](https://www.libsdl.org/license.php))
   - .NET wrapper: [SDL2-CS](https://github.com/flibitijibibo/SDL2-CS) (This is SDL2#, a C# wrapper for SDL2). ([LICENSE](https://github.com/flibitijibibo/SDL2-CS/blob/master/LICENSE))
 
-**Architecture**
+##Architecture
 
 You can use this library as a framework if you overwrite the `Game` type and use one of the described startup methods.
 
@@ -26,9 +33,9 @@ public class SampleGame : Game
 }
 ```
 
-**Startup**
+##Startup
 
-*Desktop*
+###Desktop
 
 Desktop environments can be bootstrapped by using the `DesktopShell` and the default InputHandler based on SLD2.
 
@@ -47,7 +54,7 @@ static async Task Main(string[] args)
 }
 ```
 
-*Android* (not working)
+###Android (not working)
 
 Android environments can be bootstrapped by using the `AndroidShell` and the default `AndroidInputSnapshot`.
 
@@ -81,9 +88,9 @@ public class MainActivity : AndroidActivity
 }
 ```
 
-**Basics**
+##Basics
 
-*Drawing*
+###Drawing
 
 ```
 var lineMeshRenderer = LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, start: Vector3.Zero, end: Vector3.UnitX * lineLength);
@@ -97,7 +104,7 @@ CurrentScene.AddFreeRenderables(qubeMeshRenderer);
 CurrentScene.AddUpdateables(qubeMeshRenderer);
 ```
 
-*Audio*
+###Audio
 
 Playing and manipulating audio.
 ```
@@ -118,14 +125,14 @@ AudioSystem.StopAll();
 AudioSystem.PreLoadWav(file: @"resources/audio/explosion.wav");
 ```
 
-**Meshes**
+##Meshes
 
-*BinaryMeshDataProvider*
+###BinaryMeshDataProvider
 
 Raw buffer of positions, normals, texture coordinates, colors and indices.
 
 
-*MeshDataProvider<TVertex, TIndex>*
+###MeshDataProvider<TVertex, TIndex>
 
 This provider is faster to create device buffers from, it provides structs for the vertex and index type. The clas `MeshDataExtensions` contains some usefull extension methods to modify the vertex and index data. The following are the valid vertex and index types, of corse you can create your own if you want.
 
@@ -147,9 +154,9 @@ var buffer = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh);
 var renderer = new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, buffer);
 ```
 
-**ShaderPrecompiler**
+##ShaderPrecompiler
 
-*Supported syntax:*
+###Supported syntax:
 
  - #if
  - #elseif
@@ -160,7 +167,7 @@ var renderer = new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem,
  - #include
  - #{VARIABLE}
 
-*Examples:*
+###Examples:
 
 Standard include
 ```
@@ -191,15 +198,15 @@ Inline if
 -----------------------------------
 
 
-**Importers**
+##Importers
 
  - ObjModelImporter
  - AssimpDaeModelImporter
-  - Supports BoneAnimations
+   - Supports BoneAnimations
  - DaeModelImporter
-  - Is based on DaeFileReader (an almost decoupled dae file reader)
-  - Supports Nodes, Scenes, Meshes, Materials partatly
+   - Is based on DaeFileReader (an almost decoupled dae file reader)
+   - Supports Nodes, Scenes, Meshes, Materials partatly
 
-**Animation** (not working)
+##Animation (not working)
 
  - AssimpBoneAnimationProvider
