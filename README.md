@@ -1,11 +1,14 @@
-This is a graphics library/framework based on [Veldrid](https://github.com/mellinoe/veldrid) (Veldrid is a cross-platform, graphics API-agnostic rendering and compute library for .NET).
-It provides a physics integration based on [BEPUphysics2](https://github.com/bepu/bepuphysics2) (BEPUphysics is a pure C# 3D physics library by BEPU).
-Text and other image related features are implemented with [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) (ImageSharp is a new, fully featured, fully managed, cross-platform, 2D graphics library).
-Shader cross compilation is supported by [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) (SPIRV-Cross is a tool designed for parsing and converting SPIR-V to other shader languages).
-The default GUI integrated is [ImGui](https://github.com/ocornut/imgui)(Dear ImGui is a bloat-free graphical user interface library for C++).
-For debugging this library integrates into [RenderDoc](https://github.com/baldurk/renderdoc) (RenderDoc is a stand-alone graphics debugging tool).
-Some features are impleted by using [AssimpNet](https://github.com/assimp/assimp-net) [Assimp](https://github.com/assimp/assimp) (A library to import and export various 3d-model-formats including scene-post-processing to generate missing render data).
-Interoperability for SDL2 is partialy provided by [SDL2-CS](https://github.com/flibitijibibo/SDL2-CS) (This is SDL2#, a C# wrapper for SDL2).
+- This is a graphics library/framework based on [Veldrid](https://github.com/mellinoe/veldrid) (Veldrid is a cross-platform, graphics API-agnostic rendering and compute library for .NET). ([MIT License](https://github.com/mellinoe/veldrid/blob/master/LICENSE))
+- It provides a physics integration based on [BEPUphysics2](https://github.com/bepu/bepuphysics2) (BEPUphysics is a pure C# 3D physics library by BEPU). ([Apache License 2.0](https://github.com/bepu/bepuphysics2/blob/master/LICENSE.md))
+- Text and other image related features are implemented with [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) (ImageSharp is a new, fully featured, fully managed, cross-platform, 2D graphics library). ([Apache License 2.0](https://github.com/SixLabors/ImageSharp/blob/main/LICENSE))
+- Shader cross compilation is supported by [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) (SPIRV-Cross is a tool designed for parsing and converting SPIR-V to other shader languages). ([Apache License 2.0](https://github.com/KhronosGroup/SPIRV-Cross/blob/master/LICENSE))
+  - .NET wrapper: [Veldrid.SPIRV](https://github.com/mellinoe/veldrid-spirv) ([MIT License](https://github.com/mellinoe/veldrid-spirv/blob/master/LICENSE))
+- The default GUI integrated is [ImGui](https://github.com/ocornut/imgui) (Dear ImGui is a bloat-free graphical user interface library for C++).
+  - .NET wrapper: [ImGui.NET](https://github.com/mellinoe/ImGui.NET) ([MIT License](https://github.com/mellinoe/ImGui.NET/blob/master/LICENSE))
+- For debugging this library integrates into [RenderDoc](https://github.com/baldurk/renderdoc) (RenderDoc is a stand-alone graphics debugging tool). ([MIT License](https://github.com/baldurk/renderdoc))
+- Some features are impleted by using [AssimpNet](https://github.com/assimp/assimp-net)/[Assimp](https://github.com/assimp/assimp) (A library to import and export various 3d-model-formats including scene-post-processing to generate missing render data). ([LICENSE](https://github.com/assimp/assimp/blob/master/LICENSE))
+- Input handling and audio functionality is provided by [SDL2](https://www.libsdl.org/download-2.0.php) (Simple DirectMedia Layer is a cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D). ([zlib license](https://www.libsdl.org/license.php))
+  - .NET wrapper: [SDL2-CS](https://github.com/flibitijibibo/SDL2-CS) (This is SDL2#, a C# wrapper for SDL2). ([LICENSE](https://github.com/flibitijibibo/SDL2-CS/blob/master/LICENSE))
 
 **Architecture**
 
@@ -80,6 +83,20 @@ public class MainActivity : AndroidActivity
 
 **Basics**
 
+*Drawing*
+
+```
+var lineMeshRenderer = LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, start: Vector3.Zero, end: Vector3.UnitX * lineLength);
+var qubeMeshRenderer = QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, sideLength: qubeSideLength);
+...
+```
+
+```
+CurrentScene.AddCullRenderables(qubeMeshRenderer);
+CurrentScene.AddFreeRenderables(qubeMeshRenderer);
+CurrentScene.AddUpdateables(qubeMeshRenderer);
+```
+
 *Audio*
 
 Playing and manipulating audio.
@@ -101,20 +118,6 @@ AudioSystem.StopAll();
 AudioSystem.PreLoadWav(file: @"resources/audio/explosion.wav");
 ```
 
-*Drawing*
-
-```
-var lineMeshRenderer = LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, start: Vector3.Zero, end: Vector3.UnitX * lineLength);
-var qubeMeshRenderer = QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, sideLength: qubeSideLength);
-...
-```
-
-```
-CurrentScene.AddCullRenderables(qubeMeshRenderer);
-CurrentScene.AddFreeRenderables(qubeMeshRenderer);
-CurrentScene.AddUpdateables(qubeMeshRenderer);
-```
-
 **Meshes**
 
 *BinaryMeshDataProvider*
@@ -133,6 +136,16 @@ This provider is faster to create device buffers from, it provides structs for t
 
  - Index32
  - Index16
+
+
+Custom meshes
+```
+var vertices = new VertexPosition[] { Vector3.Zero, Vector3.One };
+var indices = new Index16[] { 0, 1 };
+var mesh = new MeshDataProvider<VertexPosition, Index16>(vertices, indices, PrimitiveTopology.LineList);
+var buffer = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh);
+var renderer = new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, buffer);
+```
 
 **ShaderPrecompiler**
 
