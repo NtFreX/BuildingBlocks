@@ -1,5 +1,4 @@
-﻿using NtFreX.BuildingBlocks.Desktop;
-using NtFreX.BuildingBlocks.Mesh;
+﻿using NtFreX.BuildingBlocks.Mesh;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Veldrid;
@@ -14,8 +13,11 @@ namespace NtFreX.BuildingBlocks.Light
 
         private readonly GraphicsDevice graphicsDevice;
 
-        // TODO: directional light
-        public Vector3 AmbientLight { get => lightInfo.AmbientLight; set => lightInfo.AmbientLight = value; }
+        public event EventHandler LightChanged;
+
+        public Vector4 AmbientLight { get => lightInfo.AmbientLight; set { lightInfo.AmbientLight = value; UpdateLightChanged(); } }
+        public Vector3 DirectionalLightDirection { get => lightInfo.DirectionalLightDirection; set { lightInfo.DirectionalLightDirection = value; UpdateLightChanged(); } }
+        public Vector4 DirectionalLightColor { get => lightInfo.DirectionalLightColor; set { lightInfo.DirectionalLightColor = value; UpdateLightChanged(); } }
 
         public DeviceBuffer LightBuffer { get; private set; }
         public ResourceSet LightInfoResourceSet { get; private set; }
@@ -42,7 +44,7 @@ namespace NtFreX.BuildingBlocks.Light
                 lightInfo[i] = lights[i];
             }
 
-            hasLightChanged = true;
+            UpdateLightChanged();
         }
 
         public void Update()
@@ -58,6 +60,12 @@ namespace NtFreX.BuildingBlocks.Light
         {
             LightBuffer.Dispose();
             LightInfoResourceSet.Dispose();
+        }
+
+        private void UpdateLightChanged()
+        {
+            LightChanged?.Invoke(this, EventArgs.Empty);
+            hasLightChanged = true;
         }
     }
 }

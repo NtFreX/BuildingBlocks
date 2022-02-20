@@ -15,8 +15,15 @@ layout(set = #{worldViewProjectionSet}, binding = 2) uniform WorldBuffer
     mat4 World;
 };
 
+#if hasReflection
+    layout(set = #{reflectionSet}, binding = 3) uniform ReflectionViewProjBuffer
+    {
+        mat4 ReflectionViewProj;
+    };
+#endif
+
 #if hasBones
-    layout(set = #{boneTransformationsSet}, binding = 3) uniform BonesBuffer
+    layout(set = #{boneTransformationsSet}, binding = 0) uniform BonesBuffer
     {
         mat4 BonesTransformations[#{maxBoneTransforms}];
     };
@@ -51,9 +58,12 @@ layout(set = #{worldViewProjectionSet}, binding = 2) uniform WorldBuffer
 #endif
 
 layout(location = 0) out vec4 fsin_color;
-layout(location = 1) out vec2 fsin_texCoords;
+layout(location = 1) out vec3 fsin_texCoords;
+layout(location = 2) out vec3 fsin_positionWorldSpace;
+layout(location = 3) out vec4 fsin_reflectionPosition;
+#if hasNormal layout(location = 4) out vec3 fsin_normal; #endif
 
-#if hasInstances #include ./matrix3x3.shader
+#if hasInstances #include ./matrix3x3.shader #endif
 
 void main()
 {
@@ -78,10 +88,21 @@ void main()
     #endif
 
     #if hasTextureCoordinate
-        fsin_texCoords = TextureCoordinate;
+        #if hasInstances
+            fsin_texCoords = vec3(TextureCoordinate, InstanceTexArrayIndex);
+        #else
+            fsin_texCoords = vec3(TextureCoordinate, 0);
+        #endif
     #else 
-        fsin_texCoords = vec2(0, 0);
+        fsin_texCoords = vec3(0, 0, 0);
     #endif
+
+    #if hasNormal fsin_normal = Normal; #endif
     
-    gl_Position = Projection * View * World * transformedPos;
+    vec4 worldPosition = World * transformedPos;
+    fsin_positionWorldSpace = worldPosition.xyz;
+
+    #if hasReflection fsin_reflectionPosition = worldPosition * ReflectionViewProj; #endif
+
+    gl_Position = Projection * View * worldPosition;
 }

@@ -23,11 +23,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             this.Shininess = 0f;
             this.ShininessStrength = 0.2f;
             this.Reflectivity = 0f;
-            this.AmbientColor = Vector4.Zero;
-            this.DiffuseColor = Vector4.Zero;
-            this.EmissiveColor = Vector4.Zero;
-            this.ReflectiveColor = Vector4.Zero;
-            this.SpecularColor = Vector4.Zero;
+            this.AmbientColor = new Vector4(0, 0, 0, 1);
+            this.DiffuseColor = new Vector4(0, 0, 0, 1);
+            this.EmissiveColor = new Vector4(0, 0, 0, 1);
+            this.ReflectiveColor = new Vector4(0, 0, 0, 1);
+            this.SpecularColor = new Vector4(0, 0, 0, 1);
             this.TransparentColor = Vector4.Zero;
         }
 
@@ -39,11 +39,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             this.Shininess = shininess;
             this.ShininessStrength = shininessStrength;
             this.Reflectivity = reflectivity;
-            this.AmbientColor = ambientColor ?? Vector4.Zero;
-            this.DiffuseColor = diffuseColor ?? Vector4.Zero;
-            this.EmissiveColor = emissiveColor ?? Vector4.Zero;
-            this.ReflectiveColor = reflectiveColor ?? Vector4.Zero;
-            this.SpecularColor = specularColor ?? Vector4.Zero;
+            this.AmbientColor = ambientColor ?? new Vector4(0, 0, 0, 1);
+            this.DiffuseColor = diffuseColor ?? new Vector4(0, 0, 0, 1);
+            this.EmissiveColor = emissiveColor ?? new Vector4(0, 0, 0, 1);
+            this.ReflectiveColor = reflectiveColor ?? new Vector4(0, 0, 0, 1);
+            this.SpecularColor = specularColor ?? new Vector4(0, 0, 0, 1);
             this.TransparentColor = transparentColor ?? Vector4.Zero;
         }
 

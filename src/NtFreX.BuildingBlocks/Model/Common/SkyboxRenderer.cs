@@ -1,5 +1,4 @@
-﻿using NtFreX.BuildingBlocks.Mesh;
-using NtFreX.BuildingBlocks.Model;
+﻿using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Standard;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -12,7 +11,7 @@ using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Model.Common
 {
-    public class SkyboxRenderer : Renderable
+    public class SkyboxRenderer : Renderable, IUpdateable
     {
         private readonly Image<Rgba32> front;
         private readonly Image<Rgba32> back;
@@ -23,11 +22,17 @@ namespace NtFreX.BuildingBlocks.Model.Common
 
         private DeviceBuffer vb;
         private DeviceBuffer ib;
+        private DeviceBuffer envBuffer;
         private Pipeline pipeline;
         private ResourceSet resourceSet;
+        private ResourceSet envResourceSet;
+
+        private GraphicsSystem graphicsSystem;
+        private GraphicsDevice graphicsDevice;
 
         private readonly DisposeCollector disposeCollector = new DisposeCollector();
         private readonly bool isDebug;
+        private bool lightChanged = false;
 
         public SkyboxRenderer(
             Image<Rgba32> front, Image<Rgba32> back, Image<Rgba32> left,
@@ -47,15 +52,28 @@ namespace NtFreX.BuildingBlocks.Model.Common
             CreateDeviceObjects(gd, resourceFactory, graphicsSystem, cl, sc);
         }
 
+        ~SkyboxRenderer()
+        {
+            graphicsSystem.LightSystem.LightChanged += LightSystem_LightChanged;
+        }
+
         public override void CreateDeviceObjects(GraphicsDevice gd, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, CommandList cl, RenderContext sc)
         {
             Debug.Assert(graphicsSystem.Camera.Value != null);
+
+            this.graphicsSystem = graphicsSystem;
+            this.graphicsDevice = gd;
+
+            graphicsSystem.LightSystem.LightChanged += LightSystem_LightChanged;
 
             vb = resourceFactory.CreateBuffer(new BufferDescription((uint) (Unsafe.SizeOf<VertexPosition>() * vertices.Length), BufferUsage.VertexBuffer));
             cl.UpdateBuffer(vb, 0, vertices);
 
             ib = resourceFactory.CreateBuffer(new BufferDescription((uint)(Unsafe.SizeOf<ushort>() * indices.Length), BufferUsage.IndexBuffer));
             cl.UpdateBuffer(ib, 0, indices);
+
+            envBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<Vector4>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            cl.UpdateBuffer(envBuffer, 0, graphicsSystem.LightSystem.AmbientLight);
 
             var imageSharpCubemapTexture = new ImageSharpCubemapTexture(right, left, top, bottom, back, front, false);
 
@@ -67,7 +85,7 @@ namespace NtFreX.BuildingBlocks.Model.Common
                 new VertexLayoutDescription(new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3))
             };
 
-            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(gd, resourceFactory, new Dictionary<string, bool>(), new Dictionary<string, string>(), "Resources/skybox", isDebug);
+            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(gd, resourceFactory, new Dictionary<string, bool> { { "hasLights", graphicsSystem.LightSystem != null } }, new Dictionary<string, string>(), "Resources/skybox", isDebug);
 
             var layout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
@@ -75,13 +93,16 @@ namespace NtFreX.BuildingBlocks.Model.Common
                 new ResourceLayoutElementDescription("CubeTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("CubeSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
+            var envLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("Material", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
+
             GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
                 BlendStateDescription.SingleAlphaBlend,
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(vertexLayouts, new[] { shaders[0], shaders[1] }, ShaderPrecompiler.GetSpecializations(gd)),
-                new ResourceLayout[] { layout },
+                new ResourceLayout[] { layout, envLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
 
             pipeline = resourceFactory.CreateGraphicsPipeline(ref pd);
@@ -93,9 +114,13 @@ namespace NtFreX.BuildingBlocks.Model.Common
                 graphicsSystem.Camera.Value.ViewBuffer,
                 textureView,
                 gd.PointSampler));
+            envResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(envLayout, envBuffer));
 
-            disposeCollector.Add(vb, ib, textureCube, textureView, layout, pipeline, resourceSet, shaders[0], shaders[1]);
+            disposeCollector.Add(vb, ib, textureCube, textureView, layout, pipeline, resourceSet, envResourceSet, shaders[0], shaders[1]);
         }
+
+        private void LightSystem_LightChanged(object? sender, EventArgs e)
+            => lightChanged = true;
 
         public override void DestroyDeviceObjects()
         {
@@ -106,6 +131,7 @@ namespace NtFreX.BuildingBlocks.Model.Common
         {
             cl.SetPipeline(pipeline);
             cl.SetGraphicsResourceSet(0, resourceSet);
+            cl.SetGraphicsResourceSet(1, envResourceSet);
             cl.SetVertexBuffer(0, vb);
             cl.SetIndexBuffer(ib, IndexFormat.UInt16);
             cl.DrawIndexed((uint)indices.Length, 1, 0, 0, 0);
@@ -114,6 +140,15 @@ namespace NtFreX.BuildingBlocks.Model.Common
         public override RenderPasses RenderPasses => RenderPasses.Standard;
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition) => new RenderOrderKey(ulong.MaxValue);
         public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, RenderContext sc) { }
+
+        public void Update(float deltaSeconds, InputHandler inputHandler)
+        {
+            if (lightChanged)
+            {
+                graphicsDevice.UpdateBuffer(envBuffer, 0, graphicsSystem.LightSystem.AmbientLight);
+                lightChanged = false;
+            }
+        }
 
         private static readonly VertexPosition[] vertices = new VertexPosition[]
         {

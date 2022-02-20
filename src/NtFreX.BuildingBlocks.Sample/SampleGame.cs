@@ -212,10 +212,10 @@ namespace NtFreX.BuildingBlocks.Sample
 
         public Vector3 Position => sun.Transform.Value.Position;
 
-        public const float SunDistance = 2000f;
-        public float SunYawn { get; set; } = 0f;
-        public float sunPitch { get; set; } = 0f;
-        
+        public const float SunDistance = 50f;
+
+        private float currentDegrees = 0f;
+
         public SunComponent(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, LightSystem lightSystem, Scene scene)
         {
             this.lightSystem = lightSystem;
@@ -233,15 +233,19 @@ namespace NtFreX.BuildingBlocks.Sample
 
         public void Update(float delta)
         {
-            var sunSpeed = sun.Transform.Value.Position.Y < 0 ? 0.4f : 0.1f;
+            var sunSpeed = sun.Transform.Value.Position.Y < 0 ? 100f : 50f;
 
-            sunPitch += sunSpeed * delta;
+            currentDegrees += sunSpeed * delta;
+            currentDegrees = currentDegrees > 360 ? 0f : currentDegrees;
 
-            var rotation = Quaternion.CreateFromYawPitchRoll(SunYawn, sunPitch, 0f);
-            var lightPos = Vector3.Transform(Vector3.UnitZ, rotation) * SunDistance;
-            var brightness = Math.Min(Math.Max((lightPos.Y + (SunDistance / 5)) / SunDistance, 0.05f), .8f);
-            lightSystem.AmbientLight = new Vector3(brightness);
+            var rotation = Matrix4x4.CreateRotationX(MathHelper.ToRadians(currentDegrees), Vector3.Zero);
+            var lightPos = Vector3.Transform(Vector3.UnitY, rotation) * SunDistance;
+            var brightness = Math.Min(Math.Max((lightPos.Y + (SunDistance / 5)) / SunDistance, 0.2f), 1f);
             
+            lightSystem.AmbientLight = new Vector4(brightness, brightness, brightness, 1f);
+            lightSystem.DirectionalLightDirection = -sun.Transform.Value.Position;
+            lightSystem.DirectionalLightColor = new Vector4(brightness, brightness, brightness, 1f);
+
             sun.Transform.Value = sun.Transform.Value with { Position = lightPos };
         }
     }
@@ -279,8 +283,10 @@ namespace NtFreX.BuildingBlocks.Sample
 
         //private readonly CollidableProperty<SubgroupCollisionFilter> collidableProperties = new CollidableProperty<SubgroupCollisionFilter>();
 
-        public SampleGame()
+        protected override void Setup(IShell shell, ILoggerFactory loggerFactory)
         {
+            base.Setup(shell, loggerFactory);
+
             EnableImGui = Shell.IsDebug;
             AudioSystemType = AudioSystemType.Sdl2;
             //EnableBepuSimulation = true;
@@ -363,7 +369,7 @@ namespace NtFreX.BuildingBlocks.Sample
             //}
 
 
-            //sunComponent.Update(delta);
+            sunComponent.Update(delta);
             //centerQubeComponent.SetOpacity(sunComponent.Position.Y / SunComponent.SunDistance);
 
 
@@ -404,6 +410,16 @@ namespace NtFreX.BuildingBlocks.Sample
             //var blueTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/app.png", TextureUsage.Sampled);
 
             //LoadParticleSystem();
+            GraphicsSystem.LightSystem.SetPointLights(
+                new PointLightInfo { Color = new Vector3(1, 0, 0), Intensity = 10f, Position = Vector3.UnitX * 5, Range = 10f },
+                new PointLightInfo { Color = new Vector3(0, 1, 0), Intensity = 10f, Position = Vector3.UnitY * 5, Range = 10f },
+                new PointLightInfo { Color = new Vector3(0, 0, 1), Intensity = 10f, Position = -Vector3.UnitX * 5, Range = 10f },
+                new PointLightInfo { Color = new Vector3(1, 1, 1), Intensity = 10f, Position = -Vector3.UnitY * 5, Range = 10f });
+            CurrentScene.AddCullRenderables(
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new Transform(Vector3.UnitX * 5)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new Transform(-Vector3.UnitX * 5)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new Transform(Vector3.UnitY * 5)),
+                QubeModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, new Transform(-Vector3.UnitY * 5)));
 
             {
                 //MeshRenderPassFactory.RenderPasses.Add(new VertexPositionColorNormalTextureMeshRenderPass(ResourceFactory, ApplicationContext.IsDebug));
@@ -478,15 +494,15 @@ namespace NtFreX.BuildingBlocks.Sample
             //await LoadLargeModelsAsync();
 
             //centerQubeComponent = new CenterQubeComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, Simulation, CurrentScene, blueTexture);
-            //sunComponent = new SunComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, GraphicsSystem.LightSystem, CurrentScene);
+            sunComponent = new SunComponent(GraphicsDevice, ResourceFactory, GraphicsSystem, GraphicsSystem.LightSystem, CurrentScene);
 
             LoadXYZLineModels();
             CreateSkybox();
             //LoadPhysicObjects();
             LoadFloor();
 
-            CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\level_2902.dae")); 
-            CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\wall.dae"));
+            //CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\level_2902.dae")); 
+            //CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\wall.dae"));
             
             //CurrentScene.AddCullRenderables(await AssimpDaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\cart_level002.dae", new ModelLoadOptions {  Transform = new Transform(position: new Vector3(-1000, 0, -1000)) }));
             //CurrentScene.AddCullRenderables(await DaeModelImporter.ModelFromFileAsync(@"C:\Users\FTR\Documents\cart_level002.dae", new ModelLoadOptions { Transform = new Transform(position: new Vector3(1000, 0, 1000)) }));

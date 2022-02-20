@@ -1,19 +1,23 @@
-﻿using System;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace NtFreX.BuildingBlocks.Desktop
+namespace NtFreX.BuildingBlocks.Light
 {
     [StructLayout(LayoutKind.Sequential)]
     internal struct LightInfo
     {
         public const int MaxLights = 4;
 
+        public Vector4 AmbientLight;
+
+        public Vector3 DirectionalLightDirection;
+        public int _buffer2;
+
+        public Vector4 DirectionalLightColor;
+
         public int ActivePointLights;
         public Vector3 _buffer1;
 
-        public Vector3 AmbientLight;
-        public int _buffer2;
 
         public PointLightInfo LightInfo0;
         public PointLightInfo LightInfo1;
@@ -22,7 +26,9 @@ namespace NtFreX.BuildingBlocks.Desktop
 
         public LightInfo()
         {
-            AmbientLight = Vector3.One;
+            AmbientLight = Vector4.One;
+            DirectionalLightColor = Vector4.Zero;
+            DirectionalLightDirection = new Vector3(0, -1, 0);
             ActivePointLights = 0;
             LightInfo0 = default(PointLightInfo);
             LightInfo1 = default(PointLightInfo);

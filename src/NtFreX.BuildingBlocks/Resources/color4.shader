@@ -13,5 +13,6 @@ vec4 color4Combine(vec4 one, vec4 two)
         return one;
     }
 
-    return vec4((one.xyz * one.w) + (two.xyz * two.w), (one.w + two.w) / 2.0);
+    //TODO: delete this file?
+    return mix(one, two, (one.w + two.w) / 2.0); // vec4((one.xyz * one.w) + (two.xyz * two.w), (one.w + two.w) / 2.0);
 }

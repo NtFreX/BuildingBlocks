@@ -64,7 +64,7 @@ namespace NtFreX.BuildingBlocks
         private DebugExecutionTimer timerUpdateGraphics;
         private DebugExecutionTimer timerUpdateSimulation;
 
-        private void Setup(IShell shell, ILoggerFactory loggerFactory)
+        protected virtual void Setup(IShell shell, ILoggerFactory loggerFactory)
         {
             shell.GraphicsDeviceCreated += OnGraphicsDeviceCreatedAsync;
             shell.GraphicsDeviceDestroyed += OnGraphicsDeviceDestroyed;
@@ -176,7 +176,7 @@ namespace NtFreX.BuildingBlocks
             timerUpdating.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
-            var updateDelta = (float)(previousUpdaingElapsed == null ? float.MinValue: elapsed - previousUpdaingElapsed.Value);
+            var updateDelta = (float)(previousUpdaingElapsed == null ? 0: elapsed - previousUpdaingElapsed.Value);
             previousUpdaingElapsed = elapsed;
                         
             {

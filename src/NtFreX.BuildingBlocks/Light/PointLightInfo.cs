@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace NtFreX.BuildingBlocks.Desktop
+namespace NtFreX.BuildingBlocks.Light
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct PointLightInfo
