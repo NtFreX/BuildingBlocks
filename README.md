@@ -1,12 +1,14 @@
-# NtFrex.BuildingBlocks
+# [TITLE]
+
+[TITLE] provides a set of building blocks for graphics engines in .NET. It's dependency on Veldrid allows it to be graphics API-agnostic. The library/framework is cross-platform but provides currently only bootstrapping methods for Desktop thought SDL2.
 
 ## Dependencies
 
 - This graphics library/framework is based on [Veldrid](https://github.com/mellinoe/veldrid) (Veldrid is a cross-platform, graphics API-agnostic rendering and compute library for .NET). ([MIT License](https://github.com/mellinoe/veldrid/blob/master/LICENSE))
- - [Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) (Vortice.Windows is a collection of Win32 and UWP libraries with bindings support for DXGI, WIC, DirectWrite, Direct2D, Direct3D9, Direct3D11, Direct3D12, XInput, XAudio2, X3DAudio and DirectInput). ([MIT License](https://github.com/amerkoleci/Vortice.Windows/blob/main/LICENSE))
- - [vk](https://github.com/mellinoe/vk) (This repository contains low-level bindings for the Vulkan graphics and compute API.) ([MIT License](https://github.com/mellinoe/vk/blob/master/LICENSE.md))
- - [nativelibraryloader](https://github.com/mellinoe/nativelibraryloader) ([MIT License](https://github.com/mellinoe/nativelibraryloader/blob/master/LICENSE))
-- It provides a physics integration based on [BEPUphysics2](https://github.com/bepu/bepuphysics2) (BEPUphysics is a pure C# 3D physics library by BEPU). ([Apache License 2.0](https://github.com/bepu/bepuphysics2/blob/master/LICENSE.md))
+  - [Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) (Vortice.Windows is a collection of Win32 and UWP libraries with bindings support for DXGI, WIC, DirectWrite, Direct2D, Direct3D9, Direct3D11, Direct3D12, XInput, XAudio2, X3DAudio and DirectInput). ([MIT License](https://github.com/amerkoleci/Vortice.Windows/blob/main/LICENSE))
+  - [vk](https://github.com/mellinoe/vk) (This repository contains low-level bindings for the Vulkan graphics and compute API.) ([MIT License](https://github.com/mellinoe/vk/blob/master/LICENSE.md))
+  - [nativelibraryloader](https://github.com/mellinoe/nativelibraryloader) ([MIT License](https://github.com/mellinoe/nativelibraryloader/blob/master/LICENSE))
+- The physics integration is based on [BEPUphysics2](https://github.com/bepu/bepuphysics2) (BEPUphysics is a pure C# 3D physics library by BEPU). ([Apache License 2.0](https://github.com/bepu/bepuphysics2/blob/master/LICENSE.md))
 - Text and other image related features are implemented with [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) (ImageSharp is a new, fully featured, fully managed, cross-platform, 2D graphics library). ([Apache License 2.0](https://github.com/SixLabors/ImageSharp/blob/main/LICENSE))
 - Shader cross compilation is supported by [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) (SPIRV-Cross is a tool designed for parsing and converting SPIR-V to other shader languages). ([Apache License 2.0](https://github.com/KhronosGroup/SPIRV-Cross/blob/master/LICENSE))
   - .NET wrapper: [Veldrid.SPIRV](https://github.com/mellinoe/veldrid-spirv) ([MIT License](https://github.com/mellinoe/veldrid-spirv/blob/master/LICENSE))
