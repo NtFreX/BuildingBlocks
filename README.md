@@ -26,12 +26,16 @@ You can use this library as a framework if you overwrite the `Game` type and use
 ```
 public class SampleGame : Game 
 { 
-  public SampleGame()
+  protected override void Setup(IShell shell, ILoggerFactory loggerFactory)
   {
     EnableImGui = Shell.IsDebug;
     AudioSystemType = AudioSystemType.Sdl2;
     EnableBepuSimulation = true;
   }
+  protected override async Task LoadResourcesAsync() { }
+  protected override void BeforeGraphicsSystemUpdate(float delta) { }
+  protected override void AfterGraphicsSystemUpdate(float delta) { }
+  ...
 }
 ```
 
