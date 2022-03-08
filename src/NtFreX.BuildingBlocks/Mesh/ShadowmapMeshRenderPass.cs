@@ -100,12 +100,14 @@ namespace NtFreX.BuildingBlocks.Mesh
                     new[] { depthVS, depthFS },
                     new[] { new SpecializationConstant(100, graphicsDevice.IsClipSpaceYInverted) });
 
-            var resourceLayouts = new ResourceLayout[] { ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory), ResourceLayoutFactory.GetWorldLayout(resourceFactory) };
+            var resourceLayouts = new List<ResourceLayout> (new [] { ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory), ResourceLayoutFactory.GetWorldLayout(resourceFactory) });
+            if (config.RequiresBones)
+                resourceLayouts.Add(ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory));
 
             return new[] { 
-                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts, 0),
-                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts, 1),
-                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts, 2)
+                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts.ToArray(), 0),
+                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts.ToArray(), 1),
+                new ShadowmapMeshRenderPass(config, shaderDesc, resourceLayouts.ToArray(), 2)
             };
         }
 
@@ -147,7 +149,7 @@ namespace NtFreX.BuildingBlocks.Mesh
                 var specialization = meshRenderer.MeshData.Specializations.Get<BonesMeshDataSpecialization>();
                 Debug.Assert(specialization.ResouceSet != null);
 
-                commandList.SetGraphicsResourceSet(3, specialization.ResouceSet);
+                commandList.SetGraphicsResourceSet(2, specialization.ResouceSet);
             }
 
             Debug.Assert(meshRenderer.VertexBuffer != null);

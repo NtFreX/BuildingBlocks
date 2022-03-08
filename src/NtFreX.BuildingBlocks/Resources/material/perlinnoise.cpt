@@ -1,0 +1,36 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D TexIn;
+layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
+
+#include ./../standard/rand.shader
+
+// https://thebookofshaders.com/11/
+float noise (in vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+
+    // Four corners in 2D of a tile
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+
+    // Smooth Interpolation
+
+    // Cubic Hermine Curve.  Same as SmoothStep()
+    vec2 u = f*f*(3.0-2.0*f);
+    // u = smoothstep(0.,1.,f);
+
+    // Mix 4 coorners percentages
+    return mix(a, b, u.x) +
+            (c - a)* u.y * (1.0 - u.x) +
+            (d - b) * u.x * u.y;
+}
+
+layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
+void main()
+{
+    float noise = noise(gl_GlobalInvocationID.xy);
+    imageStore(TexOut, ivec2(gl_GlobalInvocationID.xy), vec4(noise, noise, noise, 1));
+}

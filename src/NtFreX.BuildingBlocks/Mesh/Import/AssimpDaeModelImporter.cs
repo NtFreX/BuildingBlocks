@@ -44,7 +44,7 @@ public class AssimpDaeModelImporter : ModelImporter
                     mesh.PrimitiveType == PrimitiveType.Triangle ? PrimitiveTopology.TriangleList :
                     throw new ArgumentException($"The mesh primitive type '{mesh.PrimitiveType}' is not supported");
 
-            var specializations = new List<MeshDataSpecialization>();
+            var specializations = new MeshDataSpecializationDictionary();
             var shaderReadyVertices = new VertexPositionNormalTextureColor[mesh.VertexCount];
             var boneInfos = new BoneInfoVertex[mesh.VertexCount];
             for (var i = 0; i < mesh.VertexCount; i++)
@@ -87,7 +87,7 @@ public class AssimpDaeModelImporter : ModelImporter
                     transforms[boneId] = bone.OffsetMatrix.ToSystemMatrix();
                 }
 
-                specializations.Add(new BonesMeshDataSpecialization(boneInfos, transforms, LoadBoneAnimationProviders(transforms, scene, boneIdNames), deviceBufferPool));
+                specializations.AddOrUpdate(new BonesMeshDataSpecialization(boneInfos, transforms, LoadBoneAnimationProviders(transforms, scene, boneIdNames), deviceBufferPool));
             }
 
             var meshInstances = instances.Where(instance => instance.MeshIndex == meshIndex).ToArray();
@@ -99,7 +99,8 @@ public class AssimpDaeModelImporter : ModelImporter
                     return new InstanceInfo { Position = instance.Transform.Position, Rotation = rotation.ToEulerAngles(), Scale = instance.Transform.Scale, TexArrayIndex = 0 };
                 }).ToArray();
 
-                specializations.Add(new InstancedMeshDataSpecialization(instanceInfos, deviceBufferPool));
+                //TODO: create as not instanced when there is only one
+                specializations.AddOrUpdate(new InstancedMeshDataSpecialization(instanceInfos, deviceBufferPool));
             }
 
             if (mesh.MaterialIndex > 0)
@@ -110,7 +111,7 @@ public class AssimpDaeModelImporter : ModelImporter
                 if (meshMaterial.HasTextureDiffuse)
                 {
                     var path = Path.IsPathRooted(meshMaterial.TextureDiffuse.FilePath) || string.IsNullOrEmpty(directory) ? meshMaterial.TextureDiffuse.FilePath : Path.Combine(directory, meshMaterial.TextureDiffuse.FilePath);
-                    specializations.Add(new SurfaceTextureMeshDataSpecialization(new DirectoryTextureProvider(TextureFactory, path)));
+                    specializations.AddOrUpdate(new SurfaceTextureMeshDataSpecialization(new DirectoryTextureProvider(TextureFactory, path)));
                 }
 
                 var material = new PhongMaterialInfo(
@@ -124,11 +125,11 @@ public class AssimpDaeModelImporter : ModelImporter
                     reflectivity: meshMaterial.Reflectivity,
                     shininess: meshMaterial.Shininess,
                     shininessStrength: meshMaterial.ShininessStrength);
-                specializations.Add(new PhongMaterialMeshDataSpecialization(material, meshMaterial.Name, deviceBufferPool));
+                specializations.AddOrUpdate(new PhongMaterialMeshDataSpecialization(material, meshMaterial.Name, deviceBufferPool));
             }
 
             var indices = mesh.GetUnsignedIndices().Select(x => (Index32)x).ToArray();
-            meshes.Add(new DefinedMeshData<VertexPositionNormalTextureColor, Index32>(shaderReadyVertices, indices, type));
+            meshes.Add(new DefinedMeshData<VertexPositionNormalTextureColor, Index32>(shaderReadyVertices, indices, type, meshDataSpecializations: specializations));
         }
 
         return Task.FromResult(meshes.ToArray());

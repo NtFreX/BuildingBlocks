@@ -29,17 +29,23 @@ public class ParticleRenderer : CullRenderable
         public Vector3 Position;
         public float Scale;
         public Vector3 Velocity;
-        private float _padding0 = 0;
+        public float LivetimeModifer;
         public Vector4 Color;
+        public Vector4 ColorModifier;
+        public Vector4 InitialColor;
         public Vector3 TexCoords;
-        private float _padding1 = 0;
+        public float Livetime;
 
-        public ParticleInfo(Vector3 position, float scale, Vector3 velocity, Vector4 color, Vector3? texCoords = null)
+        public ParticleInfo(Vector3 position, float scale, Vector3 velocity, Vector4 color, Vector4? colorModifier = null, float liveTime = 1f, float liveTimeModifier = 0f, Vector3? texCoords = null)
         {
             Position = position;
             Scale = scale;
             Velocity = velocity;
             Color = color;
+            InitialColor = color;
+            Livetime = liveTime;
+            LivetimeModifer = liveTimeModifier;
+            ColorModifier = colorModifier ?? Vector4.Zero;
             TexCoords = texCoords ?? Vector3.Zero;
         }
     }
@@ -74,7 +80,8 @@ public class ParticleRenderer : CullRenderable
     public override RenderPasses RenderPasses => RenderPasses.Particles;
 
     //TODO: add spacer similar to meshrenderer? generalize
-    public override BoundingBox GetBoundingBox() => bounds;
+    //TODO: cache this
+    public override BoundingBox GetBoundingBox() => BoundingBox.Transform(bounds, Transform.CreateWorldMatrix());
     public override Vector3 GetCenter() => center;
     public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
     {
@@ -85,12 +92,12 @@ public class ParticleRenderer : CullRenderable
                 Vector3.Distance(GetCenter(), cameraPosition),
                 CurrentScene.Camera.Value.FarDistance);
     }
-    public ParticleRenderer(Transform transform, ParticleInfo[] particles, BoundingBox bounds, BoundingBox reset, TextureProvider textureProvider = null, bool isDebug = false)
+    public ParticleRenderer(Transform transform, ParticleInfo[] particles, BoundingBox bounds, BoundingBox reset, TextureProvider? textureProvider = null, bool isDebug = false)
     {
         this.isDebug = isDebug;
         this.maxParticles = (uint) particles.Length;
         this.particles = particles;
-        this.bounds = BoundingBox.Transform(bounds, transform.CreateWorldMatrix());
+        this.bounds = bounds;
         this.reset = reset;
         this.center = bounds.GetDimensions();
         this.textureProvider = textureProvider;
@@ -100,7 +107,7 @@ public class ParticleRenderer : CullRenderable
 
     public void SetBounds(BoundingBox bounds, BoundingBox reset)
     {
-        this.bounds = BoundingBox.Transform(bounds, Transform.CreateWorldMatrix());
+        this.bounds = bounds;
         this.reset = reset;
         this.center = bounds.GetDimensions();
         hasboundsChanged = true;

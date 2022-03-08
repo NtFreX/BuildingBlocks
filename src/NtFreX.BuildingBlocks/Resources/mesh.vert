@@ -56,7 +56,7 @@ layout(location = 4) out vec3 fsin_normal;
     layout(location = 8) out vec4 fsin_lightPositionFar;
  #endif
 
-#if hasInstances #include ./matrix3x3.shader #endif
+#if hasInstances #include ./standard/matrix3x3.shader #endif
 
 void main()
 {

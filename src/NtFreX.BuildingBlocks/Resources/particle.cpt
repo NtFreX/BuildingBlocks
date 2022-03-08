@@ -1,6 +1,7 @@
 #version 450
 
 #include ./particleinfo.shader
+#include ./standard/rand.shader
 
 layout(set = 1, binding = 0) uniform ParticleInfoBuffer
 {
@@ -21,12 +22,12 @@ layout(set = 2, binding = 0) uniform ParticleBoundsBuffer
 };
 
 
+vec3 reset(uint index, vec3 position)
+{
+    return vec3(random(position.xy), random(position.yz), random(position.zx)) * (ResetBoxMax - ResetBoxMin) + ResetBoxMin;
+}
+
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
-//float rand(vec2 co){
-//    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-//}
-
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
@@ -35,41 +36,26 @@ void main()
         return;
     }
     
-    //TODO: if velocity is done here speed is nessesary as well
-    vec3 position = Particles[index].Position + Particles[index].Velocity;
+    //TODO: if velocity is done here delta is nessesary as well?
+    ParticleInfo particle = Particles[index];
+    vec3 position = particle.Position + particle.Velocity;
+    vec4 color = particle.Color + particle.ColorModifier;
+    float livetime = particle.Livetime + particle.LivetimeModifer;
 
-    //TODO: use reset box
-    if(position.x > BoundingBoxMax.x)
+    if(livetime <= 0)
     {
-        position.x = BoundingBoxMin.x;
+        position = reset(index, position);
+        color = particle.InitialColor;
+        livetime = 1;
     }
-    if(position.y > BoundingBoxMax.y)
+    else if(position.x > BoundingBoxMax.x || position.y > BoundingBoxMax.y || position.z > BoundingBoxMax.z || position.x < BoundingBoxMin.x || position.y < BoundingBoxMin.y || position.z < BoundingBoxMin.z) 
     {
-        position.y = BoundingBoxMin.y;
-    }
-    if(position.z > BoundingBoxMax.z)
-    {
-        position.z = BoundingBoxMin.z;
-    }    
-
-    if(position.x < BoundingBoxMin.x)
-    {
-        position.x = BoundingBoxMax.x;
-    }
-    if(position.y < BoundingBoxMin.y)
-    {
-        position.y = BoundingBoxMax.y;
-    }
-    if(position.z < BoundingBoxMin.z)
-    {
-        position.z = BoundingBoxMax.z;
+        position = reset(index, position);
+        color = particle.InitialColor;
+        livetime = 1;
     }
 
-    //TODO: make it random
-    //if(position.x > BoundingBoxMax.x || position.y > BoundingBoxMax.y || position.z > BoundingBoxMax.z || position.x < BoundingBoxMin.x || position.y < BoundingBoxMin.y || position.z < BoundingBoxMin.z) 
-    //{
-    //    position = vec3(rand(position.xy), rand(position.yz), rand(position.zx)) * ResetBoxMax + ResetBoxMin;
-    //}
-
+    Particles[index].Livetime = livetime;
+    Particles[index].Color = color;
     Particles[index].Position = position;
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Audio;
 using NtFreX.BuildingBlocks.Audio.Sdl2;
 using NtFreX.BuildingBlocks.Input;
+using NtFreX.BuildingBlocks.Material;
 using NtFreX.BuildingBlocks.Mesh.Factories;
 using NtFreX.BuildingBlocks.Mesh.Import;
 using NtFreX.BuildingBlocks.Model;
@@ -219,6 +220,8 @@ namespace NtFreX.BuildingBlocks
             CommandListPool?.Dispose();
             CommandListPool = null;
 
+            MaterialTextureFactory.Instance.DestroyDeviceResources();
+
             GraphicsSystem?.DestroyDeviceResources();
             GraphicsSystem = null;
 
@@ -262,6 +265,8 @@ namespace NtFreX.BuildingBlocks
             GraphicsSystem = new GraphicsSystem(LoggerFactory, GraphicsDevice, ResourceFactory, Stopwatch);
             CommandListPool = new CommandListPool(resourceFactory);
             CreateRenderContext();
+
+            MaterialTextureFactory.Instance.CreateDeviceResources(graphicsDevice, resourceFactory);
 
             Debug.Assert(RenderContext != null);
             await MeshRenderPassFactory.LoadAsync(GraphicsDevice, ResourceFactory, RenderContext, Shell.IsDebug);

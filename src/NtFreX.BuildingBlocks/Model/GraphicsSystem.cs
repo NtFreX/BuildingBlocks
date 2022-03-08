@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Light;
+using NtFreX.BuildingBlocks.Material;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Standard.Extensions;
 using System.Diagnostics;
@@ -35,10 +36,11 @@ namespace NtFreX.BuildingBlocks.Model
         private readonly List<Renderable> shadowFarFrustumItems = new();
 
         private readonly GraphicsDevice graphicsDevice;
-
+        private readonly Stopwatch stopwatch;
         private uint fbWidth;
         private uint fbHeight;
         private bool isDisposed = false;
+        private double lastElapsed = 0;
 
         public readonly DebugExecutionTimer TimerGetVisibleObjects;
         public readonly DebugExecutionTimer[] TimerRenderPasses;
@@ -49,6 +51,7 @@ namespace NtFreX.BuildingBlocks.Model
         public GraphicsSystem(ILoggerFactory loggerFactory, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Stopwatch stopwatch)
         {
             this.graphicsDevice = graphicsDevice;
+            this.stopwatch = stopwatch;
 
             TimerGetVisibleObjects = new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem GetVisibleObjects"), stopwatch);
             TimerRenderPasses = new[] {
@@ -143,6 +146,8 @@ namespace NtFreX.BuildingBlocks.Model
 
         private void DrawMainPass(float depthClear)
         {
+            MaterialTextureFactory.Instance.Run((float)(stopwatch.ElapsedMilliseconds - lastElapsed));
+
             //TODO: deffered lightninng
             Debug.Assert(RenderContext?.MainSceneFramebuffer != null);
             Debug.Assert(DrawingScene?.Camera.Value != null);
@@ -184,6 +189,8 @@ namespace NtFreX.BuildingBlocks.Model
             TimerRenderPasses[2].Start();
             DrawRenderPass(RenderPasses.Overlay, mainPassCommandList, RenderContext, mainPassList);
             TimerRenderPasses[2].Stop();
+
+            lastElapsed = stopwatch.Elapsed.TotalMilliseconds;
         }
 
         private async Task ExecuteMainPassAsync()

@@ -18,11 +18,13 @@ public class SurfaceTextureMeshDataSpecialization : MeshDataSpecialization, IEqu
 
     public TextureView? TextureView { get; private set; }
     public ResourceSet? ResouceSet { get; private set; }
+    public SamplerProvider SamplerProvider { get; }
 
-    public SurfaceTextureMeshDataSpecialization(TextureProvider textureProvider)
+    public SurfaceTextureMeshDataSpecialization(TextureProvider textureProvider, SamplerProvider? samplerProvider = null)
     {
         TextureProvider = new Mutable<TextureProvider>(textureProvider, this);
         TextureProvider.ValueChanged += (_, _) => UpdateTextureAsync().Wait(); // TODO: arg we need to await this
+        SamplerProvider = samplerProvider ?? new Aniso4xSamplerProvider(); //TODO: make the default configurable
     }
 
     private async Task UpdateTextureAsync()
@@ -65,7 +67,7 @@ public class SurfaceTextureMeshDataSpecialization : MeshDataSpecialization, IEqu
         Debug.Assert(TextureView != null);
 
         var layout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
-        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, TextureView, graphicsDevice.Aniso4xSampler));
+        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, TextureView, graphicsDevice.PointSampler));
     }
 
     public override void DestroyDeviceObjects()

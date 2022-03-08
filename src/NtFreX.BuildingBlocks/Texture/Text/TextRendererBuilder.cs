@@ -36,17 +36,19 @@ internal class TextRendererBuilder
     {
         private readonly TextBufferPart textBufferPart;
         private readonly BoundingBox boundingBox;
+        private readonly FaceCullMode faceCullMode;
 
-        public TextMeshDataProvider(TextBufferPart textBufferPart, BoundingBox boundingBox)
+        public TextMeshDataProvider(TextBufferPart textBufferPart, BoundingBox boundingBox, FaceCullMode faceCullMode = FaceCullMode.Front)
         {
             this.textBufferPart = textBufferPart;
             this.boundingBox = boundingBox;
+            this.faceCullMode = faceCullMode;
         }
 
         public override Task<(SpecializedMeshData, BoundingBox)> GetAsync()
         {
             // TODO: better vertex type with less data
-            var mesh = new DefinedMeshData<VertexPositionNormalTextureColor, Index16>(textBufferPart.Vertices.ToArray(), Array.Empty<Index16>(), PrimitiveTopology.TriangleList, faceCullMode: FaceCullMode.Front);
+            var mesh = new DefinedMeshData<VertexPositionNormalTextureColor, Index16>(textBufferPart.Vertices.ToArray(), Array.Empty<Index16>(), PrimitiveTopology.TriangleList, faceCullMode: faceCullMode);
 
             var texture = new TextAtlasTextureProvider(textBufferPart.Font, alpha: false);
             var alphaTexture = new TextAtlasTextureProvider(textBufferPart.Font, alpha: true);
@@ -74,10 +76,16 @@ internal class TextRendererBuilder
     private readonly List<TextData> textData = new ();
     private readonly char newLineChar = '\r';
     private readonly char[] charactersToIgnore = new[] { '\n' };
+    private readonly FaceCullMode faceCullMode;
 
     public PointF CursorPosition { get; private set; } = new PointF(0, 0);
 
     public TextData[] CurrentText => textData.ToArray();
+
+    public TextRendererBuilder(FaceCullMode faceCullMode)
+    {
+        this.faceCullMode = faceCullMode;
+    }
 
     public void Append(TextData text)
     {
@@ -91,7 +99,7 @@ internal class TextRendererBuilder
         for (var index = startFrom; index < meshRenderVertices.Count; index++)
         {
             var part = meshRenderVertices[index];
-            buffers[index] = new TextMeshDataProvider(part.TextBufferPart, part.BoundingBox);
+            buffers[index] = new TextMeshDataProvider(part.TextBufferPart, part.BoundingBox, faceCullMode);
         }
         return buffers;
     }

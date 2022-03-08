@@ -4,7 +4,7 @@
 #include ./bonetransformlayout.shader
 #include ./vertexlayout.shader
 
-#if hasInstances #include ./matrix3x3.shader #endif
+#if hasInstances #include ./standard/matrix3x3.shader #endif
 
 void main()
 {

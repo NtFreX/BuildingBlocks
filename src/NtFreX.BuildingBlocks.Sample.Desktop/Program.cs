@@ -57,7 +57,7 @@ namespace NtFreX.BuildingBlocks.Desktop
                 WindowHeight = 540,
                 WindowTitle = Assembly.GetEntryAssembly().FullName
             }, preferredBackend: Veldrid.GraphicsBackend.Vulkan, isDebug: isDebug), loggerFactory);
-            // TODO: change backends
+            // TODO: change backends from time to time
             logger.LogInformation("Application was shut down");
         }
     }

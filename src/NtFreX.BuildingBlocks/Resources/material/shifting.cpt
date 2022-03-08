@@ -1,0 +1,35 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D TexIn;
+layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
+
+layout(set = 0, binding = 2) uniform ShiftBuffer
+{
+    float RShift;
+    float GShift;
+    float BShift;
+    float Padding1_;
+};
+
+layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
+void main()
+{
+    vec4 color = imageLoad(TexIn, ivec2(gl_GlobalInvocationID.xy));
+    float red = color.x + RShift;
+    while(red > 1)
+    {
+        red = red - 1;
+    }
+    float green = color.y + GShift;
+    while(green > 1)
+    {
+        green = green - 1;
+    }
+    float blue = color.z + BShift;
+    while(blue > 1)
+    {
+        blue = blue - 1;
+    }
+
+    imageStore(TexOut, ivec2(gl_GlobalInvocationID.xy), vec4(red, green, blue, color.w));
+}

@@ -16,19 +16,22 @@ public class TextMesh
 {
     private readonly List<MeshRenderer> textModels;
     private readonly Scene scene;
+    private readonly FaceCullMode faceCullMode;
     private readonly DeviceBufferPool? deviceBufferPool;
     private readonly CommandListPool? commandListPool;
 
-    private TextRendererBuilder builder = new ();
+    private TextRendererBuilder builder;
     private Vector3 position = Vector3.Zero;
     private Vector3 scale = Vector3.One;
     private Matrix4x4 rotation = Matrix4x4.Identity;
 
     public TextData[] CurrentText => builder.CurrentText;
 
-    public TextMesh(Scene scene, Transform? transform = null, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
+    public TextMesh(Scene scene, FaceCullMode faceCullMode = FaceCullMode.Front, Transform? transform = null, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null)
     {
         this.scene = scene;
+        this.faceCullMode = faceCullMode;
+        this.builder = new (faceCullMode);
         this.deviceBufferPool = deviceBufferPool;
         this.commandListPool = commandListPool;
         this.scale = transform?.Scale ?? Vector3.One;
@@ -65,7 +68,7 @@ public class TextMesh
 
     public void Clear()
     {
-        builder = new TextRendererBuilder();
+        builder = new TextRendererBuilder(faceCullMode);
     }
 
     public Task WriteAsync(Font font, string text, RgbaFloat color)
