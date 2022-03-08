@@ -11,11 +11,9 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
 {
     public bool IsRunning { get; set; }
 
-    public Matrix4x4[] Transforms { get; }
-
     private double previousAnimSeconds = 0;
-    private float animationTimeScale = 1f;
 
+    private readonly float animationTimeScale = 1f;
     private readonly Animation owningAnimation;
     private readonly List<NodeAnimationChannel> channels;
     private readonly Dictionary<string, uint> boneNames;
@@ -24,10 +22,8 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
     private readonly aiMatrix4x4 rootInverse;
     private readonly aiMatrix4x4[] currentPassTransforms;
 
-    public AssimpBoneAnimationProvider(Matrix4x4[] transforms, Animation owningAnimation, List<NodeAnimationChannel> channels, Dictionary<string, uint> boneNames, aiMatrix4x4[] offsets, Node rootNode, aiMatrix4x4 rootInverse)
+    public AssimpBoneAnimationProvider(Animation owningAnimation, List<NodeAnimationChannel> channels, Dictionary<string, uint> boneNames, aiMatrix4x4[] offsets, Node rootNode, aiMatrix4x4 rootInverse)
     {
-        Transforms = transforms;
-
         this.currentPassTransforms = new aiMatrix4x4[boneNames.Count];
 
         this.rootNode = rootNode;
@@ -40,11 +36,11 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
 
     // TODO: performance
     // TODO: make this work
-    public void UpdateAnimation(float deltaSeconds)
+    public void UpdateAnimation(float deltaSeconds, ref Matrix4x4[] transforms)
     {
         double totalSeconds = owningAnimation.DurationInTicks * owningAnimation.TicksPerSecond;
         double newSeconds = previousAnimSeconds + (deltaSeconds * animationTimeScale);
-        newSeconds = newSeconds % totalSeconds;
+        newSeconds %= totalSeconds;
         previousAnimSeconds = newSeconds;
 
         double ticks = newSeconds * owningAnimation.TicksPerSecond;
@@ -53,7 +49,7 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
 
         for(var i = 0; i < currentPassTransforms.Length; i++)
         {
-            Transforms[i] = Matrix4x4.Transpose(currentPassTransforms[i].ToSystemMatrix());
+            transforms[i] = Matrix4x4.Transpose(currentPassTransforms[i].ToSystemMatrix());
         }
     }
 
@@ -61,7 +57,7 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
     {
         var nodeTransformation = node.Transform;
 
-        if (GetChannel(node, out NodeAnimationChannel? channel) && channel != null)
+        if (GetChannel(node, out NodeAnimationChannel? channel) && channel != null && owningAnimation.NodeAnimationChannels.Contains(channel))
         {
             var scale = InterpolateScale(time, channel);
             var rotation = InterpolateRotation(time, channel);
@@ -102,7 +98,7 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
         return false;
     }
 
-    private aiMatrix4x4 InterpolateTranslation(double time, NodeAnimationChannel channel)
+    private static aiMatrix4x4 InterpolateTranslation(double time, NodeAnimationChannel channel)
     {
         Vector3D position;
 
@@ -135,7 +131,7 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
         return aiMatrix4x4.FromTranslation(position);
     }
 
-    private aiMatrix4x4 InterpolateRotation(double time, NodeAnimationChannel channel)
+    private static aiMatrix4x4 InterpolateRotation(double time, NodeAnimationChannel channel)
     {
         aiQuaternion rotation;
 
@@ -169,7 +165,7 @@ public class AssimpBoneAnimationProvider : IBoneAnimationProvider
         return rotation.GetMatrix();
     }
 
-    private aiMatrix4x4 InterpolateScale(double time, NodeAnimationChannel channel)
+    private static aiMatrix4x4 InterpolateScale(double time, NodeAnimationChannel channel)
     {
         Vector3D scale;
 

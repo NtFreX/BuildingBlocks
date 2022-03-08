@@ -4,8 +4,8 @@ namespace NtFreX.BuildingBlocks.Input
 {
     public class InputHandler
     {
-        private static HashSet<Key> _pressedKeys = new HashSet<Key>();
-        private static HashSet<MouseButton> _pressedMouseButtons = new HashSet<MouseButton>();
+        private readonly HashSet<Key> _pressedKeys = new ();
+        private readonly HashSet<MouseButton> _pressedMouseButtons = new ();
 
         public InputSnapshot CurrentSnapshot { get; private set; } = new EmptyInputSnapshot();
 
@@ -46,5 +46,10 @@ namespace NtFreX.BuildingBlocks.Input
             => _pressedKeys.Contains(key);
         public bool IsMouseDown(MouseButton btn)
             => _pressedMouseButtons.Contains(btn);
+
+        public void HandleKeyEvents(Key key)
+            => _pressedKeys.Remove(key);
+        public void HandleMouseEvents(MouseButton btn)
+            => _pressedMouseButtons.Remove(btn);
     }
 }

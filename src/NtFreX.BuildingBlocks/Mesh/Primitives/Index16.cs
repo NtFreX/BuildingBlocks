@@ -1,4 +1,6 @@
-﻿using Veldrid;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
+using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh.Primitives;
 
@@ -12,15 +14,7 @@ public struct Index16 : IIndex<Index16>, IEquatable<Index16>
         => !(one == two);
 
     public static bool operator ==(Index16? one, Index16? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
     public static implicit operator Index16(int value)
     {
@@ -39,7 +33,7 @@ public struct Index16 : IIndex<Index16>, IEquatable<Index16>
     }
 
     public static implicit operator Index16(ushort value)
-        => new Index16 { Value = value };
+        => new () { Value = value };
 
     public static implicit operator ushort(Index16 value)
         => value.Value;
@@ -66,13 +60,8 @@ public struct Index16 : IIndex<Index16>, IEquatable<Index16>
     public override string ToString()
         => Value.ToString() + " ushort";
 
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        var objType = obj.GetType();
-        if (objType != typeof(Index16) && objType != typeof(uint) && objType != typeof(ushort) && objType != typeof(Index32)) return false;
-        return Equals((Index16)obj);
-    }
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
 
     public bool Equals(Index16 other)
         => other.Value == Value;

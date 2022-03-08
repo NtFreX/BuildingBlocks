@@ -15,8 +15,8 @@ namespace NtFreX.BuildingBlocks.Cameras
         private float rotation = 0f;
         private float distance = 10f;
 
-        public MapCamera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight)
-            : base(graphicsDevice, resourceFactory, windowWidth, windowHeight)
+        public MapCamera(float windowWidth, float windowHeight)
+            : base(windowWidth, windowHeight)
         { }
 
         public override void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)

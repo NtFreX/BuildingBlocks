@@ -2,13 +2,13 @@
 using BepuPhysics.Collidables;
 using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Mesh;
-using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Physics;
 using NtFreX.BuildingBlocks.Standard;
 using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Model.Behaviors
 {
+    //TODO: move to physics namespace? or move specialization from pysics namespace
     //TODO: support instances
     //TODO: can pause physics of model
     //TODO: only rigid body no collider
@@ -40,10 +40,12 @@ namespace NtFreX.BuildingBlocks.Model.Behaviors
             {
                 this.Collider = LoadCollider(shape.Value, velocity);
             }
-            else if (models.Length == 1 && models.First().MeshBuffer is PhysicsMeshDeviceBuffer<TShape> physicsMeshBuffer)
+            else if (models.Length == 1 && models.First().MeshData.Specializations.TryGet<BepuPhysicsShapeMeshDataSpecialization<TShape>>(out var specialization))
             {
-                this.Collider = LoadCollider(shape ?? physicsMeshBuffer.Shape, velocity);
-                physicsMeshBuffer.Shape.ValueChanged += (sender, args) => ReloadCollider(args);
+                this.Collider = LoadCollider(shape ?? specialization.Shape, velocity);
+                // TODO: reload
+                //models.First().MeshData.Specializations.SpecializationChanged += (_, _) => ReloadCollider(args);
+                //specialization.Shape.ValueChanged += (sender, args) => ReloadCollider(args);
             }
             else
             {

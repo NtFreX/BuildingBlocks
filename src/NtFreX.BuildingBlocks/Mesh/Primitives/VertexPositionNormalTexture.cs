@@ -1,4 +1,6 @@
-﻿using System.Numerics;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh.Primitives;
@@ -6,7 +8,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Primitives;
 public struct VertexPositionNormalTexture : IVertex, IEquatable<VertexPositionNormalTexture>
 {
     //TODO: set correct element semantic
-    public static VertexLayoutDescription VertexLayout => new VertexLayoutDescription(
+    public static VertexLayoutDescription VertexLayout => new (
         new VertexElementDescription(VertexElementSemantic.Position.ToString(), VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
         new VertexElementDescription(VertexElementSemantic.Normal.ToString(), VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
         new VertexElementDescription(VertexElementSemantic.TextureCoordinate.ToString(), VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2));
@@ -36,15 +38,7 @@ public struct VertexPositionNormalTexture : IVertex, IEquatable<VertexPositionNo
         => !(one == two);
 
     public static bool operator ==(VertexPositionNormalTexture? one, VertexPositionNormalTexture? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
     public override int GetHashCode()
         => Position.GetHashCode();
@@ -52,12 +46,8 @@ public struct VertexPositionNormalTexture : IVertex, IEquatable<VertexPositionNo
     public override string ToString()
         => $"Position: {Position}, Normal: {Normal}, TextureCoordinate: {TextureCoordinate}";
 
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        if (obj.GetType() != typeof(VertexPositionNormalTexture)) return false;
-        return Equals((VertexPositionNormalTexture)obj);
-    }
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
 
     public bool Equals(VertexPositionNormalTexture other)
         => Position == other.Position && Normal == other.Normal && TextureCoordinate == other.TextureCoordinate;

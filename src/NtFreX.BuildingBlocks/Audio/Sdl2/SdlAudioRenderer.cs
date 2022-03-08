@@ -1,19 +1,19 @@
-﻿using SDL2;
+﻿using NtFreX.BuildingBlocks.Standard;
+using SDL2;
 using System.Collections;
-using System.Collections.Concurrent;
 
 namespace NtFreX.BuildingBlocks.Audio.Sdl2;
 
 internal class SdlAudioRenderer : IDisposable
 {
-    private readonly object audioContextLock = new object();
+    private readonly object audioContextLock = new ();
     private SDL.SDL_AudioSpec? loadedFormat = null;
     private bool isOpen = false;
     private bool isPaused = true;
 
     // keep this here so it is not garbage collected
     private readonly SDL.SDL_AudioCallback callbackDelegate;
-    private readonly ConcurrentDictionary<SdlAudioContext, object?> audioContexts = new ();
+    private readonly ConcurrentBox<SdlAudioContext> audioContexts = new ();
 
     static SdlAudioRenderer()
     {
@@ -22,7 +22,7 @@ internal class SdlAudioRenderer : IDisposable
     }
     public SdlAudioRenderer()
     {
-        this.callbackDelegate = SDL_AudioCallback;
+        callbackDelegate = SDL_AudioCallback;
     }
 
     public void Dispose()
@@ -33,9 +33,9 @@ internal class SdlAudioRenderer : IDisposable
 
     public void StopAll()
     {
-        foreach (var context in audioContexts.Keys.ToArray())
+        for(var index = 0; index < audioContexts.Count(); index++)
         {
-            context.IsStopped = true;
+            audioContexts.Get(index).Value.IsStopped = true;
         }
     }
 
@@ -63,7 +63,7 @@ internal class SdlAudioRenderer : IDisposable
             isOpen = true;
         }
 
-        audioContexts.TryAdd(audioContext, null);
+        audioContexts.Add(audioContext);
         if (isPaused)
         {
             isPaused = false;
@@ -72,7 +72,7 @@ internal class SdlAudioRenderer : IDisposable
         return audioContext;
     }
 
-    private bool AreEqual(SDL.SDL_AudioSpec first, SDL.SDL_AudioSpec second)
+    private static bool AreEqual(SDL.SDL_AudioSpec first, SDL.SDL_AudioSpec second)
     {
         // https://wiki.libsdl.org/SDL_AudioFormat
         var firstBits = new BitArray(first.format);
@@ -91,8 +91,9 @@ internal class SdlAudioRenderer : IDisposable
 
     private unsafe void SDL_AudioCallback(IntPtr userdata, IntPtr stream, int len)
     {
-        foreach (var context in audioContexts.Keys.ToArray())
+        for (var index = 0; index < audioContexts.Count(); index++)
         {
+            var context = audioContexts.Get(index).Value;
             if (context.RemainingLength <= 0 || context.IsStopped)
             {
                 if (context.Loop && !context.IsStopped)
@@ -102,7 +103,7 @@ internal class SdlAudioRenderer : IDisposable
                 else
                 {
                     context.IsStopped = true;
-                    audioContexts.Remove(context, out _);
+                    audioContexts.Kill(index);
                 }
             }
         }
@@ -113,15 +114,16 @@ internal class SdlAudioRenderer : IDisposable
             SDL.SDL_memcpy(stream, new IntPtr(ptr), new IntPtr(len));
         }
 
-        if (audioContexts.Count == 0)
+        if (audioContexts.Count() == 0)
         {
             SDL.SDL_PauseAudio(1);
             isPaused = true;
             return;
         }
 
-        foreach(var context in audioContexts.Keys.ToArray())
+        for (var index = 0; index < audioContexts.Count(); index++)
         {
+            var context = audioContexts.Get(index).Value;
             if (context.IsPaused || context.IsStopped)
                 return;
 

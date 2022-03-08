@@ -1,29 +1,23 @@
 ﻿using System.Diagnostics;
 
-namespace NtFreX.BuildingBlocks.Standard
+namespace NtFreX.BuildingBlocks.Standard;
+
+public class DebugExecutionTimer
 {
-    public class DebugExecutionTimer
-    {
-        public readonly DebugExecutionTimerSource Source;
+    public readonly DebugExecutionTimerSource Source;
+    public readonly Stopwatch Stopwatch;
 
-        private readonly Stopwatch stopwatch = new Stopwatch();
+    private long startTime;
 
-        private long startTime;
-
-        public DebugExecutionTimer(DebugExecutionTimerSource debugExecutionTimerSource)
-        { 
-            this.Source = debugExecutionTimerSource;
-            this.stopwatch.Start();
-        }
-
-        public void Start()
-        {
-            startTime = stopwatch.ElapsedTicks;
-        }
-
-        public void Stop()
-        {
-            this.Source.AddValue(this.stopwatch.ElapsedTicks - startTime);
-        }
+    public DebugExecutionTimer(DebugExecutionTimerSource debugExecutionTimerSource, Stopwatch stopwatch)
+    { 
+        Source = debugExecutionTimerSource;
+        Stopwatch = stopwatch;
     }
+
+    public void Start()
+        => startTime = Stopwatch.ElapsedTicks;
+
+    public void Stop()
+        => Source.AddValue(Stopwatch.ElapsedTicks - startTime);
 }

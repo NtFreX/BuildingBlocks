@@ -1,4 +1,9 @@
-﻿using NtFreX.BuildingBlocks.Standard;
+﻿using NtFreX.BuildingBlocks.Mesh.Data;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization.Primitives;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
+using NtFreX.BuildingBlocks.Standard.Pools;
+using NtFreX.BuildingBlocks.Texture;
 using System.Numerics;
 using System.Xml.Linq;
 using Veldrid;
@@ -190,7 +195,7 @@ public static class DaeFileReader
         var geometries = geometriesElement?.Elements(Name + "geometry") ?? Array.Empty<XElement>();
         return geometries.SelectMany(x =>
         {
-            var id = x.Attribute("id")?.Value;
+            var id = x.Attribute("id")?.Value ?? throw new Exception("The given geometry has no id");
             var triangles = x.Element(Name + "mesh")?.Elements(Name + "triangles") ?? Array.Empty<XElement>();
             return triangles.Select(triangle =>
             {
@@ -299,12 +304,12 @@ public static class DaeFileReader
 
         return daeFile.Materials.First(x => x.Name == name).DiffuseTexture;
     }
-    private static MaterialInfo? GetMaterial(DaeFile daeFile, string? name)
+    private static PhongMaterialInfo? GetMaterial(DaeFile daeFile, string? name)
     {
         if (name == null)
             return null;
 
-        var material = new MaterialInfo();
+        var material = new PhongMaterialInfo();
         var color = daeFile.Materials.First(x => x.Name == name).DiffuseColor;
         if (color != null)
             material = material with { DiffuseColor = new Vector4(color.Value, 1) };
@@ -312,17 +317,35 @@ public static class DaeFileReader
         return material;
     }
 
-    public static Task<ImportedMeshCollection<BinaryMeshDataProvider>> BinaryMeshFromFileAsync(string filePath)
+    public static Task<DefinedMeshData<VertexPositionNormalTextureColor, Index32>[]> MeshesFromFileAsync(TextureFactory textureFactory, string filePath, DeviceBufferPool? deviceBufferPool = null)
     {
+        var directory = Path.GetDirectoryName(filePath);
         var daeFile = LoadFile(filePath);
-        var collection = new ImportedMeshCollection<BinaryMeshDataProvider>();
         var nodesAggregated = daeFile.Scenes.SelectMany(scene => AggregateNodes(scene.Nodes, Matrix4x4.Identity));
-        collection.Meshes = daeFile.Meshes.Select(mesh => BinaryMeshDataProvider.Create(mesh.Positions, mesh.Normals, mesh.TexCoords, mesh.Colors, mesh.Indices, mesh.Layout)).ToArray();
-        collection.Instaces = nodesAggregated.SelectMany(node => node.InstanceMeshes.Select(nodeGeometry => new MeshTransform { 
-            MeshIndex = GetMeshIndex(daeFile, nodeGeometry.Name), 
-            Transform = new Transform(node.Transform), 
-            SurfaceTexture = GetSurfaceTexture(daeFile, nodeGeometry.MaterialName),
-            Material = GetMaterial(daeFile, nodeGeometry.MaterialName) })).ToArray();
-        return Task.FromResult(collection);
+        var meshes = daeFile.Meshes.Select(mesh => BinaryMeshData.Create(mesh.Positions, mesh.Normals, mesh.TexCoords, mesh.Colors, mesh.Indices, mesh.Layout)).ToArray();
+        //TODO: support instanced drawing
+        var instances = nodesAggregated.SelectMany(node => node.InstanceMeshes.Select(nodeGeometry =>
+        {
+            var mesh = meshes[GetMeshIndex(daeFile, nodeGeometry.Name)];
+            var definedMesh = mesh
+                .Define<VertexPositionNormalTextureColor, Index32>(data => VertexPositionNormalTextureColor.Build(data, mesh.DrawConfiguration.VertexLayout))
+                .MutateVertices(vertex => new VertexPositionNormalTextureColor(Vector3.Transform(vertex.Position, node.Transform), vertex.Color, vertex.TextureCoordinate, vertex.Normal));
+
+            var surfaceTexture = GetSurfaceTexture(daeFile, nodeGeometry.MaterialName);
+            if (!string.IsNullOrEmpty(surfaceTexture)) 
+            {
+                var path = Path.IsPathRooted(surfaceTexture) || string.IsNullOrEmpty(directory) ? surfaceTexture : Path.Combine(directory, surfaceTexture);
+                definedMesh.Specializations.AddOrUpdate(new SurfaceTextureMeshDataSpecialization(new DirectoryTextureProvider(textureFactory, path)));
+            }
+
+            var material = GetMaterial(daeFile, nodeGeometry.MaterialName);
+            if(material != null)
+            {
+                definedMesh.Specializations.AddOrUpdate(new PhongMaterialMeshDataSpecialization(material.Value, nodeGeometry.MaterialName, deviceBufferPool));
+            }
+
+            return definedMesh;
+        })).ToArray();
+        return Task.FromResult(instances);
     }
 }

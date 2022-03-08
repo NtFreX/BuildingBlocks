@@ -25,30 +25,46 @@ namespace NtFreX.BuildingBlocks.Model.Common
             this.width = width;
             this.height = height;
 
-            Debug.Assert(imguiRenderer != null);
-            imguiRenderer.WindowResized(width, height);
+            if (imguiRenderer != null)
+            {
+                imguiRenderer.WindowResized(width, height);
+            }
         }
 
-        public override void CreateDeviceObjects(GraphicsDevice gd, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, CommandList cl, RenderContext rc)
+        public IntPtr GetOrCreateImGuiBinding(ResourceFactory resourceFactory, TextureView textureView)
+            => imguiRenderer?.GetOrCreateImGuiBinding(resourceFactory, textureView) ?? throw new Exception("The renderer was not initialized");
+        public void RemoveImGuiBinding(TextureView textureView)
+            => imguiRenderer?.RemoveImGuiBinding(textureView);
+
+        public override async Task<bool> CreateDeviceObjectsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, CommandList commandList, RenderContext renderContext, Scene scene)
         {
+            if (!await base.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, commandList, renderContext, scene))
+                return false;
+
+            Debug.Assert(renderContext.MainSceneFramebuffer != null);
+
             if (imguiRenderer == null)
             {
-                imguiRenderer = new Veldrid.ImGuiRenderer(gd, rc.MainSceneFramebuffer.OutputDescription, width, height, ColorSpaceHandling.Linear);
+                imguiRenderer = new Veldrid.ImGuiRenderer(graphicsDevice, renderContext.MainSceneFramebuffer.OutputDescription, width, height, ColorSpaceHandling.Linear);
             }
             else
             {
-                imguiRenderer.CreateDeviceResources(gd, rc.MainSceneFramebuffer.OutputDescription, ColorSpaceHandling.Linear);
+                imguiRenderer.CreateDeviceResources(graphicsDevice, renderContext.MainSceneFramebuffer.OutputDescription, ColorSpaceHandling.Linear);
             }
+
+            return true;
         }
 
         public override void DestroyDeviceObjects()
         {
+            base.DestroyDeviceObjects();
+
             Debug.Assert(imguiRenderer != null);
             imguiRenderer.Dispose();
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
-            => new RenderOrderKey(ulong.MaxValue);
+            => new (ulong.MaxValue);
 
         public override void Render(GraphicsDevice gd, CommandList cl, RenderContext rc, RenderPasses renderPass)
         {
@@ -56,8 +72,6 @@ namespace NtFreX.BuildingBlocks.Model.Common
             Debug.Assert(RenderPasses.HasFlag(renderPass));
             imguiRenderer.Render(gd, cl);
         }
-
-        public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, RenderContext sc) { }
 
         public void Update(float deltaSeconds, InputHandler inputHandler)
         {

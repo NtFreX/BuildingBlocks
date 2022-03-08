@@ -147,10 +147,12 @@ namespace NtFreX.BuildingBlocks.Standard
         {
             bool glOrGles = gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES;
 
-            List<SpecializationConstant> specializations = new List<SpecializationConstant>();
-            specializations.Add(new SpecializationConstant(100, gd.IsClipSpaceYInverted));
-            specializations.Add(new SpecializationConstant(101, glOrGles)); // TextureCoordinatesInvertedY
-            specializations.Add(new SpecializationConstant(102, gd.IsDepthRangeZeroToOne));
+            var specializations = new List<SpecializationConstant>
+            {
+                new SpecializationConstant(100, gd.IsClipSpaceYInverted),
+                new SpecializationConstant(101, glOrGles), // TextureCoordinatesInvertedY
+                new SpecializationConstant(102, gd.IsDepthRangeZeroToOne)
+            };
 
             PixelFormat swapchainFormat = gd.MainSwapchain.Framebuffer.OutputDescription.ColorAttachments[0].Format;
             bool swapchainIsSrgb = swapchainFormat == PixelFormat.B8_G8_R8_A8_UNorm_SRgb
@@ -160,7 +162,24 @@ namespace NtFreX.BuildingBlocks.Standard
             return specializations.ToArray();
         }
 
-        public static Shader[] CompileVertexAndFragmentShaders(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Dictionary<string, bool> flags, Dictionary<string, string> values, string path, bool isDebug = false, string entryPoint = "main")
+        public static Shader CompileComputeShader(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Dictionary<string, bool> flags, Dictionary<string, string> values, string path, bool isDebug = false, string entryPoint = "main")
+        {
+            var precomipler = new ShaderPrecompiler(flags, values);
+            var rawValue = File.ReadAllText(path);
+            var precompiled = precomipler.Precompile(rawValue, path);
+
+            try
+            {
+                return resourceFactory.CreateFromSpirv(new ShaderDescription(ShaderStages.Compute, Encoding.UTF8.GetBytes(precompiled), entryPoint, isDebug), GetOptions(graphicsDevice));
+            }
+            catch (Exception ex)
+            {
+                TryHandleCompilerError(ex, new [] { rawValue }, new [] { precompiled } );
+                throw new Exception();
+            }
+        }
+
+        public static (Shader VertexShader, Shader FragementShader) CompileVertexAndFragmentShaders(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Dictionary<string, bool> flags, Dictionary<string, string> values, string path, bool isDebug = false, string entryPoint = "main")
         {
             // TODO: use SpecializationConstant instead of custom variable replace?
             var precomipler = new ShaderPrecompiler(flags, values);
@@ -182,33 +201,42 @@ namespace NtFreX.BuildingBlocks.Standard
 
             try
             {
-                return resourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc, GetOptions(graphicsDevice));
+                var shaders = resourceFactory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc, GetOptions(graphicsDevice));
+                return (shaders[0], shaders[1]);
             }
             catch (Exception exce)
             {
-                const string compileError = "Compilation failed: ";
-                uint? rawLineNumber = null;
-                string? errorType = null;
-                if(exce.Message.StartsWith(compileError))
-                {
-                    var endErrorTypeIndex = exce.Message.IndexOf(":", compileError.Length);
-                    var endLineIndex = exce.Message.IndexOf(":", endErrorTypeIndex + 1);
-
-                    errorType = exce.Message.Substring(compileError.Length, endErrorTypeIndex - compileError.Length);
-
-                    var lineText = exce.Message.Substring(endErrorTypeIndex + 1, endLineIndex - endErrorTypeIndex - 1);
-                    rawLineNumber = uint.Parse(lineText);
-                }
-
-                throw new ShaderCompilationException("Compiling the fragment or vertex shader failed", exce)
-                {
-                    RawShaders = new [] { rawVertShader, rawFragShader },
-                    PreCompiledShaders = new [] { vertShader, fragShader },
-                    PreCompiledLines = rawLineNumber == null ? Array.Empty<string>() : new[] { GetPrecompiledLine(vertShader, rawLineNumber), GetPrecompiledLine(fragShader, rawLineNumber) },
-                    LineNumber = rawLineNumber,
-                    ErrorType = errorType
-                };
+                TryHandleCompilerError(exce, new[] { rawVertShader, rawFragShader }, new[] { vertShader, fragShader });
+                throw new Exception();
             }
+        }
+
+        private static void TryHandleCompilerError(Exception exce, string[] rawShaders, string[] precompiledShaders)
+        {
+            const string compileError = "Compilation failed: ";
+            uint? rawLineNumber = null;
+            string? errorType = null;
+            if (exce.Message.StartsWith(compileError))
+            {
+                var endErrorTypeIndex = exce.Message.IndexOf(":", compileError.Length);
+                var endLineIndex = exce.Message.IndexOf(":", endErrorTypeIndex + 1);
+
+                errorType = exce.Message[compileError.Length..endErrorTypeIndex];
+
+                var lineText = exce.Message.Substring(endErrorTypeIndex + 1, endLineIndex - endErrorTypeIndex - 1);
+                rawLineNumber = uint.Parse(lineText);
+            }
+
+            var lines = rawLineNumber == null ? Array.Empty<string>() : precompiledShaders.Select(shader => GetPrecompiledLine(shader, rawLineNumber)).ToArray();
+            var errorLineText = rawLineNumber != null ? Environment.NewLine + string.Join(Environment.NewLine, lines.Select(line => $"L{rawLineNumber}: {line}")) : string.Empty;
+            throw new ShaderCompilationException("Compiling the fragment or vertex shader failed." + errorLineText, exce)
+            {
+                RawShaders = rawShaders,
+                PreCompiledShaders = precompiledShaders,
+                PreCompiledLines = lines,
+                LineNumber = rawLineNumber,
+                ErrorType = errorType
+            };
         }
 
         private static string GetPrecompiledLine(string shaderCode, uint? lineNuber)
@@ -221,6 +249,40 @@ namespace NtFreX.BuildingBlocks.Standard
                 return string.Empty;
 
             return lines[lineNuber.Value - 1];
+        }
+
+        private static bool TryGetNotToken(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
+        {
+            for (; tokenIndex < tokens.Count; tokenIndex++)
+            {
+                if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Not)
+                {
+                    tokenIndex++;
+                    return true;
+                }
+                else if (tokens[tokenIndex].TokenType != ShaderSyntaxTokenType.Text || !string.IsNullOrWhiteSpace(tokens[tokenIndex].Text.Replace(Environment.NewLine, "")))
+                    return false;
+            }
+            return false;
+        }
+
+        private static List<ShaderSyntaxToken> GetIfContent(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
+        {
+            var items = new List<ShaderSyntaxToken>();
+            var depth = 0;
+            for (; tokenIndex < tokens.Count; tokenIndex++)
+            {
+                var type = tokens[tokenIndex].TokenType;
+                if (type == ShaderSyntaxTokenType.If)
+                    depth++;
+                else if ((type == ShaderSyntaxTokenType.Else || type == ShaderSyntaxTokenType.ElseIf || type == ShaderSyntaxTokenType.EndIf) && depth == 0)
+                    break;
+                else if (type == ShaderSyntaxTokenType.EndIf)
+                    depth--;
+
+                items.Add(tokens[tokenIndex]);
+            }
+            return items;
         }
 
         private (Match Match, ShaderSyntaxTokenType TokenType)? TryMatchToken(string token)
@@ -243,11 +305,11 @@ namespace NtFreX.BuildingBlocks.Standard
                 var tokenValue = tokens[0];
                 var tokenDefinitionMatch = TryMatchToken(tokenValue);
                 var tokenDefintion = tokenDefinitionMatch == null ? ShaderSyntaxTokenType.Text : tokenDefinitionMatch.Value.TokenType;
-                var match = tokenDefinitionMatch == null ? null : tokenDefinitionMatch.Value.Match;
+                var match = tokenDefinitionMatch?.Match;
 
                 if (match != null && match.Index != 0)
                 {
-                    parsedTokens.Add(new ShaderSyntaxToken(ShaderSyntaxTokenType.Text, tokenValue.Substring(0, match.Index), lineNumber, filePath));
+                    parsedTokens.Add(new ShaderSyntaxToken(ShaderSyntaxTokenType.Text, tokenValue[..match.Index], lineNumber, filePath));
                 }
 
                 parsedTokens.Add(new ShaderSyntaxToken(tokenDefintion, match != null ? tokenValue.Substring(match.Index, match.Length) : tokenValue, lineNumber, filePath));
@@ -260,44 +322,10 @@ namespace NtFreX.BuildingBlocks.Standard
 
             if(tokens.Length > 1) 
             {
-                parsedTokens.AddRange(ParseTokens(lineNumber, tokens.Slice(1), filePath));
+                parsedTokens.AddRange(ParseTokens(lineNumber, tokens[1..], filePath));
             }
 
             return parsedTokens;
-        }
-
-        private bool TryGetNotToken(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
-        {
-            for (; tokenIndex < tokens.Count; tokenIndex++)
-            {
-                if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Not)
-                {
-                    tokenIndex++;
-                    return true;
-                }
-                else if (tokens[tokenIndex].TokenType != ShaderSyntaxTokenType.Text || !string.IsNullOrWhiteSpace(tokens[tokenIndex].Text.Replace(Environment.NewLine, "")))
-                    return false;
-            }
-            return false;
-        }
-
-        private List<ShaderSyntaxToken> GetIfContent(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
-        {
-            var items = new List<ShaderSyntaxToken>();
-            var depth = 0;
-            for (; tokenIndex < tokens.Count; tokenIndex++)
-            {
-                var type = tokens[tokenIndex].TokenType;
-                if (type == ShaderSyntaxTokenType.If)
-                    depth++;
-                else if ((type == ShaderSyntaxTokenType.Else || type == ShaderSyntaxTokenType.ElseIf || type == ShaderSyntaxTokenType.EndIf) && depth == 0)
-                    break;
-                else if(type == ShaderSyntaxTokenType.EndIf)
-                    depth--;
-
-                items.Add(tokens[tokenIndex]);
-            }
-            return items;
         }
 
         private ShaderSyntaxIf ParseIf(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
@@ -342,7 +370,7 @@ namespace NtFreX.BuildingBlocks.Standard
                 else if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Variable)
                 {
                     var text = tokens[tokenIndex].Text;
-                    var variableName = text.Substring(2, text.Length - 3);
+                    var variableName = text[2..^1];
                     yield return new ShaderSyntaxText((tokenIndex == 0 ? string.Empty : " ") + values[variableName]);
                 }
                 else if(tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Include)

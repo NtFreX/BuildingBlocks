@@ -3,9 +3,9 @@ using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Standard.Pools
 {
-    public class DeviceBufferPool : IDisposable
+    public sealed class DeviceBufferPool : IDisposable
     {
-        private readonly ConcurrentDictionary<(BufferUsage, uint), ConcurrentStack<PooledDeviceBuffer>> vertexBufferPool = new ConcurrentDictionary<(BufferUsage, uint), ConcurrentStack<PooledDeviceBuffer>>();
+        private readonly ConcurrentDictionary<(BufferUsage, uint), ConcurrentStack<PooledDeviceBuffer>> vertexBufferPool = new ();
         private readonly uint blockSize;
 
         public DeviceBufferPool(uint blockSize)
@@ -15,23 +15,11 @@ namespace NtFreX.BuildingBlocks.Standard.Pools
 
         private uint GetNextBlock(uint size)
             => size % blockSize == 0 ? size : size - size % blockSize + blockSize;
-        //private string GetPoolKey(BufferUsage bufferUsage, uint sizeInBytes)
-        //{
-        //    var nextBlock = GetNextBlock(sizeInBytes).ToString();
-        //    var usage = bufferUsage.ToString();
-        //    return string.Create(nextBlock.Length + usage.Length, (nextBlock, usage), (buffer, state) => 
-        //    {
-        //        state.nextBlock.AsSpan().CopyTo(buffer);
-        //        state.usage.AsSpan().CopyTo(buffer.Slice(nextBlock.Length));
-        //    });
-        //}
 
         private void OnPoolReleased(object? sender, EventArgs args)
         {
             var buffer = sender as PooledDeviceBuffer ?? throw new Exception();
             buffer.PoolReleased -= OnPoolReleased;
-
-            //var key = GetPoolKey(buffer.Usage, buffer.SizeInBytes);
             if (vertexBufferPool.TryGetValue((buffer.Usage, GetNextBlock(buffer.SizeInBytes)), out var pools))
             {
                 pools.Push(buffer);

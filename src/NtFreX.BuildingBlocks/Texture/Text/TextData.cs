@@ -1,9 +1,10 @@
-﻿using SixLabors.Fonts;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using SixLabors.Fonts;
+using System.Diagnostics.CodeAnalysis;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Texture.Text;
 
-//TODO: use everywhere?
 public struct TextData : IEquatable<TextData>
 {
     public Font Font { get; init; }
@@ -21,23 +22,17 @@ public struct TextData : IEquatable<TextData>
         => !(one == two);
 
     public static bool operator ==(TextData? one, TextData? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
-    public override int GetHashCode() => (Font, Value, Color).GetHashCode();
+    public override int GetHashCode() 
+        => (Font, Value, Color).GetHashCode();
 
     public override string ToString()
         => $"Font: {Font}, Color: {Color}, Value: {Value}";
 
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
+
     public bool Equals(TextData other)
-    {
-        return other.Font == Font && other.Value == Value && other.Color == Color;
-    }
+        => other.Font == Font && other.Value == Value && other.Color == Color;
 }

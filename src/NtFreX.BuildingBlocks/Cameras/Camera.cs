@@ -1,19 +1,21 @@
 ﻿using NtFreX.BuildingBlocks.Desktop;
 using NtFreX.BuildingBlocks.Input;
-using NtFreX.BuildingBlocks.Mesh;
+using NtFreX.BuildingBlocks.Mesh.Factories;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics;
 using System.Numerics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Cameras
 {
-    public abstract class Camera : IDisposable
+    public abstract class Camera
     {
-        public ResourceSet CameraInfoResourceSet { get; private set; }
-        public DeviceBuffer CameraInfoBuffer { get; private set; }
-        public DeviceBuffer ProjectionBuffer { get; private set; }
-        public DeviceBuffer ViewBuffer { get; private set; }
+        public ResourceSet? ProjectionViewResourceSet { get; private set; }
+        public ResourceSet? CameraInfoResourceSet { get; private set; }
+        public DeviceBuffer? CameraInfoBuffer { get; private set; }
+        public DeviceBuffer? ProjectionBuffer { get; private set; }
+        public DeviceBuffer? ViewBuffer { get; private set; }
         public Matrix4x4 ViewMatrix { get; private set; }
         public Matrix4x4 ProjectionMatrix { get; private set; }
 
@@ -27,16 +29,15 @@ namespace NtFreX.BuildingBlocks.Cameras
         public readonly Mutable<Vector3> Up;
         public readonly Mutable<Vector3> Position;
         public readonly Mutable<Vector3> LookAt;
+        public float AspectRatio { get; private set; }
 
         private bool hasProjectionChanged = true;
         private bool hasViewChanged = true;
 
-        private readonly GraphicsDevice graphicsDevice;
+        private GraphicsDevice? graphicsDevice;
 
-        public unsafe Camera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight)
+        public Camera(float windowWidth, float windowHeight)
         {
-            this.graphicsDevice = graphicsDevice;
-
             FieldOfView = new Mutable<float>(1f, this); 
             NearDistance = new Mutable<float>(0.1f, this);
             FarDistance = new Mutable<float>(10000f, this);
@@ -56,22 +57,52 @@ namespace NtFreX.BuildingBlocks.Cameras
             Position.ValueChanged += (_, _) => UpdateViewMatrix();
             LookAt.ValueChanged += (_, _) => UpdateViewMatrix();
 
-            ProjectionBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            ViewBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            CameraInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)sizeof(CameraInfo), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-
-            var cameraInfoLayout = ResourceLayoutFactory.GetCameraInfoLayout(resourceFactory);
-            CameraInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(cameraInfoLayout, CameraInfoBuffer));
-
             UpdateProjectionMatrix();
             UpdateViewMatrix();
             BeforeModelUpdate(InputHandler.Empty, 0f);
             AfterModelUpdate(InputHandler.Empty, 0f);
         }
 
+        public unsafe void CreateDeviceResources(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
+        {
+            Debug.Assert(this.graphicsDevice == null);
+
+            this.graphicsDevice = graphicsDevice;
+
+            ProjectionBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            ViewBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            CameraInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)sizeof(CameraInfo), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+
+            var cameraInfoLayout = ResourceLayoutFactory.GetCameraInfoFragmentLayout(resourceFactory);
+            CameraInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(cameraInfoLayout, CameraInfoBuffer));
+
+            var projectionViewLayout = ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory);
+            ProjectionViewResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(projectionViewLayout, ProjectionBuffer, ViewBuffer));
+        }
+
+        public void DestroyDeviceResources()
+        {
+            graphicsDevice = null;
+
+            ProjectionBuffer?.Dispose();
+            ProjectionBuffer = null;
+
+            ViewBuffer?.Dispose();
+            ViewBuffer = null;
+
+            CameraInfoBuffer?.Dispose();
+            CameraInfoBuffer = null;
+
+            CameraInfoResourceSet?.Dispose();
+            CameraInfoResourceSet = null;
+
+            ProjectionViewResourceSet?.Dispose();
+            ProjectionViewResourceSet = null;
+        }
+
         private void UpdateProjectionMatrix()
         {
-            ProjectionMatrix = Matrix4x4Extensions.CreatePerspective(graphicsDevice.IsClipSpaceYInverted, graphicsDevice.IsDepthRangeZeroToOne, FieldOfView, WindowWidth / WindowHeight, NearDistance, FarDistance);
+            // The projection is only lazy updated to make sure a graphic device is present
             hasProjectionChanged = true;
         }
         private void UpdateViewMatrix()
@@ -81,6 +112,9 @@ namespace NtFreX.BuildingBlocks.Cameras
         }
         public virtual void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)
         {
+            if (graphicsDevice == null)
+                return;
+
             //TODO: analyise if updating directly is smarter (use initial graphics device, what happens when it changes?) then doing it lazy here once we have a valid graphics device
             if (hasProjectionChanged || hasViewChanged)
             {
@@ -93,9 +127,10 @@ namespace NtFreX.BuildingBlocks.Cameras
                 };
                 graphicsDevice.UpdateBuffer(CameraInfoBuffer, 0, cameraInfo);
             }
-
             if (hasProjectionChanged)
             {
+                AspectRatio = WindowWidth / WindowHeight;
+                ProjectionMatrix = Matrix4x4Extensions.CreatePerspective(graphicsDevice.IsClipSpaceYInverted, graphicsDevice.IsDepthRangeZeroToOne, FieldOfView, AspectRatio, NearDistance, FarDistance);
                 graphicsDevice.UpdateBuffer(ProjectionBuffer, 0, ProjectionMatrix);
                 hasProjectionChanged = false;
             }
@@ -107,13 +142,5 @@ namespace NtFreX.BuildingBlocks.Cameras
         }
         public virtual void AfterModelUpdate(InputHandler inputs, float deltaSeconds)
         { }
-
-        public void Dispose()
-        {
-            CameraInfoBuffer.Dispose();
-            CameraInfoResourceSet.Dispose();
-            ProjectionBuffer.Dispose();
-            ViewBuffer.Dispose();
-        }
     }
 }

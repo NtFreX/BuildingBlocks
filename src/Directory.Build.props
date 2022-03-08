@@ -3,10 +3,14 @@
   <PropertyGroup>
     <Version>0.0.1</Version>
     <Authors>NtFreX</Authors>
+    <PackageLicenseUrl>https://raw.githubusercontent.com/NtFreX/BuildingBlocks/master/LICENSE</PackageLicenseUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright 2022 (c) Frederik Traber. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/NtFreX/BuildingBlocks</RepositoryUrl>
   </PropertyGroup>
   
   <PropertyGroup>
-    <VeldridVersion>4.8.0</VeldridVersion>
+    <VeldridVersion>4.9.0-beta1</VeldridVersion>
   </PropertyGroup>
 
 </Project>

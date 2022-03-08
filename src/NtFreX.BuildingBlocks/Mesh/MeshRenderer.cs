@@ -1,5 +1,7 @@
-﻿using BepuPhysics.Collidables;
-using NtFreX.BuildingBlocks.Input;
+﻿using NtFreX.BuildingBlocks.Input;
+using NtFreX.BuildingBlocks.Mesh.Data;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization;
+using NtFreX.BuildingBlocks.Mesh.Factories;
 using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Standard;
 using NtFreX.BuildingBlocks.Standard.Extensions;
@@ -9,176 +11,109 @@ using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
+
 namespace NtFreX.BuildingBlocks.Mesh
 {
     //TODO: wrap with model which creates device resources and contains multiple meshes (bone transforms?)
     public class MeshRenderer : CullRenderable, IUpdateable
     {
         // TODO: make configurable
-        private readonly MeshRenderPass[] meshRenderPasses = MeshRenderPassFactory.RenderPasses.ToArray();
-        private readonly List<MeshRenderPass> meshRenderPassesWorkList = new List<MeshRenderPass>();
-        private readonly GraphicsDevice graphicsDevice;
-        private readonly ResourceFactory resourceFactory;
+        private static MeshRenderPass[] MeshRenderPasses => MeshRenderPassFactory.RenderPasses.ToArray();
+
+
+        private readonly List<MeshRenderPass> meshRenderPassesWorkList = new ();
         private readonly Cached<Vector3> centerCache;
+        private readonly DeviceBufferPool? deviceBufferPool;
+        private readonly CommandListPool? commandListPool;
+        private readonly MeshBufferBuilder meshBufferBuilder;
 
         private BoundingBox boundingBox;
+        private BoundingBox meshBoundingBox;
         private bool hasWorldChanged = true;
         private bool hasMeshRenderPassDataChanged = true; // TODO: initialise render passes in costructor and make it up to the user to update them?!
+        private int meshRenderPassHashCode;
+        private RenderPasses renderPasses;
 
         public readonly Mutable<bool> IsActive;
-        public readonly MeshDeviceBuffer MeshBuffer;
         public readonly IMutable<Transform> Transform;
-        public readonly GraphicsSystem GraphicsSystem;
+        public readonly SpecializedMeshData MeshData;
 
         public string? Name { get; set; }
 
-        public ResourceSet? MaterialInfoResourceSet { get; private set; } // TODO: move the resource set to the buffer?
-        public ResourceSet? SurfaceTextureResourceSet { get; private set; } // TODO: move the resource set to the buffer?
-        public ResourceSet? AlphaMapTextureResourceSet { get; private set; } // TODO: move the resource set to the buffer?
-        public ResourceSet? BonesTransformationsResourceSet { get; private set; } // TODO: move the resource set to the buffer?
-        public ResourceSet ProjectionViewWorldResourceSet { get; private set; }
-        public DeviceBuffer WorldBuffer { get; private set; }
-        public Matrix4x4 WorldMatrix { get; private set; }
+        public uint IndexCount { get; private set; }
+        public PooledDeviceBuffer? VertexBuffer { get; private set; }
+        public ResourceSet? WorldResourceSet { get; private set; }
+        public ResourceSet? InverseWorldResourceSet { get; private set; }
+        public PooledDeviceBuffer? WorldBuffer { get; private set; }
+        public PooledDeviceBuffer? InverseWorldBuffer { get; private set; }
+        public Matrix4x4? WorldMatrix { get; private set; }
+        public PooledDeviceBuffer? IndexBuffer { get; private set; }
         public MeshRenderPass[] CurrentMeshRenderPasses { get; private set; }
 
-        public override BoundingBox GetBoundingBox() => boundingBox;
+        public override BoundingBox GetBoundingBox() => boundingBox; //  TODO: rename frustum culling bounding box and seperate the buffer
         public override Vector3 GetCenter() => centerCache.Get();
-        public override RenderPasses RenderPasses => MeshBuffer.Material.Value == null ? RenderPasses.Standard : (MeshBuffer.Material.Value.Value.Opacity == 1f ? RenderPasses.Standard : RenderPasses.AlphaBlend);
+        public override RenderPasses RenderPasses => renderPasses;
 
-
-        // give possibilities to customize render passes
-        // TODO: do not pass graphics system but mutable camera? or move camera dependency out
-        public unsafe MeshRenderer(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem,
-            MeshDeviceBuffer meshBuffer, Transform? transform = null, string? name = null)
+        // TODO: give possibilities to customize render passes
+        public static async Task<MeshRenderer> CreateAsync(MeshDataProvider meshDataProvider, Transform? transform = null, string? name = null, bool isActive = true, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null, MeshBufferBuilder? meshBufferBuilder = null)
         {
-            this.graphicsDevice = graphicsDevice;
-            this.resourceFactory = resourceFactory;
-            this.GraphicsSystem = graphicsSystem;
+            (var meshData, var meshBoundingBox) = await meshDataProvider.GetAsync();
+            return new MeshRenderer(meshData, meshBoundingBox, transform, name, isActive, deviceBufferPool, commandListPool, meshBufferBuilder);
+        }
+
+        private MeshRenderer(SpecializedMeshData specializedMeshData, BoundingBox boundingBox, Transform? transform = null, string? name = null, bool isActive = true, DeviceBufferPool? deviceBufferPool = null, CommandListPool? commandListPool = null, MeshBufferBuilder? meshBufferBuilder = null)
+        {
+            this.deviceBufferPool = deviceBufferPool;
+            this.commandListPool = commandListPool;
+            this.meshBufferBuilder = meshBufferBuilder ?? new DefaultMeshBufferBuilder();
 
             var realTransform = transform ?? new Transform();
-
-            MeshBuffer = meshBuffer;
-            IsActive = new Mutable<bool>(true, this);
+            MeshData = specializedMeshData;
+            IsActive = new Mutable<bool>(isActive, this);
             Transform = new Mutable<Transform>(new Transform(realTransform.Position, realTransform.Rotation, realTransform.Scale), this);
-            WorldBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            CurrentMeshRenderPasses = Array.Empty<MeshRenderPass>();
             Name = name;
 
             IsActive.ValueChanged += (_, _) => UpdateShouldRender();
             Transform.ValueChanged += (_, _) => InvalidateWorldCache();
-            
-            graphicsSystem.Camera.ValueChanged += (_, _) => UpdateProjectionViewWorldResourceSet();
 
-            this.centerCache = new Cached<Vector3>(() => GetBoundingBox().GetCenter());
+            meshBoundingBox = boundingBox;
+            centerCache = new Cached<Vector3>(() => GetBoundingBox().GetCenter());
 
-            this.MeshBuffer.Material.ValueChanged += (_, _) => UpdateShouldRender();
-            this.MeshBuffer.TextureView.ValueChanged += (_, _) => UpdateTextureResourceSet();
-            this.MeshBuffer.AlphaMap.ValueChanged += (_, _) => UpdateAlphaMapResourceSet();
-            this.MeshBuffer.BoneTransformationBuffer.ValueChanged += (_, _) => UpdateBonesTransformationsResourceSet();
-            this.MeshBuffer.MaterialInfoBuffer.ValueChanged += (_, _) => UpdateMaterialInfoResourceSet();
-            this.MeshBuffer.InstanceBoundingBox.ValueChanged += (_, _) => UpdateBoundingBox();
-
-            UpdateMaterialInfoResourceSet();
-            UpdateProjectionViewWorldResourceSet();
-            UpdateAlphaMapResourceSet();
-            UpdateBonesTransformationsResourceSet();
-            UpdateTextureResourceSet();
             InvalidateWorldCache();
-            UpdateBoundingBox();
             UpdateShouldRender();
-            Update(0f, InputHandler.Empty);
-            
+            UpdateRenderPasses();
         }
 
-        public static unsafe MeshRenderer Create<TShape>(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, BaseMeshDataProvider mesh, TShape shape,
-            Transform? transform = null, TextureView ? textureView = null, TextureView? alphaMap = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
-                where TShape : unmanaged, IShape
+        private void UpdateRenderPasses()
         {
-            var data = PhysicsMeshDeviceBuffer<TShape>.Create(graphicsDevice, resourceFactory, mesh, shape, textureView: textureView, alphaMap: alphaMap, deviceBufferPool: deviceBufferPool);
-            return new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, data, transform: transform, name: name);
-        }
-
-        public static unsafe MeshRenderer Create(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, 
-            BaseMeshDataProvider mesh, Transform? transform = null, TextureView? textureView = null, TextureView? alphaMap = null, string? name = null, DeviceBufferPool? deviceBufferPool = null)
-        {
-            var data = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh, textureView: textureView, alphaMap: alphaMap, deviceBufferPool: deviceBufferPool);
-            return new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, data, transform: transform, name: name);
-        }
-
-        private void UpdateMaterialInfoResourceSet()
-        {
-            hasMeshRenderPassDataChanged = true;
-
-            this.MaterialInfoResourceSet?.Dispose();
-
-            if (MeshBuffer.MaterialInfoBuffer.Value == null)
-                return;
-
-            //TODO: move to mesh buffer?
-            var materialLayout = ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory);
-            this.MaterialInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(materialLayout, MeshBuffer.MaterialInfoBuffer.Value.RealDeviceBuffer));
-        }
-
-        private void UpdateProjectionViewWorldResourceSet()
-        {
-            hasMeshRenderPassDataChanged = true;
-
-            this.ProjectionViewWorldResourceSet?.Dispose();
-
-            if (GraphicsSystem.Camera.Value == null)
-                return;
-
-            // TODO: move render stages, shader pipe line mapping and ressource layouts out of here? combine with particle renderer?!!!!!!!!!!!
-            var projectionViewWorldLayout = ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory);
-            this.ProjectionViewWorldResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(projectionViewWorldLayout, GraphicsSystem.Camera.Value.ProjectionBuffer, GraphicsSystem.Camera.Value.ViewBuffer, WorldBuffer));
-        }
-
-        private void UpdateAlphaMapResourceSet()
-        {
-            hasMeshRenderPassDataChanged = true;
-
-            this.AlphaMapTextureResourceSet?.Dispose();
-
-            if (MeshBuffer.AlphaMap.Value == null)
-                return;
-
-            var alphaMapTextureLayout = ResourceLayoutFactory.GetAlphaMapTextureLayout(resourceFactory);
-            this.AlphaMapTextureResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(alphaMapTextureLayout, MeshBuffer.AlphaMap.Value, graphicsDevice.Aniso4xSampler)); // TODO: make samplers customizable
-        }
-
-        private void UpdateBonesTransformationsResourceSet()
-        {
-            hasMeshRenderPassDataChanged = true;
-
-            this.BonesTransformationsResourceSet?.Dispose();
-
-            if (MeshBuffer.BoneTransformationBuffer.Value == null)
-                return;
-
-            var boneTransformationLayout = ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory);
-            this.BonesTransformationsResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(boneTransformationLayout, MeshBuffer.BoneTransformationBuffer.Value.RealDeviceBuffer));
-        }
-
-        private void UpdateTextureResourceSet()
-        {
-            hasMeshRenderPassDataChanged = true;
-
-            this.SurfaceTextureResourceSet?.Dispose();
-
-            if (MeshBuffer.TextureView.Value == null)
-                return;
-
-            // TODO: support models without texture (render passes?)
-            var surfaceTextureLayout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
-            this.SurfaceTextureResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(surfaceTextureLayout, MeshBuffer.TextureView.Value, graphicsDevice.Aniso4xSampler));
+            if (MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var specialization))
+            {
+                renderPasses = specialization.Material.Value.Opacity == 1f ? RenderPasses.Standard | RenderPasses.AllShadowMap : RenderPasses.AlphaBlend | RenderPasses.AllShadowMap;
+            }
+            else
+            {
+                renderPasses = RenderPasses.Standard | RenderPasses.AllShadowMap;
+            }
         }
 
         private void UpdateBoundingBox()
         {
             // TODO: apply bone transforms!!
-            var newBoundingBox = MeshBuffer.InstanceBoundingBox.Value.TransformBoundingBox(Transform.Value);
+
+            BoundingBox? instanceBoundingBox = null;
+            if (MeshData.Specializations.TryGet<InstancedMeshDataSpecialization>(out var instancedMeshDataSpecialization))
+            {
+                foreach (var instance in instancedMeshDataSpecialization.Instances.Value)
+                {
+                    var worldMatrix = new Transform(instance.Position, Matrix4x4.CreateRotationX(instance.Rotation.X) * Matrix4x4.CreateRotationY(instance.Rotation.Y) * Matrix4x4.CreateRotationZ(instance.Rotation.Z), instance.Scale).CreateWorldMatrix();
+                    var box = BoundingBox.Transform(meshBoundingBox, worldMatrix);
+                    instanceBoundingBox = instanceBoundingBox == null ? box : BoundingBox.Combine(instanceBoundingBox.Value, box);
+                }
+            }
+
+            BoundingBox newBoundingBox = instanceBoundingBox == null ? meshBoundingBox : instanceBoundingBox.Value;
+            newBoundingBox = newBoundingBox.TransformBoundingBox(Transform.Value);
 
             Debug.Assert(!newBoundingBox.ContainsNaN(), "The new bounding box should never contain NaN");
             if (boundingBox.ContainsNotOrIsNotSame(newBoundingBox))
@@ -205,233 +140,210 @@ namespace NtFreX.BuildingBlocks.Mesh
         }
 
         private void UpdateShouldRender()
+            => ShouldRender = IsActive && (!MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var specialization) || specialization?.Material == null || specialization.Material.Value.Opacity > 0f);
+
+        private void SpecializationChanged(object? sender, Type e)
         {
-            var shouldRender = IsActive && (MeshBuffer.Material.Value == null || MeshBuffer.Material.Value.Value.Opacity > 0f);
-            if(this.ShouldRender != shouldRender)
+            hasMeshRenderPassDataChanged = true;
+
+            //TODO: move to individuell specializations
+            if(e == typeof(PhongMaterialMeshDataSpecialization))
             {
-                this.ShouldRender = shouldRender;
+                UpdateShouldRender();
+                UpdateRenderPasses();
+
+                // todo: remove event from previous value!!
+                MeshData.Specializations.Get<PhongMaterialMeshDataSpecialization>().Material.ValueChanged += MaterialChanged;
             }
+            else if (e == typeof(InstancedMeshDataSpecialization))
+            {
+                UpdateBoundingBox();
+
+                // todo: remove event from previous value!!
+                MeshData.Specializations.Get<InstancedMeshDataSpecialization>().Instances.ValueChanged += InstancesChanged;
+            }
+        }
+
+        private void MaterialChanged(object? sender, Data.Specialization.Primitives.PhongMaterialInfo e)
+        {
+            UpdateShouldRender();
+            UpdateRenderPasses();
+        }
+
+        private void InstancesChanged(object? sender, Data.Specialization.Primitives.InstanceInfo[] e)
+        {
+            UpdateBoundingBox();
         }
 
         public void Update(float deltaSeconds, InputHandler inputHandler)
         {
             // lazy buffers for draw calls
-            if (hasWorldChanged)
+            if (hasWorldChanged && WorldMatrix != null && CurrentGraphicsDevice != null)
             {
-                this.graphicsDevice.UpdateBuffer(WorldBuffer, 0, WorldMatrix);
+                Debug.Assert(WorldBuffer != null);
+                Debug.Assert(InverseWorldBuffer != null);
+
+                CurrentGraphicsDevice.UpdateBuffer(WorldBuffer.RealDeviceBuffer, 0, WorldMatrix.Value);
+
+                Matrix4x4 inverted;
+                Matrix4x4.Invert(WorldMatrix.Value, out inverted);
+                CurrentGraphicsDevice.UpdateBuffer(InverseWorldBuffer.RealDeviceBuffer, 0, Matrix4x4.Transpose(inverted));
                 hasWorldChanged = false;
-
             }
-
-            if (MeshBuffer.BoneTransformationBuffer.Value != null)
-            {
-                foreach (var boneAnimation in MeshBuffer.BoneAnimationProviders ?? Array.Empty<IBoneAnimationProvider>())
-                {
-                    if (boneAnimation.IsRunning)
-                    {
-                        boneAnimation.UpdateAnimation(deltaSeconds);
-                        graphicsDevice.UpdateBuffer(MeshBuffer.BoneTransformationBuffer.Value.RealDeviceBuffer, 0, boneAnimation.Transforms);
-                        break;
-                    }
-                }
-            }
-        }
-
-        public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
-        {
-            Debug.Assert(RenderPasses.HasFlag(renderPass));
 
             if (hasMeshRenderPassDataChanged)
             {
                 meshRenderPassesWorkList.Clear();
-                foreach (var meshRednerPass in meshRenderPasses)
+                foreach (var meshRednerPass in MeshRenderPasses)
                 {
-                    // TODO: cache mesh render passes that match this mesh
                     if (meshRednerPass.CanBindMeshRenderer(this))
                     {
                         meshRenderPassesWorkList.Add(meshRednerPass);
                     }
                 }
                 CurrentMeshRenderPasses = meshRenderPassesWorkList.ToArray();
+                meshRenderPassHashCode = HashCode.Combine(MeshData.Specializations.GetHashCode(), CurrentMeshRenderPasses?.FirstOrDefault()?.GetHashCode() ?? 0);
+                hasMeshRenderPassDataChanged = false;
             }
 
-            // todo group models by mesh render pass (do in graphics system)
+            // TODO: move this to the BonesMeshDataSpecialization type
+            if (MeshData.Specializations.TryGet<BonesMeshDataSpecialization>(out var bonesSpecialization))
+            {
+                foreach (var boneAnimation in bonesSpecialization.BoneAnimationProviders ?? Array.Empty<IBoneAnimationProvider>())
+                {
+                    if (boneAnimation.IsRunning)
+                    {
+                        var transforms = bonesSpecialization.BoneTransforms.Value;
+                        boneAnimation.UpdateAnimation(deltaSeconds, ref transforms);
+                        bonesSpecialization.BoneTransforms.Value = transforms;
+                        break;
+                    }
+                }
+            }
+        }
+
+        //TODO: remove graphics device param?
+        public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
+        {
+            Debug.Assert(RenderPasses.HasFlag(renderPass));
+            Debug.Assert(CurrentResourceFactory != null);
+            Debug.Assert(CurrentScene != null);
+
+            //TODO: do this in update device res
+            if (MeshData.HasVertexChanges)
+            {
+                Debug.Assert(VertexBuffer != null);
+                MeshData.UpdateVertexBuffer(commandList, VertexBuffer);
+            }
+            if (MeshData.HasIndexChanges)
+            {
+                Debug.Assert(IndexBuffer != null);
+                MeshData.UpdateIndexBuffer(commandList, IndexBuffer);
+            }
+
             foreach (var meshRednerPass in CurrentMeshRenderPasses)
             {
-                meshRednerPass.Bind(graphicsDevice, resourceFactory, this, renderContext, commandList);
-                meshRednerPass.Draw(this, commandList);
+                if (meshRednerPass.CanBindRenderPass(renderPass))
+                {
+                    meshRednerPass.Bind(graphicsDevice, CurrentResourceFactory, this, renderContext, CurrentScene, commandList);
+                    meshRednerPass.Draw(this, commandList);
+                }
             }
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
         {
-            return this.GraphicsSystem.Camera.Value == null
-                ? new RenderOrderKey() 
-                : RenderOrderKey.Create(
-                    // TODO: make this based on some better values? resource set ordering?
-                    MeshBuffer.Material!.GetHashCode(),
+            Debug.Assert(CurrentScene?.Camera.Value != null);
+
+            return RenderOrderKey.Create(
+                    meshRenderPassHashCode,
                     Vector3.Distance(GetCenter(), cameraPosition),
-                    this.GraphicsSystem.Camera.Value.FarDistance);
+                    CurrentScene.Camera.Value.FarDistance);
         }
 
-        public void Dispose()
+        public override async Task<bool> CreateDeviceObjectsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, CommandList commandList, RenderContext renderContext, Scene scene)
         {
-            // TODO: implent create and destry graphics resource pattern
-            MeshBuffer.Dispose();
-            WorldBuffer.Dispose();
+            if (!await base.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, commandList, renderContext, scene))
+                return false;
+
+            Debug.Assert(CurrentResourceFactory != null);
+            Debug.Assert(CurrentGraphicsDevice != null);
+            Debug.Assert(CurrentScene != null);
+
+            //TODO: use render context for pipeline output!
+            var worldLayout = ResourceLayoutFactory.GetWorldLayout(CurrentResourceFactory);
+            WorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), deviceBufferPool);
+            WorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(worldLayout, WorldBuffer.RealDeviceBuffer));
+
+            var inverseWorldLayout = ResourceLayoutFactory.GetInverseWorldLayout(resourceFactory);
+            InverseWorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), deviceBufferPool);
+            InverseWorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(inverseWorldLayout, InverseWorldBuffer.RealDeviceBuffer));
+
+            hasWorldChanged = true;
+
+            (VertexBuffer, IndexBuffer, IndexCount) = meshBufferBuilder.Build(CurrentGraphicsDevice, CurrentResourceFactory, MeshData, deviceBufferPool, commandListPool);
+
+            foreach(var specialization in MeshData.Specializations)
+            {
+                await specialization.CreateDeviceObjectsAsync(CurrentGraphicsDevice, CurrentResourceFactory);
+            }
+
+            hasMeshRenderPassDataChanged = true;
+            //TODO: update hasMeshRenderPassDataChanged! (do all this in ctor)
+            //TODO: updateable stuff!!
+            //TODO call CreateDeviceObjectsAsync when specialization changed and destroy!!
+            //MeshDataProvider.Specializations.SpecializationChanged += (sender, key) => 
+            MeshData.Specializations.SpecializationChanged += SpecializationChanged;
+            if (MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterialMeshDataSpecialization))
+                phongMaterialMeshDataSpecialization.Material.ValueChanged += MaterialChanged;
+            if (MeshData.Specializations.TryGet<InstancedMeshDataSpecialization>(out var instancedMeshDataSpecialization))
+                instancedMeshDataSpecialization.Instances.ValueChanged += InstancesChanged;
+            //MeshDataProvider
+
+            //scene.Camera.ValueChanged += (_, _) => UpdateProjectionViewWorldResourceSet();
+
+            //this.MeshBuffer.Material.ValueChanged += (_, _) => UpdateShouldRender();  && UpdateRenderPasses();
+            //this.MeshBuffer.InstanceBoundingBox.ValueChanged += (_, _) => UpdateBoundingBox();
+
+            Update(0f, InputHandler.Empty); // TODO: this line is only nessesary because logic update and device resource update are combined (seperate it! and only load the device resoruces)
+            return true;
         }
-
-
-        //TOODO: implement pattern
-        public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, RenderContext rc)
-        { }
-
-        public override void CreateDeviceObjects(GraphicsDevice gd, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, CommandList cl, RenderContext sc)
-        { }
 
         public override void DestroyDeviceObjects()
-        { }
-    }
-
-    //TODO: dispose all the stuff below
-    static class ResourceSetFactory
-    {
-        private static Dictionary<ResourceSetDescription, ResourceSet> resourceSets = new Dictionary<ResourceSetDescription, ResourceSet>();
-
-        public static ResourceSet GetResourceSet(ResourceFactory resourceFactory, ResourceSetDescription description)
         {
-            if (!resourceSets.TryGetValue(description, out var set))
+            Debug.Assert(CurrentScene != null);
+
+            MeshData.Specializations.SpecializationChanged -= SpecializationChanged;
+            if(MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterialMeshDataSpecialization)) 
+                phongMaterialMeshDataSpecialization.Material.ValueChanged -= MaterialChanged;
+            if (MeshData.Specializations.TryGet<InstancedMeshDataSpecialization>(out var instancedMeshDataSpecialization))
+                instancedMeshDataSpecialization.Instances.ValueChanged -= InstancesChanged;
+
+            base.DestroyDeviceObjects();
+
+            VertexBuffer?.Destroy();
+            VertexBuffer = null;
+
+            IndexBuffer?.Destroy();
+            IndexBuffer = null;
+
+            WorldBuffer?.Destroy();
+            WorldBuffer = null;
+
+            InverseWorldBuffer?.Destroy();
+            InverseWorldBuffer = null;
+
+            WorldResourceSet?.Dispose();
+            WorldResourceSet = null;
+
+            InverseWorldResourceSet?.Dispose();
+            InverseWorldResourceSet = null;
+
+            foreach (var specialization in MeshData.Specializations)
             {
-                set = resourceFactory.CreateResourceSet(ref description);
-                resourceSets.Add(description, set);
+                specialization.DestroyDeviceObjects();
             }
-            return set;
-        }
-    }
-    static class GraphicsPipelineFactory
-    {
-        private static Dictionary<GraphicsPipelineDescription, Pipeline> graphicPipelines = new Dictionary<GraphicsPipelineDescription, Pipeline>();
-
-        public static Pipeline[] GetAll() => graphicPipelines.Values.ToArray();
-        public static Pipeline GetGraphicsPipeline(
-            GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, 
-            ResourceLayout[] resourceLayouts, Framebuffer framebuffer, ShaderSetDescription shaders, 
-            PrimitiveTopology primitiveTopology, PolygonFillMode fillMode, 
-            BlendStateDescription blendStateDescription, FaceCullMode faceCullMode = FaceCullMode.None)
-        {
-            var pipelineDescription = new GraphicsPipelineDescription();
-            pipelineDescription.BlendState = blendStateDescription;
-
-            pipelineDescription.DepthStencilState = graphicsDevice.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual;
-
-            pipelineDescription.RasterizerState = new RasterizerStateDescription(
-                cullMode: faceCullMode,
-                fillMode: fillMode,
-                frontFace: FrontFace.Clockwise,
-                depthClipEnabled: true,
-                scissorTestEnabled: false);
-
-            pipelineDescription.PrimitiveTopology = primitiveTopology;
-            pipelineDescription.ShaderSet = shaders;
-
-            pipelineDescription.Outputs = framebuffer.OutputDescription;
-            pipelineDescription.ResourceLayouts = resourceLayouts;
-
-            if (graphicPipelines.TryGetValue(pipelineDescription, out var pipeline))
-                return pipeline;
-
-            var newPipeline = resourceFactory.CreateGraphicsPipeline(pipelineDescription);
-            graphicPipelines.Add(pipelineDescription, newPipeline);
-            return newPipeline;            
-        }
-    }
-
-    public static class ResourceLayoutFactory
-    {
-        private static ResourceLayout? projectionViewWorldLayout;
-        public static ResourceLayout GetProjectionViewWorldLayout(ResourceFactory resourceFactory)
-        {
-            if (projectionViewWorldLayout != null)
-                return projectionViewWorldLayout;
-
-            projectionViewWorldLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                new ResourceLayoutElementDescription("View", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                new ResourceLayoutElementDescription("World", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
-
-            return projectionViewWorldLayout;
-        }
-
-        private static ResourceLayout? surfaceTextureLayout;
-        public static ResourceLayout GetSurfaceTextureLayout(ResourceFactory resourceFactory)
-        {
-            if (surfaceTextureLayout != null)
-                return surfaceTextureLayout;
-
-            surfaceTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("SurfaceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
-                new ResourceLayoutElementDescription("SurfaceSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
-
-            return surfaceTextureLayout;
-        }
-
-        private static ResourceLayout? alphaMapTextureLayout;
-        public static ResourceLayout GetAlphaMapTextureLayout(ResourceFactory resourceFactory)
-        {
-            if (alphaMapTextureLayout != null)
-                return alphaMapTextureLayout;
-
-            alphaMapTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
-                new ResourceLayoutElementDescription("AlphaMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
-
-            return alphaMapTextureLayout;
-        }
-
-        private static ResourceLayout? boneTransformationLayout;
-        public static ResourceLayout GetBoneTransformationLayout(ResourceFactory resourceFactory)
-        {
-            if (boneTransformationLayout != null)
-                return boneTransformationLayout;
-
-            boneTransformationLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("Bones", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
-
-            return boneTransformationLayout;
-        }
-        
-
-        private static ResourceLayout? cameraInfoLayout;
-        public static ResourceLayout GetCameraInfoLayout(ResourceFactory resourceFactory)
-        {
-            if (cameraInfoLayout != null)
-                return cameraInfoLayout;
-
-            cameraInfoLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Camera", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
-
-            return cameraInfoLayout;
-        }
-
-        private static ResourceLayout? lightInfoLayout;
-        public static ResourceLayout GetLightInfoLayout(ResourceFactory resourceFactory)
-        {
-            if (lightInfoLayout != null)
-                return lightInfoLayout;
-
-            lightInfoLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Lights", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
-
-            return lightInfoLayout;
-        }
-
-        private static ResourceLayout? materialInfoLayout;
-        public static ResourceLayout GetMaterialInfoLayout(ResourceFactory resourceFactory)
-        {
-            if (materialInfoLayout != null)
-                return materialInfoLayout;
-
-            materialInfoLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Material", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
-
-            return materialInfoLayout;
+            // TODO: cleanup resource sets from time to time?
         }
     }
 }

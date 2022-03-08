@@ -2,10 +2,11 @@
 
 namespace NtFreX.BuildingBlocks.Standard.Pools
 {
+    //TODO: clean up this shit
     // TODO: command list is already thread save? just use one list for same group? how to do grouping?
-    public class CommandListPool : IDisposable
+    public sealed class CommandListPool : IDisposable
     {
-        private readonly Dictionary<CommandListDescription, List<PooledCommandList>> pool = new Dictionary<CommandListDescription, List<PooledCommandList>>();
+        private readonly Dictionary<CommandListDescription, List<PooledCommandList>> pool = new ();
         private readonly ResourceFactory resourceFactory;
 
         public CommandListPool(ResourceFactory resourceFactory)
@@ -21,29 +22,22 @@ namespace NtFreX.BuildingBlocks.Standard.Pools
             return cmdList;
         }
 
-        public static void TryClean(GraphicsDevice graphicsDevice, PooledCommandList commandList, CommandListPool? commandListPool = null)
+        public static void TrySubmit(GraphicsDevice graphicsDevice, PooledCommandList commandList, CommandListPool? commandListPool = null)
         {
-            if (commandListPool == null)
-            {
-                commandList.Item.End();
-                graphicsDevice.SubmitCommands(commandList.Item);
-                graphicsDevice.WaitForIdle();
-                commandList.Item.Dispose();
-            }
-            else
-            {
-                commandListPool?.Free(commandList);
-            }
+            commandList.CommandList.End();
+            graphicsDevice.SubmitCommands(commandList.CommandList);
         }
 
-        public static PooledCommandList TryGet(ResourceFactory resourceFactory, CommandListPool? commandListPool = null)
+        public static PooledCommandList TryGet(ResourceFactory resourceFactory, CommandListDescription? description = null, CommandListPool? commandListPool = null)
         {
-            var commandListDescription = new CommandListDescription();
-            var pooledComandList = commandListPool == null ? null : commandListPool.Get(commandListDescription);
-            return pooledComandList == null ? new PooledCommandList(CreateNewCommandList(resourceFactory, ref commandListDescription)) : pooledComandList;
+            var commandListDescription = description ?? new CommandListDescription();
+            return new PooledCommandList(CreateNewCommandList(resourceFactory, ref commandListDescription));
+
+            //var pooledComandList = commandListPool?.Get(commandListDescription);
+            //return pooledComandList ?? new PooledCommandList(CreateNewCommandList(resourceFactory, ref commandListDescription));
         }
 
-        public PooledCommandList Get(CommandListDescription description)
+        private PooledCommandList Get(CommandListDescription description)
         {
             if (!pool.TryGetValue(description, out var cmdListPool))
             {
@@ -51,47 +45,56 @@ namespace NtFreX.BuildingBlocks.Standard.Pools
                 pool.Add(description, cmdListPool);
             }
 
-            var cmdList = cmdListPool.FirstOrDefault(x => x.Free);
+            var cmdList = cmdListPool.FirstOrDefault();
             if(cmdList != null)
             {
-                cmdList.Free = false;
                 return cmdList;
             }
 
-            var newCmdList = new PooledCommandList(resourceFactory.CreateCommandList(description));
-            newCmdList.Item.Begin();
+            var newCmdList = new PooledCommandList(CreateNewCommandList(resourceFactory, ref description));
             cmdListPool.Add(newCmdList);
             return newCmdList;
         }
 
-        public void Free(PooledCommandList? commandList)
-        {
-            if(commandList != null)
-                commandList.Free = true;
-        }
+        //public async Task SubmitAsync(GraphicsDevice graphicsDevice)
+        //{
+        //    //TODO: thread safty!!!
+        //    submitTaskList.Clear();
+        //    foreach (var itemPool in pool.Values)
+        //    {
+        //        foreach (var value in itemPool)
+        //        {
+        //            submitTaskList.Add(Task.Run(() =>
+        //            {
+        //                value.Item.End();
+        //                graphicsDevice.SubmitCommands(value.Item);
+        //                //graphicsDevice.WaitForIdle();
+        //                value.Dispose();
+        //                value.Free = true;
+        //            }));
+        //        }
+        //    }
+        //    await Task.WhenAll(submitTaskList);
+        //}
 
-        public void Submit(GraphicsDevice graphicsDevice)
+        public void Dispose()
         {
             foreach (var itemPool in pool.Values)
             {
                 foreach (var value in itemPool)
                 {
-                    value.Item.End();
-                    graphicsDevice.SubmitCommands(value.Item);
-                    graphicsDevice.WaitForIdle();
+                    value.CommandList.Dispose();
                 }
             }
+            pool.Clear();
         }
 
-        public void Dispose()
-        {
-            foreach(var itemPool in pool.Values)
-            {
-                foreach(var value in itemPool)
-                {
-                    value.Item.Dispose();
-                }
-            }
-        }
+        //public static void Free(PooledCommandList? commandList)
+        //{
+        //    if (commandList != null)
+        //    {
+        //        commandList.Free = true;
+        //    }
+        //}
     }
 }

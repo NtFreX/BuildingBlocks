@@ -2,7 +2,7 @@
 {
     public class Cached<T>
     {
-        private readonly object locker = new object();
+        private readonly object locker = new ();
         private readonly Func<bool>? allwaysInvalidWhen;
         private readonly Func<T> getter;
 

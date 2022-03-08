@@ -12,6 +12,7 @@ public enum RenderPasses : int
     Duplicator = 1 << 6,
     SwapchainOutput = 1 << 7,
     ReflectionMap = 1 << 8,
+    Particles = 1 << 9,
     AllShadowMap = ShadowMapNear | ShadowMapMid | ShadowMapFar,
 }
 

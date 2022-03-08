@@ -12,10 +12,38 @@ public static class Matrix4x4Extensions
 
     public static bool ContainsNaN(this Matrix4x4 matrix)
     {
-        return matrix.M11 == float.NaN || matrix.M12 == float.NaN || matrix.M13 == float.NaN || matrix.M14 == float.NaN ||
-                matrix.M21 == float.NaN || matrix.M22 == float.NaN || matrix.M23 == float.NaN || matrix.M24 == float.NaN ||
-                matrix.M31 == float.NaN || matrix.M32 == float.NaN || matrix.M33 == float.NaN || matrix.M34 == float.NaN ||
-                matrix.M41 == float.NaN || matrix.M42 == float.NaN || matrix.M43 == float.NaN || matrix.M44 == float.NaN;
+        return float.IsNaN(matrix.M11) || float.IsNaN(matrix.M12) || float.IsNaN(matrix.M13) || float.IsNaN(matrix.M14) ||
+               float.IsNaN(matrix.M21) || float.IsNaN(matrix.M22) || float.IsNaN(matrix.M23) || float.IsNaN(matrix.M24) ||
+               float.IsNaN(matrix.M31) || float.IsNaN(matrix.M32) || float.IsNaN(matrix.M33) || float.IsNaN(matrix.M34) ||
+               float.IsNaN(matrix.M41) || float.IsNaN(matrix.M42) || float.IsNaN(matrix.M43) || float.IsNaN(matrix.M44);
+    }
+
+    public static Vector3 GetPosition(this Matrix4x4 matrix4X4)
+        => new(matrix4X4.M14, matrix4X4.M24, matrix4X4.M34);
+    public static Vector3 GetScale(this Matrix4x4 matrix4X4)
+        => new(matrix4X4.M11, matrix4X4.M22, matrix4X4.M33);
+
+    public static Matrix4x4 CreateOrthographic(bool isClipSpaceYInverted, bool useReverseDepth, float left, float right, float bottom, float top, float near, float far)
+    {
+        Matrix4x4 ortho;
+        if (useReverseDepth)
+        {
+            ortho = Matrix4x4.CreateOrthographicOffCenter(left, right, bottom, top, far, near);
+        }
+        else
+        {
+            ortho = Matrix4x4.CreateOrthographicOffCenter(left, right, bottom, top, near, far);
+        }
+        if (isClipSpaceYInverted)
+        {
+            ortho *= new Matrix4x4(
+                1, 0, 0, 0,
+                0, -1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1);
+        }
+
+        return ortho;
     }
 
     public static Matrix4x4 CreatePerspective(bool isClipSpaceYInverted, bool useReverseDepth, float fov, float aspectRatio, float near, float far)

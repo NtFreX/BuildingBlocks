@@ -1,4 +1,6 @@
-﻿using Veldrid;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
+using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh.Primitives;
 
@@ -12,15 +14,7 @@ public struct Index32 : IIndex<Index32>, IEquatable<Index32>
         => !(one == two);
 
     public static bool operator ==(Index32? one, Index32? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
     public static implicit operator Index32(long value)
     {
@@ -39,16 +33,16 @@ public struct Index32 : IIndex<Index32>, IEquatable<Index32>
     }
 
     public static implicit operator Index32(ushort value)
-        => new Index32 { Value = value };
+        => new () { Value = value };
 
     public static implicit operator Index32(uint value)
-        => new Index32 { Value = value };
+        => new () { Value = value };
 
     public static implicit operator uint(Index32 value)
         => value.Value;
 
     public static explicit operator Index32(Index16 value)
-        => new Index32 { Value = value.Value };
+        => new () { Value = value.Value };
 
     public static Index32 Parse(Index32 value) => value;
     public static Index32 Parse(Index16 value) => (Index32) value;
@@ -64,13 +58,8 @@ public struct Index32 : IIndex<Index32>, IEquatable<Index32>
     public override string ToString()
         => Value.ToString() + " uint";
 
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        var objType = obj.GetType();
-        if (objType != typeof(Index16) && objType != typeof(uint) && objType != typeof(ushort) && objType != typeof(Index32)) return false;
-        return Equals((Index32)obj);
-    }
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
 
     public bool Equals(Index32 other)
         => Value == other.Value;

@@ -7,8 +7,8 @@ internal class RenderQueue : IEnumerable<Renderable>
 {
     private const int DefaultCapacity = 250;
 
-    private readonly List<RenderItemIndex> _indices = new List<RenderItemIndex>(DefaultCapacity);
-    private readonly List<Renderable> _renderables = new List<Renderable>(DefaultCapacity);
+    private readonly List<RenderItemIndex> _indices = new (DefaultCapacity);
+    private readonly List<Renderable> _renderables = new (DefaultCapacity);
 
     public int Count => _renderables.Count;
 

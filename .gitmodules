@@ -4,3 +4,18 @@
 [submodule "dependencies/bepuphysics2"]
 	path = dependencies/bepuphysics2
 	url = https://github.com/bepu/bepuphysics2
+[submodule "dependencies/veldrid"]
+	path = dependencies/veldrid
+	url = https://github.com/mellinoe/veldrid
+[submodule "dependencies/veldrid-spirv"]
+	path = dependencies/veldrid-spirv
+	url = https://github.com/mellinoe/veldrid-spirv
+[submodule "dependencies/ImGui.NET"]
+	path = dependencies/ImGui.NET
+	url = https://github.com/mellinoe/ImGui.NET
+[submodule "dependencies/cimgui"]
+	path = dependencies/cimgui
+	url = https://github.com/cimgui/cimgui
+[submodule "dependencies/ImGui.NET-nativebuild"]
+	path = dependencies/ImGui.NET-nativebuild
+	url = https://github.com/mellinoe/ImGui.NET-nativebuild

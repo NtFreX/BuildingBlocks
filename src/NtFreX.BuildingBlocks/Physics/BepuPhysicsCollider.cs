@@ -5,7 +5,7 @@ using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Physics
 {
-    public class BepuPhysicsCollider<TShape> : IDisposable
+    public sealed class BepuPhysicsCollider<TShape> : IDisposable
         where TShape : unmanaged, IShape
     {
         public BepuPhysicsBodyType BodyType { get; private set; }
@@ -22,7 +22,8 @@ namespace NtFreX.BuildingBlocks.Physics
             var modelIndex = simulation.Shapes.Add(shape);
 
             var pose = new RigidPose(transform.Position, Quaternion.CreateFromRotationMatrix(transform.Rotation));
-            var collidable = new CollidableDescription(modelIndex, new ContinuousDetection { Mode = continuousDetectionMode });
+            var continuousDetection = new ContinuousDetection { Mode = continuousDetectionMode };
+            var collidable = new CollidableDescription(modelIndex, continuousDetection);
             if (BodyType == BepuPhysicsBodyType.Dynamic)
             {
                 var actualVelocity = velocity ?? new BodyVelocity(linear: Vector3.Zero, angular: Vector3.Zero);
@@ -31,7 +32,7 @@ namespace NtFreX.BuildingBlocks.Physics
             }
             else if(BodyType == BepuPhysicsBodyType.Static)
             {
-                staticHandle = simulation.Statics.Add(new StaticDescription(pose.Position, pose.Orientation, collidable));
+                staticHandle = simulation.Statics.Add(new StaticDescription(pose, modelIndex, continuousDetection));
             }
             
             this.simulation = simulation;

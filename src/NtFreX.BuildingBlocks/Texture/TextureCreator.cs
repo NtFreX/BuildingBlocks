@@ -4,31 +4,35 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Veldrid;
+using Veldrid.ImageSharp;
 
 namespace NtFreX.BuildingBlocks.Texture
 {
     public static class TextureCreator
     {
-        public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, int width, int height, Action<IImageProcessingContext> mutateImage, TextureUsage usage = TextureUsage.Sampled)
+        public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, int width, int height, Action<IImageProcessingContext> mutateImage, bool mipmap = true, bool srgb = false)
         {
-            using var img = new Image<Rgba32>(width, height);
+            //TODO: dispose (here possible?)
+            var img = new Image<Rgba32>(width, height);
             img.Mutate(mutateImage);
-            return Create(graphicsDevice, resourceFactory, img, usage);
+            return Create(graphicsDevice, resourceFactory, img, mipmap, srgb);
         }
-        public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Image<Rgba32> image, TextureUsage usage = TextureUsage.Sampled)
+
+        public static TextureView Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, Image<Rgba32> image, bool mipmap = true, bool srgb = false)
         {
-            var texture = ProcessedTexture.Read(image);
-            using var surfaceTexture = texture.CreateDeviceTexture(graphicsDevice, resourceFactory, usage);
+            var texture = new ImageSharpTexture(image, mipmap, srgb);
+            //TODO: sispose somewhere (not here because of vulcan)
+            var surfaceTexture = texture.CreateDeviceTexture(graphicsDevice, resourceFactory);
             return resourceFactory.CreateTextureView(surfaceTexture);
         }
 
         public static Image<Rgba32> CreateEmptyTexture(int size = 1)
-            => new Image<Rgba32>(size, size, new Rgba32(0, 0, 0, 1));
+            => new (size, size, new Rgba32(0, 0, 0, 1));
 
-        public static Image<Rgba32> CreateMissingTexture(FontFamily fontFamily, int size = 1000)
+        public static Image<Rgba32> CreateMissingTexture(FontFamily fontFamily, int size = 500)
         {
+            //TODO: dispose (here possible?)
             var img = new Image<Rgba32>(size, size);
-
             img.Mutate((context) => 
             {
                 context.BackgroundColor(new Color(new Rgba32(255, 165, 0)));

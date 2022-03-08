@@ -8,13 +8,13 @@ namespace NtFreX.BuildingBlocks.Cameras
     {
         private float yawn = 0f;
         private float pitch = 0f;
-        private float speed = 10f;
-        private float fastSpeed = 100f;
+        private readonly float speed = 10f;
+        private readonly float fastSpeed = 100f;
 
         private Vector2? previousMousePos = null;
 
-        public MovableCamera(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, float windowWidth, float windowHeight) 
-            : base(graphicsDevice, resourceFactory, windowWidth, windowHeight) { }
+        public MovableCamera(float windowWidth, float windowHeight) 
+            : base(windowWidth, windowHeight) { }
 
         public override void BeforeModelUpdate(InputHandler inputs, float deltaSeconds)
         {
@@ -39,11 +39,11 @@ namespace NtFreX.BuildingBlocks.Cameras
             }
             if (inputs.IsKeyDown(Key.Q))
             {
-                motionDir += -Vector3.UnitY;
+                motionDir += -Up.Value;
             }
             if (inputs.IsKeyDown(Key.E))
             {
-                motionDir += Vector3.UnitY;
+                motionDir += Up.Value;
             }
 
             if (motionDir != Vector3.Zero)
@@ -66,11 +66,16 @@ namespace NtFreX.BuildingBlocks.Cameras
             previousMousePos = inputs.CurrentSnapshot.MousePosition;
         }
         
-        private void SetLookAt()
+        private Vector3 GetLookDirection()
         {
             var lookRotation = Quaternion.CreateFromYawPitchRoll(yawn, pitch, 0f);
-            var lookDir = Vector3.Transform(-Vector3.UnitZ, lookRotation);
-            LookAt.Value = Position + lookDir;
+            return Vector3.Transform(-Vector3.UnitZ, lookRotation);
         }
+
+        public void SetLookAt()
+            => LookAt.Value = Position + GetLookDirection();
+
+        public Vector3 GetPositionFromLookAt(Vector3 lookAt, float distance = 1f)
+            => lookAt - GetLookDirection() * distance;
     }
 }

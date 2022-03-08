@@ -4,12 +4,11 @@ namespace NtFreX.BuildingBlocks.Standard.Pools
 {
     public class PooledCommandList
     {
-        public CommandList Item { get; }
-        public bool Free { get; set; }
+        public CommandList CommandList { get; }
 
         public PooledCommandList(CommandList item)
         {
-            Item = item;
+            CommandList = item;
         }
     }
 }

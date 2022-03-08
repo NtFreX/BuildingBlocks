@@ -22,7 +22,7 @@ namespace NtFreX.BuildingBlocks.Android
         public AndroidShell(Context context, bool isDebug)
         {
             this.View = new VeldridSurfaceView(context, isDebug);
-            this.View.RenderingAsync += OnRenderingAsync;
+            this.View.Rendering += OnRendering;
             this.View.DeviceCreated += OnDeviceCreated;
             this.View.Resized += () => Resized?.Invoke();
             this.View.DeviceDisposed += () => GraphicsDeviceDestroyed?.Invoke();
@@ -45,11 +45,11 @@ namespace NtFreX.BuildingBlocks.Android
             View.OnResume();
         }
 
-        private async Task OnRenderingAsync()
+        private void OnRendering()
         {
             Updating?.Invoke(new AndroidInputSnapshot());
-            if(RenderingAsync != null)
-                await RenderingAsync.Invoke();
+            if(Rendering != null)
+                Rendering.Invoke();
         }
 
         public async Task RunAsync()

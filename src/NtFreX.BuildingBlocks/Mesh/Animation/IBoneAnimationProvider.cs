@@ -5,9 +5,7 @@ namespace NtFreX.BuildingBlocks.Mesh;
 //  TODO: other animation providers
 public interface IBoneAnimationProvider
 {
-    Matrix4x4[] Transforms { get; }
-
     bool IsRunning { get; set; }
 
-    void UpdateAnimation(float deltaSeconds);
+    void UpdateAnimation(float deltaSeconds, ref Matrix4x4[] transforms);
 }

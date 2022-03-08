@@ -1,6 +1,6 @@
 # [TITLE]
 
-[TITLE] provides a set of building blocks for graphics engines in .NET. It's dependency on Veldrid allows it to be graphics API-agnostic. The library/framework is cross-platform but provides currently only bootstrapping methods for Desktop thought SDL2.
+[TITLE] provides a set of building blocks for graphics engines in .NET. It's dependency on [Veldrid](https://github.com/mellinoe/veldrid) allows it to be graphics API-agnostic. The library/framework is cross-platform but provides currently only bootstrapping methods for Desktop thought SDL2.
 
 ## Dependencies
 

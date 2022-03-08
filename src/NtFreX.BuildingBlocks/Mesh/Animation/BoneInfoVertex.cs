@@ -1,4 +1,6 @@
 ﻿using NtFreX.BuildingBlocks.Mesh.Primitives;
+using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Mesh
@@ -7,7 +9,6 @@ namespace NtFreX.BuildingBlocks.Mesh
     {
         public Vector4 BoneWeights;
         public UInt4 BoneIndices;
-
 
         public void AddBone(uint id, float weight)
         {
@@ -37,36 +38,18 @@ namespace NtFreX.BuildingBlocks.Mesh
             => !(one == two);
 
         public static bool operator ==(BoneInfoVertex? one, BoneInfoVertex? two)
-        {
-            if (!one.HasValue && !two.HasValue)
-                return true;
-            if (!one.HasValue)
-                return false;
-            if (!two.HasValue)
-                return false;
-            return one.Equals(two);
-        }
+            => EqualsExtensions.EqualsValueType(one, two);
 
-        public override int GetHashCode() => (BoneWeights, BoneIndices).GetHashCode();
+        public override int GetHashCode() 
+            => (BoneWeights, BoneIndices).GetHashCode();
 
-        public override bool Equals(object? obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            var objType = obj.GetType();
-            if (objType != typeof(BoneInfoVertex)) return false;
-            return Equals((BoneInfoVertex)obj);
-        }
+        public override bool Equals([NotNullWhen(true)] object? obj)
+            => EqualsExtensions.EqualsObject(this, obj);
 
         public bool Equals(BoneInfoVertex other)
-        {
-            return
-                BoneWeights == other.BoneWeights &&
-                BoneIndices == other.BoneIndices;
-        }
+            => BoneWeights == other.BoneWeights && BoneIndices == other.BoneIndices;
 
         public override string ToString()
-        {
-            return $"BoneWeights: {BoneWeights}, BoneIndices: {BoneIndices}";
-        }
+            => $"BoneWeights: {BoneWeights}, BoneIndices: {BoneIndices}";
     }
 }

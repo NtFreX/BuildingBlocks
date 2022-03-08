@@ -1,6 +1,11 @@
 ﻿using NtFreX.BuildingBlocks.Light;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization.Primitives;
+using NtFreX.BuildingBlocks.Mesh.Factories;
 using NtFreX.BuildingBlocks.Mesh.Primitives;
+using NtFreX.BuildingBlocks.Model;
 using NtFreX.BuildingBlocks.Standard;
+using System.Diagnostics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh
@@ -21,65 +26,72 @@ namespace NtFreX.BuildingBlocks.Mesh
             public bool RequiresAlphaMap;
             public bool RequiresLights;
             public bool RequiresReflection; // TODO: support in mesh buffer
-            public bool RequiresMaterial; // TODO: support in mesh buffer
+            public bool RequiresMaterial;
+
+            public override int GetHashCode()
+                => (VertexLayout, IsPositionNormalTextureCoordinateColor, IsPositionNormalTextureCoordinate, IsPositionNormal, IsPosition, RequiresBones, RequiresSurfaceTexture, RequiresInstanceBuffer, RequiresAlphaMap, RequiresLights, RequiresReflection, RequiresMaterial).GetHashCode();
         }
 
         private readonly VertexResourceLayoutConfig config;
-        private readonly int worldViewProjectionSetIndex;
+        private readonly int viewProjectionSetIndex;
+        private readonly int worldSetIndex;
+        private readonly int inverseWorldSetIndex;
         private readonly int cameraInfoSetIndex;
         private readonly int surfaceTextureSetIndex;
         private readonly int alphaMapTextureSetIndex;
         private readonly int boneTransformationsSetIndex;
         private readonly int reflectionSetIndex;
         private readonly int lightSetIndex;
+        private readonly int shadowSetIndex;
         private readonly int materialSetIndex;
 
-        public const int MaxBoneTransforms = 64;
-
-        public static DefaultMeshRenderPass[] GetAllDefaultMeshRenderPassConfigurations(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, bool isDebug = false)
+        public static Task<DefaultMeshRenderPass[]> GetAllConfigurationsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, bool isDebug = false)
         {
-            var vertexLayouts = new List<VertexResourceLayoutConfig>();
-            vertexLayouts.Add(new VertexResourceLayoutConfig { IsPositionNormalTextureCoordinateColor = true, VertexLayout = VertexPositionNormalTextureColor.VertexLayout });
-            vertexLayouts.Add(new VertexResourceLayoutConfig { IsPositionNormalTextureCoordinate = true, VertexLayout = VertexPositionNormalTexture.VertexLayout });
-            vertexLayouts.Add(new VertexResourceLayoutConfig { IsPositionNormal = true, VertexLayout = VertexPositionNormal.VertexLayout });
-            vertexLayouts.Add(new VertexResourceLayoutConfig { IsPosition = true, VertexLayout = VertexPosition.VertexLayout });
+            var vertexLayouts = new List<VertexResourceLayoutConfig>
+            {
+                new VertexResourceLayoutConfig { IsPositionNormalTextureCoordinateColor = true, VertexLayout = VertexPositionNormalTextureColor.VertexLayout },
+                new VertexResourceLayoutConfig { IsPositionNormalTextureCoordinate = true, VertexLayout = VertexPositionNormalTexture.VertexLayout },
+                new VertexResourceLayoutConfig { IsPositionNormal = true, VertexLayout = VertexPositionNormal.VertexLayout },
+                new VertexResourceLayoutConfig { IsPosition = true, VertexLayout = VertexPosition.VertexLayout }
+            };
 
-            return vertexLayouts.SelectMany(layout =>
+            return Task.WhenAll(vertexLayouts.SelectMany(layout =>
             {
                 var permutations = Permutation.GetAllPermutations(6);
-                var tasks = permutations.Select((value, index) => (Value: value, Index: index)).GroupBy(value => value.Index % Environment.ProcessorCount).Select(group => Task.Run(() => group.Select(mutation => new VertexResourceLayoutConfig
+                return permutations.Select(mutation => new VertexResourceLayoutConfig
                 {
                     IsPosition = layout.IsPosition,
                     IsPositionNormal = layout.IsPositionNormal,
                     IsPositionNormalTextureCoordinate = layout.IsPositionNormalTextureCoordinate,
                     IsPositionNormalTextureCoordinateColor = layout.IsPositionNormalTextureCoordinateColor,
                     VertexLayout = layout.VertexLayout,
-                    RequiresBones = mutation.Value[0],
-                    RequiresSurfaceTexture = mutation.Value[1],
-                    RequiresInstanceBuffer = mutation.Value[2],
-                    RequiresAlphaMap = mutation.Value[3],
-                    RequiresLights = mutation.Value[4],
-                    RequiresMaterial = mutation.Value[5],
+                    RequiresBones = mutation[0],
+                    RequiresSurfaceTexture = mutation[1],
+                    RequiresInstanceBuffer = mutation[2],
+                    RequiresAlphaMap = mutation[3],
+                    RequiresLights = mutation[4],
+                    RequiresMaterial = mutation[5],
                     RequiresReflection = false // TODO: implement
-                }))).ToArray();
-                Task.WaitAll(tasks);
-                return tasks.SelectMany(task => task.Result).ToArray();
-            }).Select(config => Create(graphicsDevice, resourceFactory, config, isDebug)).ToArray();
+                }).ToArray();
+            }).Select(config => Task.Run(() => Create(graphicsDevice, resourceFactory, config, isDebug))));
         }
 
         public DefaultMeshRenderPass(ShaderSetDescription shaderSetDescription, ResourceLayout[] resourceLayouts, VertexResourceLayoutConfig config, 
-            int worldViewProjectionSetIndex, int cameraInfoSetIndex, int surfaceTextureSetIndex, int alphaMapTextureSetIndex, int boneTransformationsSetIndex,
-            int reflectionSet, int lightSetIndex, int materialSetIndex)
+            int viewProjectionSetIndex, int worldSetIndex, int inverseWorldSetIndex, int cameraInfoSetIndex, int surfaceTextureSetIndex, int alphaMapTextureSetIndex, int boneTransformationsSetIndex,
+            int reflectionSet, int lightSetIndex, int shadowSetIndex, int materialSetIndex)
             : base(shaderSetDescription, resourceLayouts)
         {
             this.config = config;
-            this.worldViewProjectionSetIndex = worldViewProjectionSetIndex;
+            this.viewProjectionSetIndex = viewProjectionSetIndex;
+            this.worldSetIndex = worldSetIndex;
+            this.inverseWorldSetIndex = inverseWorldSetIndex;
             this.cameraInfoSetIndex = cameraInfoSetIndex;
             this.surfaceTextureSetIndex = surfaceTextureSetIndex;
             this.alphaMapTextureSetIndex = alphaMapTextureSetIndex;
             this.boneTransformationsSetIndex = boneTransformationsSetIndex;
             this.reflectionSetIndex = reflectionSet;
             this.lightSetIndex = lightSetIndex;
+            this.shadowSetIndex = shadowSetIndex;
             this.materialSetIndex = materialSetIndex;
         }
 
@@ -92,14 +104,17 @@ namespace NtFreX.BuildingBlocks.Mesh
 
 
             var currentSet = 0;
-            int worldViewProjectionSetIndex = currentSet++;
+            int viewProjectionSetIndex = currentSet++;
+            int worldSetIndex = currentSet++;
+            int inverseWorldSetIndex = currentSet++;
             int cameraInfoSetIndex = currentSet++;
             int surfaceTextureSetIndex = config.RequiresSurfaceTexture ? currentSet++ : -1; // TODO: combine those first two with the material layout
             int alphaMapTextureSetIndex = config.RequiresAlphaMap ? currentSet++ : -1;
             int boneTransformationsSetIndex = config.RequiresBones ? currentSet++ : -1;
-            int reflectionSetIndex = config.RequiresReflection ? currentSet++ : -1;
-            int lightSetIndex = config.RequiresLights ? currentSet++ : -1;
             int materialSetIndex = config.RequiresMaterial ? currentSet++ : -1;
+            int lightSetIndex = config.RequiresLights ? currentSet++ : -1;
+            int shadowSetIndex = config.RequiresLights ? currentSet++ : -1;
+            int reflectionSetIndex = config.RequiresReflection ? currentSet++ : -1;
 
             var shaderFlags = new Dictionary<string, bool>
             {
@@ -121,92 +136,162 @@ namespace NtFreX.BuildingBlocks.Mesh
             var shaderValues = new Dictionary<string, string>
             {
                 { "textureSet", surfaceTextureSetIndex.ToString() },
-                { "worldViewProjectionSet", worldViewProjectionSetIndex.ToString() },
+                { "viewProjectionSet", viewProjectionSetIndex.ToString() },
+                { "worldSet", worldSetIndex.ToString() },
+                { "inverseWorldSet", inverseWorldSetIndex.ToString() },
                 { "cameraInfoSet", cameraInfoSetIndex.ToString() },
                 { "alphaMapSet", alphaMapTextureSetIndex.ToString() },
                 { "boneTransformationsSet", boneTransformationsSetIndex.ToString() },
                 { "reflectionSet", reflectionSetIndex.ToString() },
-                { "lightSet", lightSetIndex.ToString() },
                 { "materialSet", materialSetIndex.ToString() },
+                { "lightSet", lightSetIndex.ToString() },
+                { "shadowSet", shadowSetIndex.ToString() },
                 { "boneWeightsLocation", config.RequiresBones ? vertexPositions++.ToString() : "-1" },
                 { "boneIndicesLocation", config.RequiresBones ? vertexPositions++.ToString() : "-1" },
                 { "instancePositionLocation", config.RequiresInstanceBuffer ? vertexPositions++.ToString() : "-1" },
                 { "instanceRotationLocation", config.RequiresInstanceBuffer ? vertexPositions++.ToString() : "-1" },
                 { "instanceScaleLocation", config.RequiresInstanceBuffer ? vertexPositions++.ToString() : "-1" },
                 { "instanceTexArrayIndexLocation", config.RequiresInstanceBuffer ? vertexPositions++.ToString() : "-1" },
-                { "maxBoneTransforms", MaxBoneTransforms.ToString() },
-                { "maxPointLights", LightInfo.MaxLights.ToString() },
+                { "maxBoneTransforms", BonesMeshDataSpecialization.MaxBoneTransforms.ToString() },
+                { "maxPointLights", PointLightCollectionInfo.MaxLights.ToString() },
             };
 
-            var resourceLayoutList = new List<ResourceLayout>();
-            resourceLayoutList.Add(ResourceLayoutFactory.GetProjectionViewWorldLayout(resourceFactory));
-            resourceLayoutList.Add(ResourceLayoutFactory.GetCameraInfoLayout(resourceFactory));
+            var resourceLayoutList = new List<ResourceLayout>
+            {
+                ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory),
+                ResourceLayoutFactory.GetWorldLayout(resourceFactory),
+                ResourceLayoutFactory.GetInverseWorldLayout(resourceFactory),
+                ResourceLayoutFactory.GetCameraInfoFragmentLayout(resourceFactory)
+            };
+
             if (config.RequiresSurfaceTexture)
                 resourceLayoutList.Add(ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory));
             if (config.RequiresAlphaMap)
                 resourceLayoutList.Add(ResourceLayoutFactory.GetAlphaMapTextureLayout(resourceFactory));
             if (config.RequiresBones)
                 resourceLayoutList.Add(ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory));
-            if (config.RequiresReflection)
-                throw new NotImplementedException();
             if (config.RequiresMaterial)
                 resourceLayoutList.Add(ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory));
-            if (config.RequiresLights)
+            if (config.RequiresLights) 
+            { 
                 resourceLayoutList.Add(ResourceLayoutFactory.GetLightInfoLayout(resourceFactory));
-
-            var vertexLayoutDescription = new List<VertexLayoutDescription>();
-            vertexLayoutDescription.Add(config.VertexLayout);
-            if (config.RequiresBones)
-                vertexLayoutDescription.Add(new VertexLayoutDescription(
-                    new VertexElementDescription("BoneWeights", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
-                    new VertexElementDescription("BoneIndices", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt4)));
-            if (config.RequiresInstanceBuffer)
-                vertexLayoutDescription.Add(InstanceInfo.VertexLayout);
-
-            // TODO: create device resouces pattern
-            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, shaderFlags, shaderValues, "Resources/mesh", isDebug);
-            var shaderSet = new ShaderSetDescription(vertexLayouts: vertexLayoutDescription.ToArray(), shaders: shaders, ShaderPrecompiler.GetSpecializations(graphicsDevice));
-
-            return new DefaultMeshRenderPass(shaderSet, resourceLayoutList.ToArray(), config, worldViewProjectionSetIndex, cameraInfoSetIndex, surfaceTextureSetIndex, alphaMapTextureSetIndex, boneTransformationsSetIndex, reflectionSetIndex, lightSetIndex, materialSetIndex);            
-        }
-
-        protected override void BindResources(MeshRenderer meshRenderer, CommandList commandList)
-        {
-            commandList.SetGraphicsResourceSet((uint)worldViewProjectionSetIndex, meshRenderer.ProjectionViewWorldResourceSet);
-            commandList.SetGraphicsResourceSet((uint)cameraInfoSetIndex, meshRenderer.GraphicsSystem.Camera.Value?.CameraInfoResourceSet);
-            if (config.RequiresSurfaceTexture)
-                commandList.SetGraphicsResourceSet((uint)surfaceTextureSetIndex, meshRenderer.SurfaceTextureResourceSet);
-            if(config.RequiresAlphaMap)
-                commandList.SetGraphicsResourceSet((uint)alphaMapTextureSetIndex, meshRenderer.AlphaMapTextureResourceSet);
-            if(config.RequiresBones)
-                commandList.SetGraphicsResourceSet((uint)boneTransformationsSetIndex, meshRenderer.BonesTransformationsResourceSet);
+                resourceLayoutList.Add(ResourceLayoutFactory.GetShadowLayout(resourceFactory));
+            }
             if (config.RequiresReflection)
                 throw new NotImplementedException();
-            if (config.RequiresMaterial)
-                commandList.SetGraphicsResourceSet((uint)materialSetIndex, meshRenderer.MaterialInfoResourceSet);
-            if (config.RequiresLights)
-                commandList.SetGraphicsResourceSet((uint)lightSetIndex, meshRenderer.GraphicsSystem.LightSystem.LightInfoResourceSet);
 
-            commandList.SetVertexBuffer(0, meshRenderer.MeshBuffer.VertexBuffer.Value.RealDeviceBuffer);
-            commandList.SetIndexBuffer(meshRenderer.MeshBuffer.IndexBuffer.Value.RealDeviceBuffer, meshRenderer.MeshBuffer.IndexFormat);
+            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, shaderFlags, shaderValues, "Resources/mesh", isDebug);
+            var shaderSet = new ShaderSetDescription(vertexLayouts: VertexLayoutFactory.CreateDefaultLayout(config.VertexLayout, config.RequiresBones, config.RequiresInstanceBuffer), shaders: new[] { shaders.VertexShader, shaders.FragementShader }, ShaderPrecompiler.GetSpecializations(graphicsDevice));
+
+            return new DefaultMeshRenderPass(shaderSet, resourceLayoutList.ToArray(), config, viewProjectionSetIndex, worldSetIndex, inverseWorldSetIndex, cameraInfoSetIndex, surfaceTextureSetIndex, alphaMapTextureSetIndex, boneTransformationsSetIndex, reflectionSetIndex, lightSetIndex, shadowSetIndex, materialSetIndex);            
+        }
+
+        protected override void BindPipeline(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, MeshRenderer meshRenderer, RenderContext renderContext, CommandList commandList)
+        {
+            Debug.Assert(renderContext.MainSceneFramebuffer != null);
+
+            meshRenderer.MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterialMeshDataSpecialization);
+            var hasAlphaMap = meshRenderer.MeshData.Specializations.TryGet<AlphaMapMeshDataSpecialization>(out _);
+
+            var blendState = (phongMaterialMeshDataSpecialization == null || phongMaterialMeshDataSpecialization.Material.Value.Opacity == 1f) && !hasAlphaMap ? BlendStateDescription.SingleOverrideBlend : BlendStateDescription.SingleAlphaBlend;
+            var pipeLine = GraphicsPipelineFactory.GetGraphicsPipeline(
+                graphicsDevice, resourceFactory, ResourceLayouts, renderContext.MainSceneFramebuffer, ShaderSetDescription,
+                meshRenderer.MeshData.DrawConfiguration.PrimitiveTopology.Value, meshRenderer.MeshData.DrawConfiguration.FillMode.Value,
+                blendState, meshRenderer.MeshData.DrawConfiguration.FaceCullMode.Value);
+            commandList.SetPipeline(pipeLine);
+        }
+
+        protected override void BindResources(MeshRenderer meshRenderer, Scene scene, RenderContext renderContext, CommandList commandList)
+        {
+            Debug.Assert(scene.Camera.Value?.ProjectionViewResourceSet != null);
+
+            commandList.SetGraphicsResourceSet((uint)viewProjectionSetIndex, scene.Camera.Value.ProjectionViewResourceSet);
+            commandList.SetGraphicsResourceSet((uint)worldSetIndex, meshRenderer.WorldResourceSet);
+            commandList.SetGraphicsResourceSet((uint)inverseWorldSetIndex, meshRenderer.InverseWorldResourceSet);
+
+            Debug.Assert(meshRenderer.CurrentScene?.Camera.Value != null);
+            commandList.SetGraphicsResourceSet((uint)cameraInfoSetIndex, meshRenderer.CurrentScene.Camera.Value.CameraInfoResourceSet);
+
+            if (config.RequiresSurfaceTexture)
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<SurfaceTextureMeshDataSpecialization>();
+                Debug.Assert(specialization.ResouceSet != null);
+
+                commandList.SetGraphicsResourceSet((uint)surfaceTextureSetIndex, specialization.ResouceSet);
+            }
+
+            if (config.RequiresAlphaMap)
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<AlphaMapMeshDataSpecialization>();
+                Debug.Assert(specialization.ResouceSet != null);
+
+                commandList.SetGraphicsResourceSet((uint)alphaMapTextureSetIndex, specialization.ResouceSet);
+            }
 
             if (config.RequiresBones)
-                commandList.SetVertexBuffer(1, meshRenderer.MeshBuffer.BonesInfoBuffer.Value!.RealDeviceBuffer);
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<BonesMeshDataSpecialization>();
+                Debug.Assert(specialization.ResouceSet != null);
+
+                commandList.SetGraphicsResourceSet((uint)boneTransformationsSetIndex, specialization.ResouceSet);
+            }
+
+            if (config.RequiresReflection)
+                throw new NotImplementedException();
+
+            if (config.RequiresMaterial) 
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<PhongMaterialMeshDataSpecialization>();
+                Debug.Assert(specialization.ResouceSet != null);
+
+                commandList.SetGraphicsResourceSet((uint)materialSetIndex, specialization.ResouceSet);
+            }
+
+            if (config.RequiresLights)
+            {
+                Debug.Assert(meshRenderer.CurrentScene?.LightSystem.Value != null);
+
+                commandList.SetGraphicsResourceSet((uint)lightSetIndex, meshRenderer.CurrentScene.LightSystem.Value.LightInfoResourceSet);
+                commandList.SetGraphicsResourceSet((uint)shadowSetIndex, renderContext.ShadowResourceSet);
+            }
+
+            //TODO: do not doublicate this
+            Debug.Assert(meshRenderer.VertexBuffer != null);
+            commandList.SetVertexBuffer(0, meshRenderer.VertexBuffer.RealDeviceBuffer);
+
+            Debug.Assert(meshRenderer.IndexBuffer != null);
+            commandList.SetIndexBuffer(meshRenderer.IndexBuffer.RealDeviceBuffer, meshRenderer.MeshData.DrawConfiguration.IndexFormat);
+
+            if (config.RequiresBones)
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<BonesMeshDataSpecialization>();
+                Debug.Assert(specialization.BonesBuffer != null);
+
+                commandList.SetVertexBuffer(1, specialization.BonesBuffer.RealDeviceBuffer);
+            }
 
             if (config.RequiresInstanceBuffer)
-                commandList.SetVertexBuffer((uint) (config.RequiresBones ? 2 : 1), meshRenderer.MeshBuffer.InstanceInfoBuffer.Value!.RealDeviceBuffer);
+            {
+                var specialization = meshRenderer.MeshData.Specializations.Get<InstancedMeshDataSpecialization>();
+                Debug.Assert(specialization.InstanceBuffer != null);
+
+                commandList.SetVertexBuffer((uint)(config.RequiresBones ? 2 : 1), specialization.InstanceBuffer.RealDeviceBuffer);
+            }
         }
+
+        public override bool CanBindRenderPass(RenderPasses renderPasses)
+            => renderPasses.HasFlag(RenderPasses.Standard) || renderPasses.HasFlag(RenderPasses.AlphaBlend);
 
         public override bool CanBindMeshRenderer(MeshRenderer meshRenderer)
         {
-            var hasInstances = meshRenderer.MeshBuffer.InstanceInfoBuffer.Value != null && (!meshRenderer.MeshBuffer.Instances.Value?.Equals(InstanceInfo.Single) ?? false);
-            var hasSurfaceTexture = meshRenderer.SurfaceTextureResourceSet != null;
-            var hasAlphaMap = meshRenderer.AlphaMapTextureResourceSet != null;
-            var hasBones = meshRenderer.BonesTransformationsResourceSet != null && meshRenderer.MeshBuffer.BonesInfoBuffer.Value != null;
-            var hasLights = meshRenderer.GraphicsSystem.LightSystem != null;
-            var hasMaterial = meshRenderer.MaterialInfoResourceSet != null;
+            var hasInstances = meshRenderer.MeshData.Specializations.TryGet<InstancedMeshDataSpecialization>(out var instancesSpecialization) && instancesSpecialization.InstanceBuffer != null && (!instancesSpecialization.Instances?.Equals(InstanceInfo.Single) ?? false);
+            var hasSurfaceTexture = meshRenderer.MeshData.Specializations.TryGet<SurfaceTextureMeshDataSpecialization>(out var surfaceTexture) && surfaceTexture.ResouceSet != null;
+            var hasAlphaMap = meshRenderer.MeshData.Specializations.TryGet<AlphaMapMeshDataSpecialization>(out var alphaMap) && alphaMap.ResouceSet != null;
+            var hasBones = meshRenderer.MeshData.Specializations.TryGet<BonesMeshDataSpecialization>(out var bonesSpecialization) && bonesSpecialization.ResouceSet != null && bonesSpecialization.BonesBuffer != null;
+            var hasLights = meshRenderer.CurrentScene?.LightSystem != null;
+            var hasMaterial = meshRenderer.MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterial) && phongMaterial.ResouceSet != null;
 
-            return meshRenderer.MeshBuffer.VertexLayout.Value.Equals(config.VertexLayout) && 
+            return meshRenderer.MeshData.DrawConfiguration.VertexLayout.Equals(config.VertexLayout) && 
                 config.RequiresInstanceBuffer == hasInstances &&
                 config.RequiresSurfaceTexture == hasSurfaceTexture &&
                 config.RequiresAlphaMap == hasAlphaMap &&
@@ -214,5 +299,8 @@ namespace NtFreX.BuildingBlocks.Mesh
                 config.RequiresLights == hasLights &&
                 config.RequiresMaterial == hasMaterial;
         }
+
+        public override int GetHashCode()
+            => config.GetHashCode();
     }
 }

@@ -1,5 +1,8 @@
-﻿using NtFreX.BuildingBlocks.Mesh.Primitives;
-using NtFreX.BuildingBlocks.Model;
+﻿using NtFreX.BuildingBlocks.Mesh.Data;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization;
+using NtFreX.BuildingBlocks.Mesh.Data.Specialization.Primitives;
+using NtFreX.BuildingBlocks.Mesh.Primitives;
+using NtFreX.BuildingBlocks.Standard.Pools;
 using NtFreX.BuildingBlocks.Texture;
 using Veldrid;
 using Veldrid.Utilities;
@@ -8,49 +11,55 @@ namespace NtFreX.BuildingBlocks.Mesh.Import;
 
 public class ObjModelImporter : ModelImporter
 {
-    public ObjModelImporter(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, TextureFactory textureFactory, GraphicsSystem graphicsSystem)
-        : base(graphicsDevice, resourceFactory, textureFactory, graphicsSystem) { }
+    public ObjModelImporter(TextureFactory textureFactory)
+        : base(textureFactory) { }
 
-    public override Task<ImportedMeshCollection<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>> PositionColorNormalTexture32BitMeshFromFileAsync(string filePath)
+    public override Task<DefinedMeshData<VertexPositionNormalTextureColor, Index32>[]> PositionColorNormalTexture32BitMeshFromFileAsync(string filePath, DeviceBufferPool? deviceBufferPool = null)
     {
-        var directory = Path.GetDirectoryName(filePath);
         var parser = new ObjParser();
-        var importCollection = new ImportedMeshCollection<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>();
-        using (var stream = File.OpenRead(filePath)) 
+        var materialParser = new MtlParser();
+        var directory = Path.GetDirectoryName(filePath);
+
+        using var stream = File.OpenRead(filePath);
+        var scene = parser.Parse(stream);
+
+        using var materialStream = File.OpenRead(string.IsNullOrEmpty(directory) ? scene.MaterialLibName : Path.Combine(directory, scene.MaterialLibName));
+        var material = materialParser.Parse(materialStream);
+
+        var meshes = new List<DefinedMeshData<VertexPositionNormalTextureColor, Index32>>();
+        foreach (var group in scene.MeshGroups)
         {
-            var scene = parser.Parse(stream);
-
-            var materialParser = new MtlParser();
-            using (var materialStream = File.OpenRead(string.IsNullOrEmpty(directory) ? scene.MaterialLibName : Path.Combine(directory, scene.MaterialLibName)))
-            {
-                var material = materialParser.Parse(materialStream);
-
-                var meshes = new List<MeshDataProvider<VertexPositionNormalTextureColor, Index32>>();
-                foreach (var group in scene.MeshGroups)
-                {
-                    var materialDef = material.Definitions[group.Material];
+            var materialDef = material.Definitions[group.Material];
                         
-                    var fileMesh = scene.GetData(group, new RgbaFloat(0, 0, 0, 1));
+            var (vertices, indices) = scene.GetData(group, new RgbaFloat(0, 0, 0, 1));
+            var specializations = new MeshDataSpecializationDictionary();
 
-                    var materialInfo = new MaterialInfo(
-                        opacity: materialDef.Opacity,
-                        shininessStrength: (materialDef.SpecularReflectivity.X + materialDef.SpecularReflectivity.Y + materialDef.SpecularReflectivity.Z) / 3f,
-                        shininess: materialDef.SpecularExponent);
+            var materialInfo = new PhongMaterialInfo(
+                opacity: materialDef.Opacity,
+                shininessStrength: (materialDef.SpecularReflectivity.X + materialDef.SpecularReflectivity.Y + materialDef.SpecularReflectivity.Z) / 3f,
+                shininess: materialDef.SpecularExponent);
 
-                    meshes.Add(new MeshDataProvider<VertexPositionNormalTextureColor, Index32>(
-                        fileMesh.Vertices,
-                        fileMesh.Indices,
-                        PrimitiveTopology.TriangleList,
-                        materialName: group.Material,
-                        texturePath: !string.IsNullOrEmpty(materialDef.DiffuseTexture) ? materialDef.DiffuseTexture : null,
-                        alphaMapPath: !string.IsNullOrEmpty(materialDef.AlphaMap) ? materialDef.AlphaMap : null,
-                        material: materialInfo));
-                }
-
-                importCollection.Instaces = meshes.Select((mesh, index) => new MeshTransform() { MeshIndex = (uint) index, Transform = new () }).ToArray();
-                importCollection.Meshes = meshes.ToArray();
-                return Task.FromResult(importCollection);
+            specializations.AddOrUpdate(new PhongMaterialMeshDataSpecialization(materialInfo, group.Material, deviceBufferPool));
+                    
+            if (!string.IsNullOrEmpty(materialDef.DiffuseTexture))
+            {
+                var path = Path.IsPathRooted(materialDef.DiffuseTexture) || string.IsNullOrEmpty(directory) ? materialDef.DiffuseTexture : Path.Combine(directory, materialDef.DiffuseTexture);
+                specializations.AddOrUpdate(new SurfaceTextureMeshDataSpecialization(new DirectoryTextureProvider(TextureFactory, path)));
             }
+
+            if (!string.IsNullOrEmpty(materialDef.AlphaMap))
+            {
+                var path = Path.IsPathRooted(materialDef.AlphaMap) || string.IsNullOrEmpty(directory) ? materialDef.AlphaMap : Path.Combine(directory, materialDef.AlphaMap);
+                specializations.AddOrUpdate(new AlphaMapMeshDataSpecialization(new DirectoryTextureProvider(TextureFactory, path)));
+            }
+
+            meshes.Add(new DefinedMeshData<VertexPositionNormalTextureColor, Index32>(
+                vertices,
+                indices,
+                PrimitiveTopology.TriangleList,
+                meshDataSpecializations: specializations));
         }
+
+        return Task.FromResult(meshes.ToArray());
     }
 }

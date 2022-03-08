@@ -3,12 +3,16 @@
  - shadows
  - full material support
 
+ - compute shader for text atlas color changes
+
  - object creation and deletion (graphics device created and destroyed)
 
+ - pbr shader!!!!
  - smoke/cloud/fog shader
  - bloom shader
  - fire shader
  - water shader
+ - shadergen
 
  - particle systems
  - animations
@@ -32,3 +36,5 @@
  
  - changeble scenes and demos
  - readme and documention
+ - mark clearly which file is from me and what is from where!!!!
+ - compile list of licenses which need to be included!!!

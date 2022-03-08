@@ -1,4 +1,5 @@
 ﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
@@ -16,7 +17,7 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
             new VertexElementDescription(VertexElementSemantic.Color.ToString(), VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4));
 
     public static ushort BytesBeforePosition => 0;
-    public static RgbaFloat DefaultColor = new RgbaFloat(0, 0, 0, 1);
+    public static RgbaFloat DefaultColor { get; } = new RgbaFloat(0, 0, 0, 1);
 
     public readonly Vector3 Position;
     public readonly Vector3 Normal;
@@ -38,7 +39,7 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
                     throw new NotSupportedException("Only float3 are supported for the position");
 
                 var size = Unsafe.SizeOf<Vector3>();
-                position = BitConverterExtensions.FromBytes<Vector3>(data.Slice(dataPoisition, size));
+                position = BitConverterExtensions.SingleFromBytes<Vector3>(data.Slice(dataPoisition, size));
                 dataPoisition += size;
             }
 
@@ -48,7 +49,7 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
                     throw new NotSupportedException("Only float3 are supported for the normal");
 
                 var size = Unsafe.SizeOf<Vector3>();
-                normal = BitConverterExtensions.FromBytes<Vector3>(data.Slice(dataPoisition, size));
+                normal = BitConverterExtensions.SingleFromBytes<Vector3>(data.Slice(dataPoisition, size));
                 dataPoisition += size;
             }
 
@@ -58,7 +59,7 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
                     throw new NotSupportedException("Only float2 are supported for the texture coordinates");
 
                 var size = Unsafe.SizeOf<Vector2>();
-                textureCoordinate = BitConverterExtensions.FromBytes<Vector2>(data.Slice(dataPoisition, size));
+                textureCoordinate = BitConverterExtensions.SingleFromBytes<Vector2>(data.Slice(dataPoisition, size));
                 dataPoisition += size;
             }
 
@@ -67,13 +68,13 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
                 if (element.Format == VertexElementFormat.Float4)
                 {
                     var size = Unsafe.SizeOf<RgbaFloat>();
-                    color = BitConverterExtensions.FromBytes<RgbaFloat>(data.Slice(dataPoisition, size));
+                    color = BitConverterExtensions.SingleFromBytes<RgbaFloat>(data.Slice(dataPoisition, size));
                     dataPoisition += size;
                 }
                 if(element.Format != VertexElementFormat.Float3)
                 {
                     var size = Unsafe.SizeOf<Vector3>();
-                    var color3 = BitConverterExtensions.FromBytes<Vector3>(data.Slice(dataPoisition, size));
+                    var color3 = BitConverterExtensions.SingleFromBytes<Vector3>(data.Slice(dataPoisition, size));
                     dataPoisition += size;
                     color = new RgbaFloat(color3.X, color3.Y, color3.Z, 1);
                 }
@@ -107,15 +108,7 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
         => !(one == two);
 
     public static bool operator ==(VertexPositionNormalTextureColor? one, VertexPositionNormalTextureColor? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
     public override int GetHashCode()
         => (Position, Normal, TextureCoordinate, Color).GetHashCode();
@@ -123,12 +116,8 @@ public struct VertexPositionNormalTextureColor : IVertex, IEquatable<VertexPosit
     public override string ToString()
         => $"Position: {Position}, Normal: {Normal}, TextureCoordinate:{TextureCoordinate}, Color: {Color}";
 
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        if (obj.GetType() != typeof(VertexPositionNormalTextureColor)) return false;
-        return Equals((VertexPositionNormalTextureColor)obj);
-    }
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
 
     public bool Equals(VertexPositionNormalTextureColor other)
         => Position == other.Position && Color == other.Color && TextureCoordinate == other.TextureCoordinate && Normal == other.Normal;

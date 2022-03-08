@@ -1,5 +1,19 @@
-﻿namespace NtFreX.BuildingBlocks.Standard
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
+
+namespace NtFreX.BuildingBlocks.Standard
 {
+    public class ValueChangingEventArgs<T> : EventArgs
+    {
+        public T OldValue { get; }
+        public T NewValue { get; }
+
+        public ValueChangingEventArgs(T oldValue, T newValue)
+        {
+            OldValue = oldValue;
+            NewValue = newValue;
+        }
+    }
     public interface IMutable<T>
     {
         T Value { get; set; }
@@ -10,6 +24,7 @@
         private T value;
         private readonly object sender;
 
+        public event EventHandler<ValueChangingEventArgs<T>>? ValueChanging;
         public event EventHandler<T>? ValueChanged;
 
         public T Value 
@@ -17,6 +32,7 @@
             get => value;
             set
             {
+                ValueChanging?.Invoke(sender, new ValueChangingEventArgs<T>(this.value, value));
                 this.value = value;
                 ValueChanged?.Invoke(sender, value);
             }
@@ -31,7 +47,23 @@
         public override string? ToString()
             => value?.ToString() ?? base.ToString();
 
-        public static implicit operator T(Mutable<T> m) => m.Value;
+        public static implicit operator T(Mutable<T> m) 
+            => m.Value;
+
+        public static bool operator !=(Mutable<T>? one, Mutable<T>? two)
+            => !(one == two);
+
+        public static bool operator ==(Mutable<T>? one, Mutable<T>? two)
+            => EqualsExtensions.EqualsReferenceType(one, two);
+
+        public override bool Equals([NotNullWhen(true)] object? obj)
+            => EqualsExtensions.EqualsObject(this, obj);
+
+        public bool Equals(Mutable<T>? other)
+            => other?.Value?.Equals(Value) ?? false;
+
+        public override int GetHashCode()
+            => Value?.GetHashCode() ?? 0;
     }
 
     public class MutableWrapper<T> : IMutable<T>

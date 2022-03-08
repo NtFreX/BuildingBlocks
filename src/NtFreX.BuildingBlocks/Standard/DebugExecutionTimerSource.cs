@@ -1,34 +1,41 @@
 ﻿using Microsoft.Extensions.Logging;
 
-namespace NtFreX.BuildingBlocks.Standard
+namespace NtFreX.BuildingBlocks.Standard;
+
+public class DebugExecutionTimerSource
 {
-    public class DebugExecutionTimerSource
+    private readonly object locker = new ();
+    private readonly ILogger<DebugExecutionTimerSource> logger;
+    private readonly int bucketSize;
+
+    private long sum;
+    private int bucketIndex = 0;
+
+    public readonly string Name;
+
+    public float AverageMilliseconds { get; private set; }
+
+    public DebugExecutionTimerSource(ILogger<DebugExecutionTimerSource> logger, string name, int bucketSize = 100)
     {
-        private readonly object locker = new object();
-        private readonly ILogger<DebugExecutionTimerSource> logger;
-        private readonly string name;
-        private long[] bucket;
-        private int bucketIndex = 0;
+        Name = name;
 
-        public TimeSpan Average => TimeSpan.FromTicks((long)bucket.Average());
+        this.logger = logger;
+        this.bucketSize = bucketSize;
+    }
 
-        public DebugExecutionTimerSource(ILogger<DebugExecutionTimerSource> logger, string name, int bucketSize = 1000)
+    internal void AddValue(long ticks)
+    {
+        lock (locker) // TODO: do we need that lock???
         {
-            this.logger = logger;
-            this.name = name;
-            this.bucket = new long[bucketSize];
-        }
-
-        internal void AddValue(long value)
-        {
-            lock (locker)
+            sum += ticks;
+            if (++bucketIndex == bucketSize)
             {
-                bucket[bucketIndex++] = value;
-                if(bucketIndex == bucket.Length)
-                {
-                    logger.LogInformation($"Execution of {name} took {Average.TotalMilliseconds}ms");
-                    bucketIndex = 0;
-                }
+                AverageMilliseconds = sum * 1f / bucketSize / 10_000;
+
+                logger.LogInformation($"Execution of {Name} took {AverageMilliseconds}ms");
+
+                sum = 0;
+                bucketIndex = 0;
             }
         }
     }

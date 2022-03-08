@@ -1,5 +1,9 @@
-﻿using NtFreX.BuildingBlocks.Model;
-using System.Numerics;
+﻿using NtFreX.BuildingBlocks.Cameras;
+using NtFreX.BuildingBlocks.Light;
+using NtFreX.BuildingBlocks.Model.Common;
+using NtFreX.BuildingBlocks.Standard;
+using NtFreX.BuildingBlocks.Standard.Pools;
+using System.Diagnostics;
 using Veldrid;
 using Veldrid.Utilities;
 
@@ -7,21 +11,41 @@ namespace NtFreX.BuildingBlocks.Model
 {
     public class Scene
     {
-        private readonly Octree<Renderable> frustumTree = new Octree<Renderable>(new BoundingBox(new Vector3(float.MinValue), new Vector3(float.MaxValue)), 2);
-        private readonly HashSet<Renderable> freeRenderables = new HashSet<Renderable>();
-        private readonly HashSet<CullRenderable> cullRenderables = new HashSet<CullRenderable>();
-        public readonly HashSet<IUpdateable> Updateables = new HashSet<IUpdateable>();
+        private readonly Octree<Renderable> frustumTree = new (boundingBox: new (min: new (float.MinValue), max: new(float.MaxValue)), maxChildren: 2);
+        private readonly HashSet<Renderable> freeRenderables = new ();
+        private readonly HashSet<CullRenderable> cullRenderables = new ();
+        public readonly HashSet<IUpdateable> Updateables = new ();
 
+        private GraphicsDevice? graphicsDevice;
+        private ResourceFactory? resourceFactory;
+        private RenderContext? renderContext;
+        private CommandListPool? commandListPool;
+
+        public Mutable<Camera?> Camera { get; }
+        public Mutable<LightSystem?> LightSystem { get; }
+
+        public Renderable[] FreeRenderables => freeRenderables.ToArray();
         public CullRenderable[] CullRenderables => cullRenderables.ToArray();
 
-        public void GetContainedRenderables(BoundingFrustum frustum, List<Renderable> renderables)
+        public Scene(bool isDebug = false)
         {
-            frustumTree.GetContainedObjects(frustum, renderables);
-            renderables.AddRange(freeRenderables);
+            Camera = new Mutable<Camera?>(null, this);
+            Camera.ValueChanging += (_, args) => UpdateCamera(args.OldValue, args.NewValue);
+
+            LightSystem = new Mutable<LightSystem?>(null, this);
+            LightSystem.ValueChanging += (_, args) => UpdateLightSystem(args.OldValue, args.NewValue);
+
+            AddFreeRenderableCore(new ScreenDuplicator(isDebug));
+            AddFreeRenderableCore(new FullScreenQuad(isDebug));
         }
 
         internal void DestroyAllDeviceObjects()
         {
+            this.graphicsDevice = null;
+            this.resourceFactory = null;
+            this.renderContext = null;
+            this.commandListPool = null;
+
             foreach (CullRenderable cr in cullRenderables)
             {
                 cr.DestroyDeviceObjects();
@@ -30,19 +54,47 @@ namespace NtFreX.BuildingBlocks.Model
             {
                 r.DestroyDeviceObjects();
             }
+
+            LightSystem.Value?.DestroyDeviceResources();
+            Camera.Value?.DestroyDeviceResources();
         }
 
-        // TODO: also call when adding object
-        internal void CreateAllDeviceObjects(GraphicsDevice gd, ResourceFactory resourceFactory, GraphicsSystem graphicsSystem, CommandList cl, RenderContext rc)
+        internal async Task CreateDeviceObjectsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, RenderContext renderContext, CommandListPool commandListPool)
         {
+            if (this.graphicsDevice != null)
+            {
+                Debug.Assert(this.graphicsDevice == graphicsDevice);
+                return;
+            }
+
+            this.graphicsDevice = graphicsDevice;
+            this.resourceFactory = resourceFactory;
+            this.renderContext = renderContext;
+            this.commandListPool = commandListPool;
+
+            LightSystem.Value?.CreateDeviceResources(graphicsDevice, resourceFactory);
+            Camera.Value?.CreateDeviceResources(graphicsDevice, resourceFactory);
+
+            var cl = CommandListPool.TryGet(resourceFactory, commandListPool: commandListPool);
+            var tasks = new List<Task>();
+
             foreach (CullRenderable cr in cullRenderables)
             {
-                cr.CreateDeviceObjects(gd, resourceFactory, graphicsSystem, cl, rc);
+                tasks.Add(cr.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, cl.CommandList, renderContext, this));
             }
             foreach (Renderable r in freeRenderables)
             {
-                r.CreateDeviceObjects(gd, resourceFactory, graphicsSystem, cl, rc);
+                tasks.Add(r.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, cl.CommandList, renderContext, this));
             }
+
+            await Task.WhenAll(tasks);
+            CommandListPool.TrySubmit(graphicsDevice, cl, commandListPool);
+        }
+
+        public void GetContainedRenderables(BoundingFrustum frustum, List<Renderable> renderables)
+        {
+            frustumTree.GetContainedObjects(frustum, renderables);
+            renderables.AddRange(freeRenderables);
         }
 
         public void AddUpdateables(params IUpdateable[] models)
@@ -51,7 +103,6 @@ namespace NtFreX.BuildingBlocks.Model
             {
                 if (Updateables.Contains(updateable))
                     continue;
-
                 Updateables.Add(updateable);
             }
         }
@@ -67,17 +118,23 @@ namespace NtFreX.BuildingBlocks.Model
             }
         }
 
-        public void AddFreeRenderables(params Renderable[] models)
+        public async Task AddFreeRenderablesAsync(params Renderable[] models)
         {
+            var tasks = new List<Task>();
             foreach (var model in models)
             {
                 if (freeRenderables.Contains(model))
                     continue;
 
+                if (graphicsDevice != null)
+                    tasks.Add(CreateDeviceObjectsAsync(model));
+
                 model.ShouldRenderHasChanged += UpdateShouldRender;
                 if (model.ShouldRender)
                     AddFreeRenderableCore(model);
             }
+
+            await Task.WhenAll(tasks);
         }
 
         public void RemoveFreeRenderables(params Renderable[] models)
@@ -87,6 +144,7 @@ namespace NtFreX.BuildingBlocks.Model
                 if (!freeRenderables.Contains(model))
                     continue;
 
+                model.DestroyDeviceObjects();
                 model.ShouldRenderHasChanged -= UpdateShouldRender;
                 RemoveFreeRenderableCore(model);
             }
@@ -99,22 +157,29 @@ namespace NtFreX.BuildingBlocks.Model
                 if (!cullRenderables.Contains(model))
                     continue;
 
+                model.DestroyDeviceObjects();
                 model.ShouldRenderHasChanged -= UpdateCullableShouldRender;
                 RemoveCullRenderableCore(model);
             }
         }
 
-        public void AddCullRenderables(params CullRenderable[] models)
+        public async Task AddCullRenderablesAsync(params CullRenderable[] models)
         {
+            var tasks = new List<Task>();
             foreach (var model in models)
             {
                 if (cullRenderables.Contains(model))
                     continue;
 
+                if (graphicsDevice != null)
+                    tasks.Add(CreateDeviceObjectsAsync(model));
+
                 model.ShouldRenderHasChanged += UpdateCullableShouldRender;
                 if (model.ShouldRender)
                     AddCullRenderableCore(model);
             }
+
+            await Task.WhenAll(tasks);
         }
 
         private void AddFreeRenderableCore(Renderable model)
@@ -154,6 +219,17 @@ namespace NtFreX.BuildingBlocks.Model
             model.NewBoundingBoxAvailable -= UpdateCullableBounds;
         }
 
+        private async Task CreateDeviceObjectsAsync(Renderable model)
+        {
+            Debug.Assert(graphicsDevice != null);
+            Debug.Assert(resourceFactory != null);
+            Debug.Assert(renderContext != null);
+
+            var cl = CommandListPool.TryGet(resourceFactory, commandListPool: commandListPool);
+            await model.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, cl.CommandList, renderContext, this);
+            CommandListPool.TrySubmit(graphicsDevice, cl, commandListPool);
+        }
+
         private void UpdateCullableBounds(object? sender, EventArgs args)
         {
             var model = (CullRenderable)sender!;
@@ -185,5 +261,26 @@ namespace NtFreX.BuildingBlocks.Model
                 RemoveFreeRenderableCore(model);
             }
         }
+
+        private void UpdateCamera(Camera? oldCamera, Camera? newCamera)
+        {
+            oldCamera?.DestroyDeviceResources();
+
+            if (graphicsDevice != null && resourceFactory != null && newCamera != null)
+            {
+                newCamera.CreateDeviceResources(graphicsDevice, resourceFactory);
+            }
+        }
+
+        private void UpdateLightSystem(LightSystem? oldSystem, LightSystem? newSystem)
+        {
+            oldSystem?.DestroyDeviceResources();
+
+            if (graphicsDevice != null && resourceFactory != null && newSystem != null)
+            {
+                newSystem.CreateDeviceResources(graphicsDevice, resourceFactory);
+            }
+        }
+
     }
 }

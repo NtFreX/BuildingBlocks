@@ -1,4 +1,7 @@
-﻿namespace NtFreX.BuildingBlocks.Mesh.Primitives;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Diagnostics.CodeAnalysis;
+
+namespace NtFreX.BuildingBlocks.Mesh.Primitives;
 
 public struct UInt4 : IEquatable<UInt4>
 {
@@ -8,36 +11,17 @@ public struct UInt4 : IEquatable<UInt4>
         => !(one == two);
 
     public static bool operator ==(UInt4? one, UInt4? two)
-    {
-        if (!one.HasValue && !two.HasValue)
-            return true;
-        if (!one.HasValue)
-            return false;
-        if (!two.HasValue)
-            return false;
-        return one.Equals(two);
-    }
+        => EqualsExtensions.EqualsValueType(one, two);
 
-    public override int GetHashCode() => (X, Y, Z, W).GetHashCode();
+    public override int GetHashCode() 
+        => (X, Y, Z, W).GetHashCode();
 
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj)) return false;
-        if (obj.GetType() != typeof(UInt4)) return false;
-        return Equals((UInt4)obj);
-    }
+    public override bool Equals([NotNullWhen(true)] object? obj)
+        => EqualsExtensions.EqualsObject(this, obj);
 
     public bool Equals(UInt4 other)
-    {
-        return
-            X == other.X &&
-            Y == other.Y &&
-            Z == other.Z &&
-            W == other.W;
-    }
+        => X == other.X && Y == other.Y && Z == other.Z && W == other.W;
 
     public override string ToString()
-    {
-        return $"X: {X}, Y: {Y}, Z: {Z}, W: {W}";
-    }
+        => $"X: {X}, Y: {Y}, Z: {Z}, W: {W}";
 }

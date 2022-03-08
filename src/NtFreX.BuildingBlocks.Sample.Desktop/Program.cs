@@ -1,4 +1,5 @@
-﻿using NtFreX.BuildingBlocks.Sample;
+﻿using Microsoft.Extensions.Logging;
+using NtFreX.BuildingBlocks.Sample;
 using NtFreX.BuildingBlocks.Shell;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -30,9 +31,23 @@ namespace NtFreX.BuildingBlocks.Desktop
     // TODO: drag and drop
     class Program
     {
-
         static async Task Main(string[] args)
         {
+            var loggerFactory = LoggerFactory.Create(x => 
+            {
+#if DEBUG
+                x.AddConsole();
+#endif
+            });
+            var logger = loggerFactory.CreateLogger<Program>();
+            var isDebug = false;
+#if DEBUG
+            isDebug = true;
+#endif
+
+            logger.LogInformation("Starting application");
+
+            // TODO: call dispose on desktop shell?
             // sdl c# import or own bindings (licence both wrapper and main lib)
             await Game.SetupShellAndRunAsync<SampleGame>(new DesktopShell(new WindowCreateInfo()
             {
@@ -41,7 +56,9 @@ namespace NtFreX.BuildingBlocks.Desktop
                 WindowWidth = 960,
                 WindowHeight = 540,
                 WindowTitle = Assembly.GetEntryAssembly().FullName
-            }, isDebug: ApplicationContext.IsDebug), ApplicationContext.LoggerFactory);
+            }, preferredBackend: Veldrid.GraphicsBackend.Vulkan, isDebug: isDebug), loggerFactory);
+            // TODO: change backends
+            logger.LogInformation("Application was shut down");
         }
     }
 

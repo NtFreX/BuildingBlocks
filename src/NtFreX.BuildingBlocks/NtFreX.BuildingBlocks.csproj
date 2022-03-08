@@ -9,41 +9,51 @@
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 	</PropertyGroup>
 
-
 	<ItemGroup>
+		<PackageReference Include="protobuf-net" Version="3.0.101" />
 		<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
 		<PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta13" />
+		
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+		
 		<PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
-		<PackageReference Include="Veldrid.ImageSharp" Version="4.8.0" />
-		<PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
-		<PackageReference Include="Veldrid" Version="$(VeldridVersion)" />
-		<PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
-		<PackageReference Include="Veldrid.Utilities" Version="$(VeldridVersion)" />
-		<PackageReference Include="Veldrid.StartupUtilities" Version="$(VeldridVersion)" />
-		<PackageReference Include="Veldrid.SPIRV" Version="1.0.14" />
+
 		<PackageReference Include="AssimpNet" Version="4.1.0" />
 	</ItemGroup>
-
+	
 	<ItemGroup>
-		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuPhysics\BepuPhysics.csproj" />
-		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />		
 		<ProjectReference Include="..\..\dependencies\SDL2-CS\SDL2-CS.Core.csproj" />
-
-
-		<!--
-		
-		<PackageReference Include="BepuPhysics" Version="2.4.0-beta9" />
-		<PackageReference Include="SDL2-CS.NetCore" Version="2.0.8" />
-		
-		-->
 	</ItemGroup>
 
+	<!--<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuPhysics\BepuPhysics.csproj" />
+		<ProjectReference Include="..\..\dependencies\bepuphysics2\BepuUtilities\BepuUtilities.csproj" />
+		
+		<ProjectReference Include="..\..\dependencies\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
+		<ProjectReference Include="..\..\dependencies\veldrid\src\Veldrid\Veldrid.csproj" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(Configuration)' != 'Debug'">-->
+	<ItemGroup>
+		<PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
+		<PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
+		<PackageReference Include="Veldrid" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.Utilities" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.StartupUtilities" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.ImageSharp" Version="$(VeldridVersion)" />
+		<PackageReference Include="Veldrid.SPIRV" Version="1.0.14" />
+
+		<PackageReference Include="BepuPhysics" Version="2.4.0" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<None Update="Resources\**">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>
 </Project>
