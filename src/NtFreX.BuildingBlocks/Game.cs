@@ -266,7 +266,7 @@ namespace NtFreX.BuildingBlocks
             CommandListPool = new CommandListPool(resourceFactory);
             CreateRenderContext();
 
-            MaterialTextureFactory.Instance.CreateDeviceResources(graphicsDevice, resourceFactory);
+            await MaterialTextureFactory.Instance.CreateDeviceResourcesAsync(graphicsDevice, resourceFactory);
 
             Debug.Assert(RenderContext != null);
             await MeshRenderPassFactory.LoadAsync(GraphicsDevice, ResourceFactory, RenderContext, Shell.IsDebug);

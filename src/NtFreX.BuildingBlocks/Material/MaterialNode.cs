@@ -10,7 +10,7 @@ namespace NtFreX.BuildingBlocks.Material
         public TextureView? Output { get; protected set; }
         public VeldridTexture? OutputTexture { get; protected set; }
 
-        public abstract void CreateDeviceResources(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory);
+        public abstract Task CreateDeviceResourcesAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory);
         public abstract void DestroyDeviceResources();
         public abstract void Run(CommandList commandList, float delta);
     }

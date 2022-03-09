@@ -1,32 +1,23 @@
 ﻿using NtFreX.BuildingBlocks.Standard;
 using System.Diagnostics;
-using System.Numerics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Material
 {
-    public sealed class ShiftingMaterialNode : MaterialNode
+    public sealed class WoodMaterialNode : MaterialNode
     {
         private readonly bool isDebug;
-        private readonly float redFactor;
-        private readonly float blueFactor;
-        private readonly float greenFactor;
         private readonly uint computeX;
         private readonly uint computeY;
 
-        private float ticks;
-        private DeviceBuffer? shiftBuffer;
         private Shader? computeShader;
         private ResourceLayout? computeLayout;
         private Pipeline? computePipeline;
         private ResourceSet? computeResourceSet;
 
-        public ShiftingMaterialNode(bool isDebug, float redFactor = 1f, float blueFactor = 1f, float greenFactor = 1f, uint computeX = 16, uint computeY = 16)
+        public WoodMaterialNode(bool isDebug, uint computeX = 16, uint computeY = 16)
         {
             this.isDebug = isDebug;
-            this.redFactor = redFactor;
-            this.blueFactor = blueFactor;
-            this.greenFactor = greenFactor;
             this.computeX = computeX;
             this.computeY = computeY;
         }
@@ -35,14 +26,15 @@ namespace NtFreX.BuildingBlocks.Material
         {
             Debug.Assert(Input != null);
 
-            computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, new Dictionary<string, string> { { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() } }, "Resources/material/shifting.cpt", isDebug);
-
-            shiftBuffer = resourceFactory.CreateBuffer(new BufferDescription(16, BufferUsage.UniformBuffer));
+            computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, 
+                new Dictionary<string, string> {
+                    { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() },
+                    { "width", Input.Target.Width.ToString() }, { "height", Input.Target.Height.ToString() },
+                    { "lineScale", "10.0" }, { "rotationX", "12" }, { "rotationY", "3" }, { "lineModifier", ".9" } }, "Resources/material/wood.cpt", isDebug);
 
             computeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadOnly, ShaderStages.Compute),
-                new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute),
-                new ResourceLayoutElementDescription("ShiftBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+                new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute)));
 
             var computePipelineDesc = new ComputePipelineDescription(
                 computeShader,
@@ -63,15 +55,13 @@ namespace NtFreX.BuildingBlocks.Material
 
             computeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
                 computeLayout,
-                Input, Output, shiftBuffer));
+                Input, Output));
 
             return Task.CompletedTask;
         }
 
         public override void DestroyDeviceResources()
         {
-            shiftBuffer?.Dispose();
-            shiftBuffer = null;
             computeShader?.Dispose();
             computeShader = null;
             computeLayout?.Dispose();
@@ -85,16 +75,6 @@ namespace NtFreX.BuildingBlocks.Material
         public override void Run(CommandList commandList, float delta)
         {
             Debug.Assert(OutputTexture != null);
-
-            //TODO: move to resoruce update?
-            ticks = ticks + delta / 1000f;
-
-            var shifts = new Vector4(
-                ticks * redFactor,
-                ticks * greenFactor,
-                ticks * blueFactor,
-                0);
-            commandList.UpdateBuffer(shiftBuffer, 0, ref shifts);
 
             commandList.SetPipeline(computePipeline);
             commandList.SetComputeResourceSet(0, computeResourceSet);

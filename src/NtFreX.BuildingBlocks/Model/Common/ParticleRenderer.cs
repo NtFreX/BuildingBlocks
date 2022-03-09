@@ -9,50 +9,116 @@ using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Model.Common;
 
-//TODO: fix reset location and bounds (probably should not be transformed befroe passing to cpt shader)
-public class ParticleRenderer : CullRenderable
+public interface IBoundsBuffer
 {
-    public struct ParticleBounds
+    BoundingBox GetBoundingBox();
+    Vector3 GetCenter();
+}
+public interface IResetBuffer { }
+
+public struct ParticleNullBounds : IBoundsBuffer
+{
+    public BoundingBox GetBoundingBox()
+        => new BoundingBox();
+
+    public Vector3 GetCenter()
+        => Vector3.Zero;
+}
+
+public struct ParticleNullReset : IResetBuffer { }
+
+public struct ParticleBoxBounds : IBoundsBuffer
+{
+    public Vector3 BoundingBoxMin;
+    private float _padding0;
+    public Vector3 BoundingBoxMax;
+    private float _padding1;
+
+    public BoundingBox GetBoundingBox()
+        => new BoundingBox(BoundingBoxMin, BoundingBoxMax);
+    public Vector3 GetCenter()
+        => GetBoundingBox().GetCenter();
+}
+
+public struct ParticleBoxReset : IResetBuffer
+{
+    public Vector3 ResetBoxMin;
+    private float _padding2;
+    public Vector3 ResetBoxMax;
+    private float _padding3;
+}
+
+public struct ParticleSphereBounds : IBoundsBuffer
+{
+    public Vector3 Position;
+    public float Radius;
+
+    public BoundingBox GetBoundingBox()
+        => new BoundingBox(Position - Vector3.One * Radius, Position + Vector3.One * Radius);
+    public Vector3 GetCenter()
+        => Position;
+}
+
+public struct ParticleSphereReset : IResetBuffer
+{
+    public Vector3 ResetPosition;
+    public float ResetRadius;
+}
+
+public struct ParticleCircleReset : IResetBuffer
+{
+    public Vector3 ResetPosition;
+    public float ResetRadius;
+}
+
+public struct ParticleInfo
+{
+    public Vector3 Position;
+    public float Scale;
+    public Vector3 Velocity;
+    public float LivetimeModifer;
+    public Vector4 Color;
+    public Vector4 ColorModifier;
+    public Vector4 InitialColor;
+    public Vector3 TexCoords;
+    public float Livetime;
+    public Vector3 InitialVelocity;
+    private float _padding0 = 0;
+    public Vector3 VelocityModifier;
+    private float _padding1 = 0;
+
+    public ParticleInfo(Vector3 position, float scale, Vector3 velocity, Vector4 color, Vector4? colorModifier = null, Vector3? velocityModifier = null, float liveTime = 1f, float liveTimeModifier = 0f, Vector3? texCoords = null)
     {
-        public Vector3 BoundingBoxMin;
-        private float _padding0;
-        public Vector3 BoundingBoxMax;
-        private float _padding1;
-        public Vector3 ResetBoxMin;
-        private float _padding2;
-        public Vector3 ResetBoxMax;
-        private float _padding3;
+        Position = position;
+        Scale = scale;
+        Velocity = velocity;
+        InitialVelocity = velocity;
+        VelocityModifier = velocityModifier ?? Vector3.Zero;
+        Color = color;
+        InitialColor = color;
+        Livetime = liveTime;
+        LivetimeModifer = liveTimeModifier;
+        ColorModifier = colorModifier ?? Vector4.Zero;
+        TexCoords = texCoords ?? Vector3.Zero;
     }
+}
 
-    public struct ParticleInfo
-    {
-        public Vector3 Position;
-        public float Scale;
-        public Vector3 Velocity;
-        public float LivetimeModifer;
-        public Vector4 Color;
-        public Vector4 ColorModifier;
-        public Vector4 InitialColor;
-        public Vector3 TexCoords;
-        public float Livetime;
+public class ParticleRenderer : ParticleRenderer<ParticleNullBounds, ParticleNullReset>
+{
+    public ParticleRenderer(Transform transform, ParticleInfo[] particles, TextureProvider? textureProvider = null, bool isDebug = false) 
+        : base(transform, particles, new ParticleNullBounds(), new ParticleNullReset(), textureProvider, isDebug)
+    { }
+}
 
-        public ParticleInfo(Vector3 position, float scale, Vector3 velocity, Vector4 color, Vector4? colorModifier = null, float liveTime = 1f, float liveTimeModifier = 0f, Vector3? texCoords = null)
-        {
-            Position = position;
-            Scale = scale;
-            Velocity = velocity;
-            Color = color;
-            InitialColor = color;
-            Livetime = liveTime;
-            LivetimeModifer = liveTimeModifier;
-            ColorModifier = colorModifier ?? Vector4.Zero;
-            TexCoords = texCoords ?? Vector3.Zero;
-        }
-    }
-
+//TODO: fix reset location and bounds (probably should not be transformed befroe passing to cpt shader)
+public class ParticleRenderer<TBounds, TReset> : CullRenderable
+    where TBounds : unmanaged, IBoundsBuffer
+    where TReset : unmanaged, IResetBuffer
+{
     private TextureView? textureView;
     private DeviceBuffer? worldBuffer;
     private DeviceBuffer? boundsBuffer;
+    private DeviceBuffer? resetBuffer;
     private DeviceBuffer? particleBuffer;
     private DeviceBuffer? particleSizeBuffer;
     private Shader? computeShader;
@@ -63,17 +129,18 @@ public class ParticleRenderer : CullRenderable
     private ResourceSet? computeResourceSet;
     private ResourceSet? computeSizeResourceSet;
     private ResourceSet? computeBoundsSet;
+    private ResourceSet? computeResetSet;
     private ResourceSet? textureResourceSet;
 
     private bool hasParticlesChanged = true;
     private bool hasboundsChanged = true;
+    private bool hasResetChanged = true;
     private ParticleInfo[] particles;
-    private BoundingBox bounds;
-    private BoundingBox reset;
-    private Vector3 center;
+    private TBounds bounds;
+    private TReset reset;
 
     private readonly uint maxParticles;
-    private readonly TextureProvider textureProvider;
+    private readonly TextureProvider? textureProvider;
     private readonly bool isDebug;
 
     public Transform Transform { get; }
@@ -81,8 +148,8 @@ public class ParticleRenderer : CullRenderable
 
     //TODO: add spacer similar to meshrenderer? generalize
     //TODO: cache this
-    public override BoundingBox GetBoundingBox() => BoundingBox.Transform(bounds, Transform.CreateWorldMatrix());
-    public override Vector3 GetCenter() => center;
+    public override BoundingBox GetBoundingBox() => BoundingBox.Transform(bounds.GetBoundingBox(), Transform.CreateWorldMatrix());
+    public override Vector3 GetCenter() => GetBoundingBox().GetCenter();
     public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
     {
         Debug.Assert(CurrentScene?.Camera.Value != null);
@@ -92,26 +159,28 @@ public class ParticleRenderer : CullRenderable
                 Vector3.Distance(GetCenter(), cameraPosition),
                 CurrentScene.Camera.Value.FarDistance);
     }
-    public ParticleRenderer(Transform transform, ParticleInfo[] particles, BoundingBox bounds, BoundingBox reset, TextureProvider? textureProvider = null, bool isDebug = false)
+    public ParticleRenderer(Transform transform, ParticleInfo[] particles, TBounds bounds, TReset reset, TextureProvider? textureProvider = null, bool isDebug = false)
     {
         this.isDebug = isDebug;
         this.maxParticles = (uint) particles.Length;
         this.particles = particles;
         this.bounds = bounds;
         this.reset = reset;
-        this.center = bounds.GetDimensions();
         this.textureProvider = textureProvider;
 
         Transform = transform;
     }
 
-    public void SetBounds(BoundingBox bounds, BoundingBox reset)
-    {
-        this.bounds = bounds;
-        this.reset = reset;
-        this.center = bounds.GetDimensions();
-        hasboundsChanged = true;
-    }
+    //public void SetBounds(BoundingBox bounds, BoundingBox reset)
+    //{
+    //    this.bounds = bounds;
+    //    this.reset = reset;
+    //    this.center = bounds.GetDimensions();
+    //    hasboundsChanged = true;
+    //}
+
+    private bool HasBounds() => typeof(TBounds) != typeof(ParticleNullBounds);
+    private bool HasReset() => typeof(TReset) != typeof(ParticleNullReset);
 
     public void SetParticles(ParticleInfo[] particles)
     {
@@ -145,11 +214,10 @@ public class ParticleRenderer : CullRenderable
 
         particleSizeBuffer = resourceFactory.CreateBuffer(new BufferDescription(32, BufferUsage.UniformBuffer));
 
-        computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, new Dictionary<string, string> { }, "Resources/particle.cpt", isDebug);
-
-        var boundsLayout = ResourceLayoutFactory.GetParticleBoundsLayout(resourceFactory);
-        boundsBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<ParticleBounds>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-        computeBoundsSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(boundsLayout, boundsBuffer));
+        computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { 
+            { "hasBoundingBox", typeof(TBounds) == typeof(ParticleBoxBounds) }, { "hasBoundingSphere", typeof(TBounds) == typeof(ParticleSphereBounds) },
+            { "hasResetBox", typeof(TReset) == typeof(ParticleBoxReset) }, { "hasResetSphere", typeof(TReset) == typeof(ParticleSphereReset) }, { "hasResetCircle", typeof(TReset) == typeof(ParticleCircleReset) } }, 
+            new Dictionary<string, string> { { "resetSet", !HasBounds() ? "2" : "3" } }, "Resources/particle.cpt", isDebug);
 
         var particleStorageLayoutCompute = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)));
@@ -157,9 +225,26 @@ public class ParticleRenderer : CullRenderable
         var computeSizeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("SizeBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
 
+        var computeLayouts = new List<ResourceLayout>(new[] { particleStorageLayoutCompute, computeSizeLayout });
+
+        if (HasBounds())
+        {
+            var boundsLayout = ResourceLayoutFactory.GetParticleBoundsLayout(resourceFactory);
+            boundsBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<TBounds>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            computeBoundsSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(boundsLayout, boundsBuffer));
+            computeLayouts.Add(boundsLayout);
+        }
+        if (HasReset())
+        {
+            var resetLayout = ResourceLayoutFactory.GetParticleResetLayout(resourceFactory);
+            resetBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<TReset>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            computeResetSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(resetLayout, resetBuffer));
+            computeLayouts.Add(resetLayout);
+        }
+
         var computePipelineDesc = new ComputePipelineDescription(
             computeShader,
-            new[] { particleStorageLayoutCompute, computeSizeLayout, boundsLayout },
+            computeLayouts.ToArray(),
             1, 1, 1);
 
         computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
@@ -200,7 +285,6 @@ public class ParticleRenderer : CullRenderable
         graphicsParticleResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(particleStorageLayoutGrapcis, particleBuffer));
         graphicsWorldResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(worldLayout, worldBuffer));
 
-
         return true;
     }
 
@@ -215,7 +299,18 @@ public class ParticleRenderer : CullRenderable
         }
         if (hasboundsChanged)
         {
-            commandList.UpdateBuffer(boundsBuffer, 0, new ParticleBounds { BoundingBoxMax = bounds.Max, BoundingBoxMin = bounds.Min, ResetBoxMax = reset.Max, ResetBoxMin = reset.Min });
+            Debug.Assert(boundsBuffer != null);
+            Debug.Assert(HasBounds());
+
+            commandList.UpdateBuffer(boundsBuffer, 0, bounds);
+            hasboundsChanged = false;
+        }
+        if (hasResetChanged)
+        {
+            Debug.Assert(resetBuffer != null);
+            Debug.Assert(HasReset());
+
+            commandList.UpdateBuffer(resetBuffer, 0, reset);
             hasboundsChanged = false;
         }
 
@@ -224,10 +319,13 @@ public class ParticleRenderer : CullRenderable
         commandList.SetPipeline(computePipeline);
         commandList.SetComputeResourceSet(0, computeResourceSet);
         commandList.SetComputeResourceSet(1, computeSizeResourceSet);
-        commandList.SetComputeResourceSet(2, computeBoundsSet);
+        if(HasBounds())
+            commandList.SetComputeResourceSet(2, computeBoundsSet);
+        if (HasReset())
+            commandList.SetComputeResourceSet(!HasBounds() ? 2u : 3u, computeResetSet);
         commandList.Dispatch(maxParticles, 1, 1);
         
-        //TODO: draw to seperate texture!!!!
+        //TODO: draw to seperate texture?
         commandList.SetFramebuffer(renderContext.MainSceneFramebuffer);
         commandList.SetFullViewports();
         commandList.SetFullScissorRects();
@@ -244,6 +342,12 @@ public class ParticleRenderer : CullRenderable
 
     public override void DestroyDeviceObjects()
     {
+        computeResetSet?.Dispose();
+        computeResetSet = null;
+
+        resetBuffer?.Dispose();
+        resetBuffer = null;
+
         worldBuffer?.Dispose();
         worldBuffer = null;
 

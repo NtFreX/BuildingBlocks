@@ -17,13 +17,14 @@ namespace NtFreX.BuildingBlocks.Material
             this.Name = name;
         }
 
-        public void CreateDeviceResources(TextureView input, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
+        public async Task CreateDeviceResourcesAsync(TextureView input, GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
         {
             var currentInput = input;
             foreach (var node in MaterialNodes)
             {
                 node.Input = currentInput;
-                node.CreateDeviceResources(graphicsDevice, resourceFactory);
+                //TODO: do not await here => group them
+                await node.CreateDeviceResourcesAsync(graphicsDevice, resourceFactory);
                 
                 Debug.Assert(node.Output != null);
                 currentInput = node.Output;

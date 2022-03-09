@@ -6,6 +6,7 @@ namespace NtFreX.BuildingBlocks.Light
 {
     public class CascadedShadowMaps
     {
+        //TODO: stabelize
         public const float LScale = 1f;
         public const float RScale = 1f;
         public const float TScale = 1f;

@@ -13,7 +13,7 @@ void main()
 
     float pointsize = particle.Scale;
     vec3 position = particle.Position;
-    gl_PointSize = max(0.01f, pointsize - (distance(CameraPosition, position) / pointsize) / 5); //TODO: make this better
+    gl_PointSize = max(1, pointsize - (distance(CameraPosition, position) / 20 / pointsize)); //TODO: make this better
     gl_Position = Projection * View * (World * vec4(position, 1));
     
     fsin_color = particle.Color;

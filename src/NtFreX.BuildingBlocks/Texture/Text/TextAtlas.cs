@@ -20,14 +20,16 @@ public class TextAtlas
     private bool hasChanges = true;
 
     private readonly string ControlCharacters = Environment.NewLine;
+    private readonly bool dither;
     private const float CharacterSpacing = 6f;
     private const string PreLoadText = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.;:-_+*/=?^'()[]{} ";
 
-    private TextAtlas(Font font)
+    private TextAtlas(Font font, bool dither = true)
     {
         Texture = null;
         Size = new FontRectangle();
         Font = font;
+        this.dither = dither;
         Characters = new Dictionary<char, FontRectangle>();
     }
 
@@ -120,6 +122,9 @@ public class TextAtlas
                 img.DrawText(character.Key.ToString(), Font, foreground, position);
                 position = new PointF(position.X + character.Value.Width + CharacterSpacing, 0);
             }
+
+            if(dither)
+                img.BinaryDither(KnownDitherings.Atkinson);
         });
     }
 

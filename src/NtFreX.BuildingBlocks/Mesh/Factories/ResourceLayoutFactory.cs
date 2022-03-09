@@ -4,6 +4,18 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 {
     static class ResourceLayoutFactory
     {
+        private static ResourceLayout? particleResetLayout;
+        public static ResourceLayout GetParticleResetLayout(ResourceFactory resourceFactory)
+        {
+            if (particleResetLayout != null)
+                return particleResetLayout;
+
+            particleResetLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("ParticleReset", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+
+            return particleResetLayout;
+        }
+
         private static ResourceLayout? particleBoundsLayout;
         public static ResourceLayout GetParticleBoundsLayout(ResourceFactory resourceFactory)
         {

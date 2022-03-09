@@ -246,6 +246,7 @@ void main()
             if (dot(ClipPlane, vec4(fsin_positionWorldSpace, 1)) < 0)
             {
                 discard;
+                return;
             }
         }
     #endif
@@ -255,6 +256,7 @@ void main()
         if (alphaMapSample == 0)
         {
             discard;
+            return;
         }
     #endif
 
@@ -325,5 +327,6 @@ void main()
     if(accumAlpha == 0)
     {
         discard;
+        return;
     }
 }

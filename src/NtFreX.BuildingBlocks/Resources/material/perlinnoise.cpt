@@ -5,7 +5,9 @@ layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
 
 #include ./../standard/rand.shader
 
-// https://thebookofshaders.com/11/
+// The MIT License
+// Copyright © 2013 Inigo Quilez
+// https://www.shadertoy.com/view/lsf3WH
 float noise (in vec2 st) {
     vec2 i = floor(st);
     vec2 f = fract(st);
@@ -27,6 +29,7 @@ float noise (in vec2 st) {
             (c - a)* u.y * (1.0 - u.x) +
             (d - b) * u.x * u.y;
 }
+// END
 
 layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
 void main()

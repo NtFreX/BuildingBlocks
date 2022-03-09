@@ -1,0 +1,39 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D TexIn;
+layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
+
+layout(set = 0, binding = 2) uniform ShiftBuffer
+{
+    float ScrollX;
+    float ScrollY;
+    float Padding0_;
+    float Padding1_;
+};
+
+//TODO: use bigger workgroup sizes
+layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
+void main()
+{
+    vec2 textCords = gl_GlobalInvocationID.xy / vec2(#{width}, #{height});
+    vec2 newCords = vec2(ScrollX, ScrollY) + textCords;
+    while(newCords.x > 1)
+    {
+        newCords = vec2(newCords.x - 1, newCords.y);
+    }
+    while(newCords.x < 0)
+    {
+        newCords = vec2(newCords.x + 1, newCords.y);
+    }
+    while(newCords.y > 1)
+    {
+        newCords = vec2(newCords.x, newCords.y - 1);
+    }
+    while(newCords.y < 0)
+    {
+        newCords = vec2(newCords.x, newCords.y + 1);
+    }
+    
+    vec4 color = imageLoad(TexIn, ivec2(newCords.x * #{width}, newCords.y * #{height}));
+    imageStore(TexOut, ivec2(gl_GlobalInvocationID.xy), color);
+}

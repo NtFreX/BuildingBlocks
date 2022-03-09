@@ -1,0 +1,32 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D TexIn;
+layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
+
+//TODO: replace those two functions as https://thebookofshaders.com/edit.php#11/wood.frag is very restrictive (not rights given for anything)
+float lines(in vec2 pos, float b)
+{
+    pos *= #{lineScale};
+    return smoothstep(0.0, .5 + b * .5, abs((sin(pos.x * 3.14) + b * 2.0)) * .5);
+}
+
+mat2 rotate2d(float angle)
+{
+    return mat2(cos(angle),-sin(angle), sin(angle),cos(angle));
+}
+
+layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
+void main()
+{
+    uint width = #{width};
+    uint height = #{height};
+    vec2 resolution = vec2(width, height);
+    vec2 textCords = gl_GlobalInvocationID.xy / resolution;
+    
+    float inputNoise = imageLoad(TexIn, ivec2(gl_GlobalInvocationID.xy)).x;
+    vec2 rotation = vec2(#{rotationX}, #{rotationY}) * vec2(#{rotationY}, #{rotationX}) * inputNoise;
+    vec2 rotated = rotate2d(rotation.x + rotation.y) * textCords;
+    float pattern = lines(rotated, #{lineModifier});
+
+    imageStore(TexOut, ivec2(gl_GlobalInvocationID.xy), vec4(pattern, pattern, pattern, 1));
+}

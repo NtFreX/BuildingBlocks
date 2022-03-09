@@ -24,14 +24,14 @@ namespace NtFreX.BuildingBlocks.Material
             this.computeY = computeY;
         }
 
-        public override void CreateDeviceResources(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
+        public override Task CreateDeviceResourcesAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
         {
             Debug.Assert(Input != null);
 
             computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, new Dictionary<string, string> { { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() } }, "Resources/material/perlinnoise.cpt", isDebug);
 
             computeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadWrite, ShaderStages.Compute),
+                new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadOnly, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute)));
 
             var computePipelineDesc = new ComputePipelineDescription(
@@ -56,6 +56,8 @@ namespace NtFreX.BuildingBlocks.Material
                 Input, Output));
 
             hasAllreadyRun = false;
+
+            return Task.CompletedTask;
         }
 
         public override void DestroyDeviceResources()

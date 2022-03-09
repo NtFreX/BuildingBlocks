@@ -10,6 +10,10 @@ struct ParticleInfo
     vec4 InitialColor;
     vec3 TexCoords;
     float Livetime;
+    vec3 InitialVelocity;
+    float _padding0;
+    vec3 VelocityModifer;
+    float _padding1;
 };
 
 layout(std140, set = 0, binding = 0) buffer ParticlesBuffer

@@ -93,13 +93,17 @@ namespace NtFreX.BuildingBlocks.Sample
         public static async Task<CenterQubeComponent> CreateAsync(Simulation? simulation, Scene scene, TextureProvider blueTextureProvider, bool isDebug)
         {
             var perlinTexture = "perlinTexture";
-            MaterialTextureFactory.Instance.TryCreateMaterialTexture(perlinTexture, 512, new PerlinNoiseMaterialNode(isDebug));
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(perlinTexture, 512, new PerlinNoiseMaterialNode(isDebug));
+
+            var scrollingWoodTexture = "scrollingWoodTexture";
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, new PerlinNoiseMaterialNode(isDebug), new WoodMaterialNode(isDebug), new ScrollingMaterialNode(isDebug, scrollX: 0f, scrollY: 0.1f));
 
             var shiftingPerlinTexture = "shiftingPerlinTexture";
-            MaterialTextureFactory.Instance.TryCreateMaterialTexture(shiftingPerlinTexture, 512, new PerlinNoiseMaterialNode(isDebug), new ShiftingMaterialNode(isDebug));
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(shiftingPerlinTexture, 512, new PerlinNoiseMaterialNode(isDebug), new ShiftingMaterialNode(isDebug));
 
-            var perlineSpecialization = new SurfaceTextureMeshDataSpecialization(new DynamicTexureProvider((_, _) => Task.FromResult(MaterialTextureFactory.Instance.GetOutput(perlinTexture))));
-            var shiftingPerlin = new SurfaceTextureMeshDataSpecialization(new DynamicTexureProvider((_, _) => Task.FromResult(MaterialTextureFactory.Instance.GetOutput(shiftingPerlinTexture))));
+            var perlineSpecialization = new SurfaceTextureMeshDataSpecialization(new MaterialTextureProvider(perlinTexture));
+            var shiftingPerlin = new SurfaceTextureMeshDataSpecialization(new MaterialTextureProvider(shiftingPerlinTexture));
+            var scrollingWoodTextureSpec = new SurfaceTextureMeshDataSpecialization(new MaterialTextureProvider(scrollingWoodTexture));
 
             //TODO: use instanced drawing or at least reuse mesh buffer
             var qubeSideLength = .5f;
@@ -110,7 +114,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -4) }, sideLength: qubeSideLength, specializations: new MeshDataSpecialization[] { material, new SurfaceTextureMeshDataSpecialization(blueTextureProvider) }),
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -3) }, sideLength: qubeSideLength, blue: .5f, specializations: new MeshDataSpecialization[] { material, perlineSpecialization }),
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -2) }, sideLength: qubeSideLength, green: .5f, specializations: new MeshDataSpecialization[] { material, shiftingPerlin }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -1) }, sideLength: qubeSideLength, red: .5f, specializations: new [] { material }),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -1) }, sideLength: qubeSideLength, red: .5f, specializations: new MeshDataSpecialization[] { material, scrollingWoodTextureSpec }),
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 1) }, sideLength: qubeSideLength, specializations: new [] { material }),
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 2) }, sideLength: qubeSideLength, specializations: new [] { material }),
                 await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 3) }, sideLength: qubeSideLength, specializations: new [] { material }),
@@ -481,8 +485,35 @@ namespace NtFreX.BuildingBlocks.Sample
             //var blueTexture = await TextureFactory.GetTextureAsync(@"resources/models/textures/app.png", TextureUsage.Sampled);
 
             //LoadParticleSystem();
-            var positionRange = new Vector3(.5f, 2.5f, .5f);
-            var fireTransform = new Transform(CurrentScene.Camera.Value.Up.Value * positionRange.Y / 2 - Vector3.UnitY * 5 + Vector3.UnitX * -10 + Vector3.UnitZ * 10);
+            var positionRange = new Vector3(.3f,4f, .3f);
+            //var fireTransform = new Transform(CurrentScene.Camera.Value.Up.Value * positionRange.Y / 2 - Vector3.UnitY * 5 + Vector3.UnitX * -10 + Vector3.UnitZ * 10);
+
+            var colorModifierRed = () => new Vector4(Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f)) * Standard.Random.GetRandomNumber(-.001f, -0.05f);
+            var colorRed = () => new Vector4(Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.9f, 1f));
+
+            var colorModifierGreen = () => new Vector4(Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f)) * Standard.Random.GetRandomNumber(-.001f, -0.05f);
+            var colorGreen = () => new Vector4(Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.9f, 1f));
+
+            var colorModifierBlue = () => new Vector4(Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.1f, .12f)) * Standard.Random.GetRandomNumber(-.001f, -0.05f);
+            var colorBlue = () => new Vector4(Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.9f, 1f));
+
+            var colorModifierWhite = () => new Vector4(Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.1f, .12f)) * Standard.Random.GetRandomNumber(-.001f, -0.05f);
+            var colorWhite = () => new Vector4(Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.9f, 1f));
+
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitX * 10 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorRed, colorModifierRed);
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitZ * 10 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorGreen, colorModifierGreen);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitX * 10 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorBlue, colorModifierBlue);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitZ * 10 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorWhite, colorModifierWhite);
+
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitX * 30 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorRed, colorModifierRed);
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitZ * 30 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorGreen, colorModifierGreen);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitX * 30 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorBlue, colorModifierBlue);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitZ * 30 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorWhite, colorModifierWhite);
+
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitX * 50 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorRed, colorModifierRed);
+            await AddFireParticleSystemAsync(new Transform(Vector3.UnitZ * 50 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorGreen, colorModifierGreen);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitX * 50 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorBlue, colorModifierBlue);
+            await AddFireParticleSystemAsync(new Transform(-Vector3.UnitZ * 50 - Vector3.UnitY * (5 - positionRange.Y / 2)), positionRange, colorWhite, colorModifierWhite);
 
             //TODO: why are they not working
             CurrentScene.LightSystem.Value.SetPointLights(
@@ -494,39 +525,38 @@ namespace NtFreX.BuildingBlocks.Sample
                 new PointLightInfo { Color = new Vector4(.3f, 0, 0, 1f), Intensity = .5f, Position = Vector3.UnitX * 30 - Vector3.UnitY * 4, Range = 4f },
                 new PointLightInfo { Color = new Vector4(0, .3f, 0, 1f), Intensity = .5f, Position = Vector3.UnitZ * 30 - Vector3.UnitY * 4, Range = 4f },
                 new PointLightInfo { Color = new Vector4(0, 0, .3f, 1f), Intensity = .5f, Position = -Vector3.UnitX * 30 - Vector3.UnitY * 4, Range = 4f },
-                new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .5f, Position = -Vector3.UnitZ * 30 - Vector3.UnitY * 4, Range = 4f },
+                new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .5f, Position = -Vector3.UnitZ * 30 - Vector3.UnitY * 4, Range = 4f }
 
                 // TODO: move to fire fnc!
-                new PointLightInfo { Color = new Vector4(.7f, .3f, 0, 1f), Intensity = .5f, Position = fireTransform.Position, Range = 4f }
-                /*,
+                //new PointLightInfo { Color = new Vector4(.7f, .3f, 0, 1f), Intensity = .5f, Position = fireTransform.Position, Range = 4f }
+                ,
 
                 new PointLightInfo { Color = new Vector4(.3f, 0, 0, 1f), Intensity = .8f, Position = Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
                 new PointLightInfo { Color = new Vector4(0, .3f, 0, 1f), Intensity = .8f, Position = Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f },
                 new PointLightInfo { Color = new Vector4(0, 0, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
-                new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f }*/
+                new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f }
             );
-            await CurrentScene.AddCullRenderablesAsync(
-                await SphereMesh.CreateAsync(new Transform(Vector3.UnitX * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(Vector3.UnitZ * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(-Vector3.UnitX * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(-Vector3.UnitZ * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) }),
+            //await CurrentScene.AddCullRenderablesAsync(
+            //    await SphereMesh.CreateAsync(new Transform(Vector3.UnitX * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(Vector3.UnitZ * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(-Vector3.UnitX * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(-Vector3.UnitZ * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) }),
 
-                await QubeMesh.CreateAsync(new Transform(Vector3.UnitX * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
-                await QubeMesh.CreateAsync(new Transform(Vector3.UnitZ * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
-                await QubeMesh.CreateAsync(new Transform(-Vector3.UnitX * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
-                await QubeMesh.CreateAsync(new Transform(-Vector3.UnitZ * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) })/*,
+            //    await QubeMesh.CreateAsync(new Transform(Vector3.UnitX * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
+            //    await QubeMesh.CreateAsync(new Transform(Vector3.UnitZ * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
+            //    await QubeMesh.CreateAsync(new Transform(-Vector3.UnitX * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
+            //    await QubeMesh.CreateAsync(new Transform(-Vector3.UnitZ * 30 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) })/*,
 
-                await SphereMesh.CreateAsync(new Transform(Vector3.UnitX * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(Vector3.UnitZ * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(-Vector3.UnitX * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
-                await SphereMesh.CreateAsync(new Transform(-Vector3.UnitZ * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) })*/);
+            //    await SphereMesh.CreateAsync(new Transform(Vector3.UnitX * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(Vector3.UnitZ * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, .3f, 0, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(-Vector3.UnitX * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(0, 0, .3f, 1f))) }),
+            //    await SphereMesh.CreateAsync(new Transform(-Vector3.UnitZ * 50 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, .3f, .3f, 1f))) })*/);
 
             {
                 //MeshRenderPassFactory.RenderPasses.Add(new VertexPositionColorNormalTextureMeshRenderPass(ResourceFactory, ApplicationContext.IsDebug));
             }
 
             await AddSnowParticleSystemAsync();
-            await AddFireParticleSystemAsync(fireTransform, positionRange);
 
             //var vertexShaderDesc = new ShaderDescription(
             //    ShaderStages.Vertex,
@@ -737,30 +767,34 @@ namespace NtFreX.BuildingBlocks.Sample
             File.Delete(fileName);
         }
 
-        private async Task AddFireParticleSystemAsync(Transform transform, Vector3 positionRange)
+        private async Task AddFireParticleSystemAsync(Transform transform, Vector3 positionRange, Func<Vector4> color,  Func<Vector4> colorModifier)
         {
             Debug.Assert(CurrentScene?.Camera.Value != null);
             Debug.Assert(TextureFactory != null);
             Debug.Assert(Shell != null);
 
-            var initialParticles = new ParticleRenderer.ParticleInfo[10240];
+            //var resetBox = new Veldrid.Utilities.BoundingBox(new Vector3(-positionRange.X / 2, -positionRange.Y / 2, -positionRange.Z / 2), new Vector3(positionRange.X / 2, -positionRange.Y / 2 + 0.01f, positionRange.Z / 2));
+            var resetBox = new ParticleCircleReset { ResetPosition = Vector3.Zero - Vector3.UnitY * positionRange.Y / 2, ResetRadius = (positionRange.X / 2 + positionRange.Z / 2) / 4 };
+            var initialParticles = new ParticleInfo[10240];
             for (int i = 0; i < initialParticles.Length; i++)
             {
-                var pi = new ParticleRenderer.ParticleInfo(
-                    position: new Vector3(Standard.Random.Noise(0, positionRange.X), Standard.Random.Noise(0, positionRange.Y), Standard.Random.Noise(0, positionRange.Z)),
-                    scale: (uint)Standard.Random.GetRandomNumber(4f, 8f),
-                    velocity: Standard.Random.Noise(CurrentScene.Camera.Value.Up.Value * .01f, .004f),
-                    liveTimeModifier: Standard.Random.GetRandomNumber(-.001f, -0.005f),
-                    colorModifier: new Vector4(Standard.Random.GetRandomNumber(.15f, .19f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f), Standard.Random.GetRandomNumber(.1f, .12f)) * Standard.Random.GetRandomNumber(-.001f, -0.05f),
-                    color: new Vector4(Standard.Random.GetRandomNumber(.6f, .7f), Standard.Random.GetRandomNumber(.3f, .4f), Standard.Random.GetRandomNumber(.01f, .012f), Standard.Random.GetRandomNumber(.9f, 1f)));
+                var velocity = Standard.Random.Noise(CurrentScene.Camera.Value.Up.Value * positionRange.Y * .001f, .002f);
+                var pi = new ParticleInfo(
+                    position: Vector3.Zero, //new Vector3(Standard.Random.GetRandomNumber(resetBox.Min.X, resetBox.Max.X), Standard.Random.GetRandomNumber(resetBox.Min.Y, resetBox.Max.Y), Standard.Random.GetRandomNumber(resetBox.Min.Z, resetBox.Max.Z)),
+                    scale: (uint)Standard.Random.GetRandomNumber(6f, 15f),
+                    velocity: velocity,
+                    velocityModifier: new Vector3(-velocity.X / 20000f, -velocity.Y / 1000f, -velocity.Y / 20000f),
+                    liveTimeModifier: Standard.Random.GetRandomNumber(-.003f, -0.008f),
+                    colorModifier: colorModifier(),
+                    color: color());
                 initialParticles[i] = pi;
             }
 
-            var centerParticleRenderer = new ParticleRenderer(
+            var centerParticleRenderer = new ParticleRenderer<ParticleBoxBounds, ParticleCircleReset>(
                 transform,
                 initialParticles,
-                new Veldrid.Utilities.BoundingBox(Vector3.One * -positionRange, Vector3.One * positionRange),
-                new Veldrid.Utilities.BoundingBox(new Vector3(-positionRange.X / 2, -positionRange.Y / 2, -positionRange.Z / 2), new Vector3(positionRange.X / 2, -positionRange.Y / 2 + 0.01f, positionRange.Z / 2)), isDebug: Shell.IsDebug);
+                new ParticleBoxBounds() { BoundingBoxMin = Vector3.One * -positionRange * 8, BoundingBoxMax = Vector3.One * positionRange * 8 },
+                resetBox, isDebug: Shell.IsDebug);
             await CurrentScene.AddCullRenderablesAsync(centerParticleRenderer);
         }
 
@@ -771,22 +805,23 @@ namespace NtFreX.BuildingBlocks.Sample
             Debug.Assert(Shell != null);
 
             var positionRange = new Vector3(200f, 50, 200f);
-            var initialParticles = new ParticleRenderer.ParticleInfo[1024000];
+            var initialParticles = new ParticleInfo[1024000];
             for (int i = 0; i < initialParticles.Length; i++)
             {
-                var pi = new ParticleRenderer.ParticleInfo(
+                var g = Standard.Random.GetRandomNumber(.6f, .9f);
+                var pi = new ParticleInfo(
                     position: new Vector3(Standard.Random.Noise(0, positionRange.X), Standard.Random.Noise(0, positionRange.Y), Standard.Random.Noise(0, positionRange.Z)),
-                    scale: (uint)Standard.Random.GetRandomNumber(1f, 5f),
+                    scale: (uint)Standard.Random.GetRandomNumber(3f, 9f),
                     velocity: Standard.Random.Noise(-CurrentScene.Camera.Value.Up.Value * .01f, .004f),
-                    new Vector4(Standard.Random.GetRandomNumber(.1f, .9f), Standard.Random.GetRandomNumber(.1f, .9f), Standard.Random.GetRandomNumber(.1f, .9f), Standard.Random.GetRandomNumber(.2f, 1f)));
+                    color: new Vector4(g, g, g, Standard.Random.GetRandomNumber(.2f, 1f)));
                 initialParticles[i] = pi;
             }
 
-            var centerParticleRenderer = new ParticleRenderer(
+            var centerParticleRenderer = new ParticleRenderer<ParticleBoxBounds, ParticleBoxReset>(
                 new Transform(CurrentScene.Camera.Value.Up.Value * positionRange.Y / 2 - Vector3.UnitY * 5),
                 initialParticles,
-                new Veldrid.Utilities.BoundingBox(Vector3.One * -positionRange / 2, Vector3.One * positionRange / 2),
-                new Veldrid.Utilities.BoundingBox(new Vector3(-positionRange.X / 2, positionRange.Y / 2, -positionRange.Z / 2), new Vector3(positionRange.X / 2, positionRange.Y / 2 - 1, positionRange.Z / 2)),
+                new ParticleBoxBounds { BoundingBoxMin = Vector3.One * -positionRange / 2, BoundingBoxMax = Vector3.One * positionRange / 2 },
+                new ParticleBoxReset { ResetBoxMin = new Vector3(-positionRange.X / 2, positionRange.Y / 2, -positionRange.Z / 2), ResetBoxMax = new Vector3(positionRange.X / 2, positionRange.Y / 2 - 1, positionRange.Z / 2) },
                 new DirectoryTextureProvider(TextureFactory, @"resources/models/textures/spnza_bricks_a_diff.png"), Shell.IsDebug);
             await CurrentScene.AddCullRenderablesAsync(centerParticleRenderer);
         }
@@ -808,11 +843,21 @@ namespace NtFreX.BuildingBlocks.Sample
             // TODO: add all models as updatables???
             Debug.Assert(CurrentScene?.Camera.Value != null);
             Debug.Assert(TextureFactory != null);
+            Debug.Assert(Shell != null);
+
+            var isDebug = Shell.IsDebug;
+
+            var textureProvider = new DynamicTexureProvider((gd, rf) => Task.FromResult(TextureFactory.GetDefaultTexture(gd, rf)));
+
+            //TODO: scrolling textures with a material node is unperformant
+            var scrollingWoodTexture = "scrollingFloorTexture";
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, /*new PerlinNoiseMaterialNode(isDebug)*/ new TextureMaterialNode(textureProvider), new WoodMaterialNode(isDebug), new ScrollingMaterialNode(isDebug));
+            var materialNodeTexture = new MaterialTextureProvider(scrollingWoodTexture);
 
             var plane = await PlaneMesh.CreateAsync(
                     rows: 200, columns: 200, transform: new Transform { Position = CurrentScene.Camera.Value.Up.Value * -5f },
                     name: "floor", physicsBufferPool: BepuSimulation?.BufferPool, specializations: new MeshDataSpecialization[] { 
-                        new SurfaceTextureMeshDataSpecialization(new DynamicTexureProvider((gd, rf) => Task.FromResult(TextureFactory.GetDefaultTexture(gd, rf)))),
+                        new SurfaceTextureMeshDataSpecialization(materialNodeTexture),
                         new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(shininess: .2f, shininessStrength: .1f )) });
 
 
@@ -841,10 +886,10 @@ namespace NtFreX.BuildingBlocks.Sample
 
             var shiftingPerlinTexture = "shiftingPerlinTextureColored";
             uint resolution = 4;
-            MaterialTextureFactory.Instance.TryCreateMaterialTexture(shiftingPerlinTexture, resolution, 
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(shiftingPerlinTexture, resolution, 
                 new PerlinNoiseMaterialNode(Shell.IsDebug, computeX: resolution, computeY: resolution), 
                 new ShiftingMaterialNode(Shell.IsDebug, redFactor: 0.2f, blueFactor: 0.3f, greenFactor: 0.4f, computeX: resolution, computeY: resolution));
-            var shiftingPerlin = new SurfaceTextureMeshDataSpecialization(new DynamicTexureProvider((_, _) => Task.FromResult(MaterialTextureFactory.Instance.GetOutput(shiftingPerlinTexture))), new PointSamplerProvider());
+            var shiftingPerlin = new SurfaceTextureMeshDataSpecialization(new MaterialTextureProvider(shiftingPerlinTexture), new PointSamplerProvider());
             
             var qube = await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(30, -2, 0) }, specializations: new MeshDataSpecialization[] { new InstancedMeshDataSpecialization(instances), shiftingPerlin }, name: "qubeInstanced"); 
             var sphere = await SphereMesh.CreateAsync(transform: new Transform { Position = new Vector3(60, -2, 0) }, specializations: new MeshDataSpecialization[] { new InstancedMeshDataSpecialization(instances), shiftingPerlin }, name: "sphereInstanced");

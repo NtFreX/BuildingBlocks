@@ -50,7 +50,7 @@ namespace NtFreX.BuildingBlocks.Material
             }
         }
 
-        public void TryCreateMaterialTexture(string identifier, uint textureSize, params MaterialNode[] materialNodes)
+        public async Task TryCreateMaterialTextureAsync(string identifier, uint textureSize, params MaterialNode[] materialNodes)
         {
             var matText = textures.FirstOrDefault(t => t.Name == identifier);
             if (matText != null)
@@ -67,13 +67,14 @@ namespace NtFreX.BuildingBlocks.Material
                 Debug.Assert(resourceFactory != null);
 
                 var textureView = GetOrCreateInputTexture(textureSize);
-                texture.CreateDeviceResources(textureView, graphicsDevice, resourceFactory);
+                // todo: grouped await
+                await texture.CreateDeviceResourcesAsync(textureView, graphicsDevice, resourceFactory);
             }
 
             textures.Add(texture);
         }
 
-        public void CreateDeviceResources(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
+        public async Task CreateDeviceResourcesAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
         {
             this.graphicsDevice = graphicsDevice;
             this.resourceFactory = resourceFactory;
@@ -83,7 +84,8 @@ namespace NtFreX.BuildingBlocks.Material
             foreach (var texture in textures)
             {
                 var textureView = GetOrCreateInputTexture(texture.Size);
-                texture.CreateDeviceResources(textureView, graphicsDevice, resourceFactory);
+                // todo: grouped await
+                await texture.CreateDeviceResourcesAsync(textureView, graphicsDevice, resourceFactory);
             }
         }
 
