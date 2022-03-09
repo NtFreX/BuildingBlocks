@@ -21,6 +21,64 @@ https://user-images.githubusercontent.com/20086318/157331044-37514dbe-ebfa-4677-
 - Input handling and audio functionality is provided by [SDL2](https://www.libsdl.org/download-2.0.php) (Simple DirectMedia Layer is a cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D). ([zlib license](https://www.libsdl.org/license.php))
   - .NET wrapper: [SDL2-CS](https://github.com/flibitijibibo/SDL2-CS) (This is SDL2#, a C# wrapper for SDL2). ([LICENSE](https://github.com/flibitijibibo/SDL2-CS/blob/master/LICENSE))
 
+
+Features:
+
+ - [ ] Audio
+   - [x] basic 3d audio
+   - [ ] sdl audio
+     - [x] play wav
+     - [ ] play different sample rates/bit rates/channels at the same time
+     - [ ] other audio formats
+ - [ ] Camera
+   - [x] basic infrastructure
+   - [x] basic movable cameras
+   - [ ] more examples
+ - [ ] Input
+   - [x] basic desktop input handler
+   - [ ] console
+   - [ ] mobile
+ - [ ] MeshRenderer
+   - [x] textured
+   - [x] instanced
+   - [ ] animated
+   - [ ] mesh properties (physics etc)
+ - [ ] Light
+   - [ ] phong
+     - [x] directional lights
+     - [ ] point lights
+     - [ ] spot lights
+   - [ ] emissive light
+   - [ ] deffered
+   - [ ] pbr
+   - [ ] shadows
+     - [x] basic with cascades
+     - [ ] configurable cascades
+     - [ ] stabelized
+ - [ ] material system
+   - [x] basic
+   - [ ] multiple input setup
+ - [ ] import
+   - [x] obj file loader
+   - [x] simple assimp loader
+   - [x] simple dae loader
+   - [ ] more formats
+   - [ ] complex inputs
+ - [ ] physics
+   - [x] basic bepu2 integration
+   - [ ] ...
+ - [x] text
+ - [x] textures
+ - [ ] particles
+   - [x] basic
+   - [ ] generic particle types
+ - [x] ...
+ - [ ] ...
+
+TODO:
+
+ - Cleanup and decoupling
+
 ## Architecture
 
 You can use this library as a framework if you overwrite the `Game` type and use one of the described startup methods.
@@ -33,13 +91,19 @@ public class SampleGame : Game
     EnableImGui = Shell.IsDebug;
     AudioSystemType = AudioSystemType.Sdl2;
     EnableBepuSimulation = true;
+
+    var scene = new Scene(shell.IsDebug);
+    scene.LightSystem.Value = new LightSystem();
+    scene.Camera.Value = new MovableCamera(shell.Width, shell.Height); ;
+    await ChangeSceneAsync(scene);
+
+    await base.SetupAsync(shell, loggerFactory);
   }
-  protected override async Task LoadResourcesAsync() { }
-  protected override void BeforeGraphicsSystemUpdate(float delta) { }
-  protected override void AfterGraphicsSystemUpdate(float delta) { }
   ...
 }
 ```
+
+The goal is that you can use the graphics pipeline independently from other components as well. Currently most of the logic for that can be found in the graphics system class but it needs to be decoupled from the Scene first.
 
 ## Startup
 
@@ -101,14 +165,14 @@ public class MainActivity : AndroidActivity
 ### Drawing
 
 ```
-var lineMeshRenderer = LineModel.Create(GraphicsDevice, ResourceFactory, GraphicsSystem, start: Vector3.Zero, end: Vector3.UnitX * lineLength);
-var qubeMeshRenderer = QubeModel.Create(graphicsDevice, resourceFactory, graphicsSystem, sideLength: qubeSideLength);
+var lineMeshRenderer = LineModel.Create(start: Vector3.Zero, end: Vector3.UnitX * lineLength);
+var qubeMeshRenderer = QubeModel.Create(sideLength: qubeSideLength);
 ...
 ```
 
 ```
-CurrentScene.AddCullRenderables(qubeMeshRenderer);
-CurrentScene.AddFreeRenderables(qubeMeshRenderer);
+await CurrentScene.AddCullRenderablesAsync(qubeMeshRenderer);
+await CurrentScene.AddFreeRenderablesAsync(qubeMeshRenderer);
 CurrentScene.AddUpdateables(qubeMeshRenderer);
 ```
 
@@ -157,9 +221,9 @@ Custom meshes
 ```
 var vertices = new VertexPosition[] { Vector3.Zero, Vector3.One };
 var indices = new Index16[] { 0, 1 };
-var mesh = new MeshDataProvider<VertexPosition, Index16>(vertices, indices, PrimitiveTopology.LineList);
-var buffer = MeshDeviceBuffer.Create(graphicsDevice, resourceFactory, mesh);
-var renderer = new MeshRenderer(graphicsDevice, resourceFactory, graphicsSystem, buffer);
+var mesh = new DefinedMeshData<VertexPosition, Index16>(vertices, indices, PrimitiveTopology.LineList);
+var provider = new StaticMeshDataProvider(mesh);
+var renderer = MeshRenderer.CreateAsync(provider);
 ```
 
 ## ShaderPrecompiler

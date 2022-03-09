@@ -106,11 +106,10 @@ public struct ParticleInfo
 public class ParticleRenderer : ParticleRenderer<ParticleNullBounds, ParticleNullReset>
 {
     public ParticleRenderer(Transform transform, ParticleInfo[] particles, TextureProvider? textureProvider = null, bool isDebug = false) 
-        : base(transform, particles, new ParticleNullBounds(), new ParticleNullReset(), textureProvider, isDebug)
+        : base(transform, particles, new ParticleNullBounds(), new ParticleNullReset(), textureProvider, isDebug: isDebug)
     { }
 }
 
-//TODO: fix reset location and bounds (probably should not be transformed befroe passing to cpt shader)
 public class ParticleRenderer<TBounds, TReset> : CullRenderable
     where TBounds : unmanaged, IBoundsBuffer
     where TReset : unmanaged, IResetBuffer
@@ -141,6 +140,8 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
 
     private readonly uint maxParticles;
     private readonly TextureProvider? textureProvider;
+    private readonly string? computeShaderPath;
+    private readonly string? graphicsShaderPath;
     private readonly bool isDebug;
 
     public Transform Transform { get; }
@@ -159,7 +160,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
                 Vector3.Distance(GetCenter(), cameraPosition),
                 CurrentScene.Camera.Value.FarDistance);
     }
-    public ParticleRenderer(Transform transform, ParticleInfo[] particles, TBounds bounds, TReset reset, TextureProvider? textureProvider = null, bool isDebug = false)
+    public ParticleRenderer(Transform transform, ParticleInfo[] particles, TBounds bounds, TReset reset, TextureProvider? textureProvider = null, string? computeShaderPath = null, string? graphicsShaderPath = null, bool isDebug = false)
     {
         this.isDebug = isDebug;
         this.maxParticles = (uint) particles.Length;
@@ -167,7 +168,8 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         this.bounds = bounds;
         this.reset = reset;
         this.textureProvider = textureProvider;
-
+        this.computeShaderPath = computeShaderPath;
+        this.graphicsShaderPath = graphicsShaderPath;
         Transform = transform;
     }
 
@@ -217,7 +219,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { 
             { "hasBoundingBox", typeof(TBounds) == typeof(ParticleBoxBounds) }, { "hasBoundingSphere", typeof(TBounds) == typeof(ParticleSphereBounds) },
             { "hasResetBox", typeof(TReset) == typeof(ParticleBoxReset) }, { "hasResetSphere", typeof(TReset) == typeof(ParticleSphereReset) }, { "hasResetCircle", typeof(TReset) == typeof(ParticleCircleReset) } }, 
-            new Dictionary<string, string> { { "resetSet", !HasBounds() ? "2" : "3" } }, "Resources/particle.cpt", isDebug);
+            new Dictionary<string, string> { { "resetSet", !HasBounds() ? "2" : "3" } }, computeShaderPath ?? "Resources/particle.cpt", isDebug);
 
         var particleStorageLayoutCompute = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)));
@@ -253,7 +255,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
 
         var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, 
             new Dictionary<string, bool> { { "hasTexture", textureProvider != null } },
-            new Dictionary<string, string> { { "viewProjectionSet", "1" }, { "worldSet", "2" }, { "cameraInfoSet", "3" } }, "Resources/particle", isDebug);
+            new Dictionary<string, string> { { "viewProjectionSet", "1" }, { "worldSet", "2" }, { "cameraInfoSet", "3" } }, graphicsShaderPath ?? "Resources/particle", isDebug);
 
         var shaderSet = new ShaderSetDescription(
             Array.Empty<VertexLayoutDescription>(),

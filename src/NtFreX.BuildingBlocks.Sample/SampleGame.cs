@@ -822,7 +822,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 initialParticles,
                 new ParticleBoxBounds { BoundingBoxMin = Vector3.One * -positionRange / 2, BoundingBoxMax = Vector3.One * positionRange / 2 },
                 new ParticleBoxReset { ResetBoxMin = new Vector3(-positionRange.X / 2, positionRange.Y / 2, -positionRange.Z / 2), ResetBoxMax = new Vector3(positionRange.X / 2, positionRange.Y / 2 - 1, positionRange.Z / 2) },
-                new DirectoryTextureProvider(TextureFactory, @"resources/models/textures/spnza_bricks_a_diff.png"), Shell.IsDebug);
+                new DirectoryTextureProvider(TextureFactory, @"resources/models/textures/spnza_bricks_a_diff.png"), isDebug: Shell.IsDebug);
             await CurrentScene.AddCullRenderablesAsync(centerParticleRenderer);
         }
 
