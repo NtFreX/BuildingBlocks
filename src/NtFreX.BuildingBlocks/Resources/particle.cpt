@@ -9,8 +9,14 @@ layout(set = 1, binding = 0) uniform ParticleInfoBuffer
     vec3 Padding_;
 };
 
+layout(set = 2, binding = 0) uniform DrawDeltaBuffer
+{
+    float DrawDelta;
+    vec3 _DrawDeltaBuffer_Padding_;
+};
+
 #if hasBoundingBox
-    layout(set = 2, binding = 0) uniform ParticleBoundsBoxBuffer
+    layout(set = 3, binding = 0) uniform ParticleBoundsBoxBuffer
     {
         vec3 BoundingBoxMin;
         float _ParticleBoundsBoxBuffer_padding0;
@@ -23,7 +29,7 @@ layout(set = 1, binding = 0) uniform ParticleInfoBuffer
         return position.x > BoundingBoxMax.x || position.y > BoundingBoxMax.y || position.z > BoundingBoxMax.z || position.x < BoundingBoxMin.x || position.y < BoundingBoxMin.y || position.z < BoundingBoxMin.z;
     }
 #elseif hasBoundingSphere
-    layout(set = 2, binding = 0) uniform ParticleBoundsSphereBuffer
+    layout(set = 3, binding = 0) uniform ParticleBoundsSphereBuffer
     {
         vec3 BoundingPosition;
         float BoundingRadius;
@@ -94,6 +100,7 @@ layout(set = 1, binding = 0) uniform ParticleInfoBuffer
     }
 #endif
 
+
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
@@ -105,10 +112,10 @@ void main()
     
     //TODO: if velocity is done here delta is nessesary as well?
     ParticleInfo particle = Particles[index];
-    vec3 position = particle.Position + particle.Velocity;
-    vec4 color = particle.Color + particle.ColorModifier;
-    float livetime = particle.Livetime + particle.LivetimeModifer;
-    vec3 velocity = particle.Velocity + particle.VelocityModifer;
+    vec3 position = particle.Position + (particle.Velocity * DrawDelta);
+    vec4 color = particle.Color + (particle.ColorModifier * DrawDelta);
+    float livetime = particle.Livetime + (particle.LivetimeModifer * DrawDelta);
+    vec3 velocity = particle.Velocity + (particle.VelocityModifer * DrawDelta);
 
     if(livetime <= 0 || isOutOfBounds(position)) 
     {

@@ -42,6 +42,8 @@ namespace NtFreX.BuildingBlocks.Model
         private bool isDisposed = false;
         private double lastElapsed = 0;
 
+        public float DrawDeltaModifier { get; set; } = 1f;
+
         public readonly DebugExecutionTimer TimerGetVisibleObjects;
         public readonly DebugExecutionTimer[] TimerRenderPasses;
 
@@ -146,7 +148,8 @@ namespace NtFreX.BuildingBlocks.Model
 
         private void DrawMainPass(float depthClear)
         {
-            MaterialTextureFactory.Instance.Run((float)(stopwatch.ElapsedMilliseconds - lastElapsed));
+            // TODO: apply game. DeltaModifier
+            var drawDelta = (float)(stopwatch.ElapsedMilliseconds - lastElapsed) * DrawDeltaModifier;
 
             //TODO: deffered lightninng
             Debug.Assert(RenderContext?.MainSceneFramebuffer != null);
@@ -159,6 +162,11 @@ namespace NtFreX.BuildingBlocks.Model
                 Vector4.Transform(new Vector3(0, 0, -CascadedShadowMaps.MidCascadeLimit), cameraProjection).Z,
                 Vector4.Transform(new Vector3(0, 0, -Math.Min(DrawingScene.Camera.Value.FarDistance.Value, CascadedShadowMaps.FarCascadeLimit)), cameraProjection).Z,
             });
+
+            //TODO: do at better place?
+            graphicsDevice.UpdateBuffer(RenderContext.DrawDeltaBuffer, 0, new[] { drawDelta, 0f, 0f, 0f });
+
+            MaterialTextureFactory.Instance.Run(drawDelta);
 
             mainPassCommandList.Begin();
             mainPassCommandList.SetFramebuffer(RenderContext.MainSceneFramebuffer);

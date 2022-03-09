@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using NtFreX.BuildingBlocks.Standard.Extensions;
+using System.Text;
 using System.Text.RegularExpressions;
 using Veldrid;
 using Veldrid.SPIRV;
@@ -41,27 +42,43 @@ namespace NtFreX.BuildingBlocks.Standard
                 => "{ If: " + string.Join(", ", conditions) + " }";
         }
 
+        internal class ShaderIncludeContext
+        {
+            private HashSet<string> includes = new();
+
+            public bool TryAddInclude(string path, string basePath, out string normalized)
+            {
+                normalized = PathExtensions.NormalizeRelativePath(path, basePath);
+
+                if (includes.Contains(normalized))
+                    return false;
+                
+                includes.Add(normalized);
+                return true;
+            }
+        }
+
         internal class ShaderSyntaxInclude : ShaderSyntaxTreeNode
         {
             private readonly ShaderPrecompiler currentCompiler;
+            private readonly ShaderIncludeContext includeContext;
             private readonly string basePath;
             private readonly string path;
 
-            public ShaderSyntaxInclude(ShaderPrecompiler currentCompiler, string basePath, string path)
+            public ShaderSyntaxInclude(ShaderPrecompiler currentCompiler, ShaderIncludeContext includeContext, string basePath, string path)
             {
                 this.currentCompiler = currentCompiler;
+                this.includeContext = includeContext;
                 this.basePath = basePath;
                 this.path = path;
             }
 
             public override string Precompile()
             {
-                var folder = Path.GetDirectoryName(basePath);
-                var rootedPath = path;
-                if (!Path.IsPathRooted(path) && !string.IsNullOrEmpty(folder))
-                    rootedPath = Path.Combine(folder, path);
+                if(includeContext.TryAddInclude(path, basePath, out var normalizedPath))
+                    return currentCompiler.Precompile(File.ReadAllText(normalizedPath), normalizedPath);
 
-                return currentCompiler.Precompile(File.ReadAllText(rootedPath), rootedPath);
+                return string.Empty;
             }
 
             public override string ToString()
@@ -136,9 +153,8 @@ namespace NtFreX.BuildingBlocks.Standard
         {
             SpecializationConstant[] specializations = GetSpecializations(gd);
 
-            bool fixClipZ = (gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES)
-                && !gd.IsDepthRangeZeroToOne;
-            bool invertY = false;
+            bool fixClipZ = (gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES) && !gd.IsDepthRangeZeroToOne;
+            bool invertY = false; //TODO: why no pass gd.IsClipSpaceYInverted? currently SpecializationConstant 100 has same functionallity?;
 
             return new CrossCompileOptions(fixClipZ, invertY, specializations);
         }
@@ -328,28 +344,28 @@ namespace NtFreX.BuildingBlocks.Standard
             return parsedTokens;
         }
 
-        private ShaderSyntaxIf ParseIf(List<ShaderSyntaxToken> tokens, ref int tokenIndex)
+        private ShaderSyntaxIf ParseIf(List<ShaderSyntaxToken> tokens, ShaderIncludeContext includeContext, ref int tokenIndex)
         {
             tokenIndex++;
 
             var conditions = new List<ShaderSyntaxIf.IfCondition>();
             var not = TryGetNotToken(tokens, ref tokenIndex);
             var conditionValue = flags[tokens[tokenIndex++].Text];
-            conditions.Add(new ShaderSyntaxIf.IfCondition(not ? !conditionValue : conditionValue, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex)).ToList()));
+            conditions.Add(new ShaderSyntaxIf.IfCondition(not ? !conditionValue : conditionValue, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex), includeContext).ToList()));
 
             while (tokenIndex < tokens.Count && tokens[tokenIndex].TokenType != ShaderSyntaxTokenType.EndIf)
             {
                 if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Else)
                 {
                     tokenIndex++;
-                    conditions.Add(new ShaderSyntaxIf.IfCondition(true, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex)).ToList()));
+                    conditions.Add(new ShaderSyntaxIf.IfCondition(true, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex), includeContext).ToList()));
                 }
                 else if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.ElseIf)
                 {
                     tokenIndex++;
                     not = TryGetNotToken(tokens, ref tokenIndex);
                     conditionValue = flags[tokens[tokenIndex++].Text];
-                    conditions.Add(new ShaderSyntaxIf.IfCondition(not ? !conditionValue : conditionValue, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex)).ToList()));
+                    conditions.Add(new ShaderSyntaxIf.IfCondition(not ? !conditionValue : conditionValue, ParseSyntaxTree(GetIfContent(tokens, ref tokenIndex), includeContext).ToList()));
                 }
                 else
                 {
@@ -359,13 +375,13 @@ namespace NtFreX.BuildingBlocks.Standard
             return new ShaderSyntaxIf(conditions);
         }
 
-        private IEnumerable<ShaderSyntaxTreeNode> ParseSyntaxTree(List<ShaderSyntaxToken> tokens)
+        private IEnumerable<ShaderSyntaxTreeNode> ParseSyntaxTree(List<ShaderSyntaxToken> tokens, ShaderIncludeContext includeContext)
         {
             for(var tokenIndex = 0; tokenIndex < tokens.Count; tokenIndex++)
             {
                 if(tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.If)
                 {
-                    yield return ParseIf(tokens, ref tokenIndex);
+                    yield return ParseIf(tokens, includeContext, ref tokenIndex);
                 }
                 else if (tokens[tokenIndex].TokenType == ShaderSyntaxTokenType.Variable)
                 {
@@ -379,7 +395,7 @@ namespace NtFreX.BuildingBlocks.Standard
                     if (tokens[tokenIndex].TokenType != ShaderSyntaxTokenType.Text)
                         throw new Exception($"[Line: {tokens[tokenIndex].LineNumber}, File] A file path must follow the include statement");
 
-                    yield return new ShaderSyntaxInclude(this, basePath: tokens[tokenIndex].FilePath, path: tokens[tokenIndex].Text);
+                    yield return new ShaderSyntaxInclude(this, includeContext, basePath: tokens[tokenIndex].FilePath, path: tokens[tokenIndex].Text);
                 }
                 else
                 {
@@ -402,7 +418,8 @@ namespace NtFreX.BuildingBlocks.Standard
                 lineNumber++;
             }
 
-            var syntaxTree = ParseSyntaxTree(tokens);
+            var includeContext = new ShaderIncludeContext();
+            var syntaxTree = ParseSyntaxTree(tokens, includeContext);
             var text = new StringBuilder();
             foreach(var node in syntaxTree)
             {

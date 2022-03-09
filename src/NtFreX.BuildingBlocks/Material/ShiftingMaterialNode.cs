@@ -88,7 +88,6 @@ namespace NtFreX.BuildingBlocks.Material
 
             //TODO: move to resoruce update?
             ticks = ticks + delta / 1000f;
-
             var shifts = new Vector4(
                 ticks * redFactor,
                 ticks * greenFactor,

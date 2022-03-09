@@ -4,6 +4,17 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 {
     static class ResourceLayoutFactory
     {
+        private static ResourceLayout? drawDeltaComputeLayout;
+        public static ResourceLayout GetDrawDeltaComputeLayout(ResourceFactory resourceFactory)
+        {
+            if (drawDeltaComputeLayout != null)
+                return drawDeltaComputeLayout;
+
+            drawDeltaComputeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("DrawDelta", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+
+            return drawDeltaComputeLayout;
+        }
+
         private static ResourceLayout? particleResetLayout;
         public static ResourceLayout GetParticleResetLayout(ResourceFactory resourceFactory)
         {

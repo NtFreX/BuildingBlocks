@@ -31,6 +31,8 @@ namespace NtFreX.BuildingBlocks
     {
         private const string TimerDebugFormat = "0.0000";
 
+        //TODO: store this value elsewhere so graphics system doesn't need a game ref and the other way arround
+        public float DeltaModifier { get => GraphicsSystem.DrawDeltaModifier; set => GraphicsSystem.DrawDeltaModifier = value; }
         public IFrameLimitter FrameLimitter { get; set; } = new NullFrameLimitter();
         public Stopwatch Stopwatch { get; private set; } = Stopwatch.StartNew();
         public AssimpDaeModelImporter? AssimpDaeModelImporter { get; private set; }
@@ -294,7 +296,7 @@ namespace NtFreX.BuildingBlocks
             timerUpdating.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
-            var updateDelta = (float)(previousUpdaingElapsed == null ? 0: elapsed - previousUpdaingElapsed.Value);
+            var updateDelta = (float)(previousUpdaingElapsed == null ? 0: elapsed - previousUpdaingElapsed.Value) * DeltaModifier;
             previousUpdaingElapsed = elapsed;
                         
             {
@@ -365,7 +367,7 @@ namespace NtFreX.BuildingBlocks
             timerRendering.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
-            var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value);
+            var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value) * DeltaModifier;
             previousRenderingElapsed = elapsed;
 
             if (Shell.IsDebug && EnableImGui)

@@ -39,6 +39,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImNodes.NET", "dependencies
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ImGui.NET", "dependencies\ImGui.NET\src\ImGui.NET\ImGui.NET.csproj", "{B1EA2E62-FAEE-46B6-ACA5-79F2E72E0119}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NtFreX.BuildingBlocks.Tests", "src\NtFreX.BuildingBlocks.Tests\NtFreX.BuildingBlocks.Tests.csproj", "{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -183,6 +185,14 @@ Global
 		{B1EA2E62-FAEE-46B6-ACA5-79F2E72E0119}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B1EA2E62-FAEE-46B6-ACA5-79F2E72E0119}.Release|x64.ActiveCfg = Release|Any CPU
 		{B1EA2E62-FAEE-46B6-ACA5-79F2E72E0119}.Release|x64.Build.0 = Release|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Debug|x64.Build.0 = Debug|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Release|x64.ActiveCfg = Release|Any CPU
+		{5DFCD12E-F96D-4155-A7DF-F6E4964BA3F5}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

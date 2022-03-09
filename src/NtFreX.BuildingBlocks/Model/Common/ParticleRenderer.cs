@@ -219,7 +219,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { 
             { "hasBoundingBox", typeof(TBounds) == typeof(ParticleBoxBounds) }, { "hasBoundingSphere", typeof(TBounds) == typeof(ParticleSphereBounds) },
             { "hasResetBox", typeof(TReset) == typeof(ParticleBoxReset) }, { "hasResetSphere", typeof(TReset) == typeof(ParticleSphereReset) }, { "hasResetCircle", typeof(TReset) == typeof(ParticleCircleReset) } }, 
-            new Dictionary<string, string> { { "resetSet", !HasBounds() ? "2" : "3" } }, computeShaderPath ?? "Resources/particle.cpt", isDebug);
+            new Dictionary<string, string> { { "resetSet", !HasBounds() ? "3" : "4" } }, computeShaderPath ?? "Resources/particle.cpt", isDebug);
 
         var particleStorageLayoutCompute = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)));
@@ -227,7 +227,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         var computeSizeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("SizeBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
 
-        var computeLayouts = new List<ResourceLayout>(new[] { particleStorageLayoutCompute, computeSizeLayout });
+        var computeLayouts = new List<ResourceLayout>(new[] { particleStorageLayoutCompute, computeSizeLayout, ResourceLayoutFactory.GetDrawDeltaComputeLayout(resourceFactory) });
 
         if (HasBounds())
         {
@@ -321,10 +321,11 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         commandList.SetPipeline(computePipeline);
         commandList.SetComputeResourceSet(0, computeResourceSet);
         commandList.SetComputeResourceSet(1, computeSizeResourceSet);
-        if(HasBounds())
-            commandList.SetComputeResourceSet(2, computeBoundsSet);
+        commandList.SetComputeResourceSet(2, renderContext.DrawDeltaComputeSet);
+        if (HasBounds())
+            commandList.SetComputeResourceSet(3, computeBoundsSet);
         if (HasReset())
-            commandList.SetComputeResourceSet(!HasBounds() ? 2u : 3u, computeResetSet);
+            commandList.SetComputeResourceSet(!HasBounds() ? 3u : 4u, computeResetSet);
         commandList.Dispatch(maxParticles, 1, 1);
         
         //TODO: draw to seperate texture?

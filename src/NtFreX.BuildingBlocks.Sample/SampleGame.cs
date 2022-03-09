@@ -237,6 +237,8 @@ namespace NtFreX.BuildingBlocks.Sample
         //private CommandListPool commandListPool; // use commandlist pool of game?
         private TextMesh? elapsedTextMesh;
 
+        private bool showMenu = false;
+
         private MovableCamera? movableCamera;
         //private ThirdPersonCamera thirdPersonCamera;
 
@@ -278,6 +280,7 @@ namespace NtFreX.BuildingBlocks.Sample
 
         protected override async Task BeforeGraphicsSystemUpdateAsync(float delta)
         {
+            Debug.Assert(Shell != null);
             Debug.Assert(elapsedTextMesh != null);
             //    if (InputHandler.IsKeyDown(Key.F9))
             //    {
@@ -293,7 +296,6 @@ namespace NtFreX.BuildingBlocks.Sample
             //        GraphicsSystem.Camera.Value = thirdPersonCamera;
             //    }
 
-
             var text = Stopwatch.Elapsed.TotalSeconds.ToString("0.00") + " total seconds elapsed";
             await elapsedTextMesh.WriteAsync(font[0], text, new RgbaFloat(0, 1, 0, 0));
             //await elapsedTextMesh.WriteAsync(text.Select((item, index) => new TextData(font[index], text[index].ToString(), new RgbaFloat(Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), Standard.Random.GetRandomNumber(0f, 1f), 1))).ToArray());
@@ -304,6 +306,37 @@ namespace NtFreX.BuildingBlocks.Sample
         {
             await base.AfterGraphicsSystemUpdateAsync(delta);
 
+            Debug.Assert(Shell != null);
+
+            if (InputHandler.IsKeyDown(Key.Escape))
+            {
+                showMenu = !showMenu;
+
+                DeltaModifier = showMenu ? 0f : 1f; 
+                InputHandler.HandleKeyEvents(Key.Escape);
+            }
+
+            if (showMenu)
+            {
+                //TODO: stop custom things like text displaying elapsed time
+                //TODO: stop particle system
+
+                var size = new Vector2(Shell.Width, Shell.Height);
+                var windowSize = new Vector2(400, 400);
+                ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0, 0, 0, .8f));
+                ImGui.SetNextWindowPos(new Vector2(size.X / 2 - windowSize.X / 2, size.Y / 2 - windowSize.Y / 2));
+                ImGui.SetNextWindowSize(windowSize);
+                ImGui.Begin(string.Empty, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoMove);
+                if (ImGui.Button("Continue", new Vector2(windowSize.X, 40)))
+                    showMenu = false;
+                ImGui.Button("Options", new Vector2(windowSize.X, 40));
+                if (ImGui.Button("Exit", new Vector2(windowSize.X, 40)))
+                    Environment.Exit(0);
+                ImGui.End();
+
+                //todo: handle first move event (maybe two different input handlers) one for game and a custom one, handle everything in game input handler and leave custom for other stuff (imgui)?
+                InputHandler.HandleAll();
+            }
 
             //if (InputHandler.IsKeyDown(Key.Delete))
             //{
@@ -424,6 +457,9 @@ namespace NtFreX.BuildingBlocks.Sample
             if (CurrentScene != null)
             {
                 ImGui.Begin("Items");
+                var deltaModifer = DeltaModifier;
+                if (ImGui.SliderFloat("Delta modifier", ref deltaModifer, -100f, 100f))
+                    DeltaModifier = deltaModifer;
                 foreach (var cull in CurrentScene.CullRenderables)
                 {
                     if (ImGui.Button(cull.GetType().Name + ": " + cull.GetCenter()) && movableCamera != null)
@@ -470,6 +506,8 @@ namespace NtFreX.BuildingBlocks.Sample
             Debug.Assert(CurrentScene.Camera.Value != null);
             Debug.Assert(RenderContext != null);
             Debug.Assert(Shell != null);
+            Debug.Assert(GraphicsDevice != null);
+            Debug.Assert(ResourceFactory != null);
 
             ResizeWindowSizedResources();
 
@@ -812,7 +850,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 var pi = new ParticleInfo(
                     position: new Vector3(Standard.Random.Noise(0, positionRange.X), Standard.Random.Noise(0, positionRange.Y), Standard.Random.Noise(0, positionRange.Z)),
                     scale: (uint)Standard.Random.GetRandomNumber(3f, 9f),
-                    velocity: Standard.Random.Noise(-CurrentScene.Camera.Value.Up.Value * .01f, .004f),
+                    velocity: Standard.Random.Noise(-CurrentScene.Camera.Value.Up.Value * .01f, .004f) / 14f,
                     color: new Vector4(g, g, g, Standard.Random.GetRandomNumber(.2f, 1f)));
                 initialParticles[i] = pi;
             }

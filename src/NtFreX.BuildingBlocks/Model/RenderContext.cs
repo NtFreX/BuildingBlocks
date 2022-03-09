@@ -24,6 +24,8 @@ namespace NtFreX.BuildingBlocks.Model
         public TextureView? DuplicatorTargetView1 { get; private set; }
         public ResourceSet? DuplicatorTargetSet1 { get; internal set; }
         public Framebuffer? DuplicatorFramebuffer { get; private set; }
+        public ResourceSet? DrawDeltaComputeSet { get; internal set; }
+        public DeviceBuffer? DrawDeltaBuffer { get; private set; }
 
         public CascadedShadowMaps ShadowMaps { get; private set; }
         public TextureView NearShadowMapView => ShadowMaps.NearShadowMapView;
@@ -90,6 +92,9 @@ namespace NtFreX.BuildingBlocks.Model
                 LightProjectionBufferFar, LightViewBufferFar, CascadeInfoBuffer,
                 NearShadowMapView, MidShadowMapView, FarShadowMapView, graphicsDevice.PointSampler));
 
+            DrawDeltaBuffer = resourceFactory.CreateBuffer(new BufferDescription(16, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+
+            DrawDeltaComputeSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(ResourceLayoutFactory.GetDrawDeltaComputeLayout(resourceFactory), DrawDeltaBuffer));
 
             this.mainSceneSampleCount = mainSceneSampleCount;
 
@@ -165,6 +170,10 @@ namespace NtFreX.BuildingBlocks.Model
 
         public void Dispose()
         {
+            DrawDeltaBuffer?.Dispose();
+            DrawDeltaBuffer = null;
+            DrawDeltaComputeSet?.Dispose();
+            DrawDeltaComputeSet = null;
             TextureSamplerResourceLayout?.Dispose();
             MainSceneColorTexture?.Dispose();
             MainSceneDepthTexture?.Dispose();

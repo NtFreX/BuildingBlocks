@@ -47,6 +47,11 @@ namespace NtFreX.BuildingBlocks.Input
         public bool IsMouseDown(MouseButton btn)
             => _pressedMouseButtons.Contains(btn);
 
+        public void HandleAll()
+        {
+            _pressedKeys.Clear();
+            _pressedMouseButtons.Clear();
+        }
         public void HandleKeyEvents(Key key)
             => _pressedKeys.Remove(key);
         public void HandleMouseEvents(MouseButton btn)
