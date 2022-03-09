@@ -111,6 +111,19 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             return surfaceTextureLayout;
         }
 
+        private static ResourceLayout? normalMapTextureLayout;
+        public static ResourceLayout GetNormalMapTextureLayout(ResourceFactory resourceFactory)
+        {
+            if (normalMapTextureLayout != null)
+                return normalMapTextureLayout;
+
+            normalMapTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
+                new ResourceLayoutElementDescription("AlphaMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+
+            return normalMapTextureLayout;
+        }
+
         private static ResourceLayout? alphaMapTextureLayout;
         public static ResourceLayout GetAlphaMapTextureLayout(ResourceFactory resourceFactory)
         {

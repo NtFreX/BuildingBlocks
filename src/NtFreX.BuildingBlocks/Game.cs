@@ -31,6 +31,7 @@ namespace NtFreX.BuildingBlocks
     {
         private const string TimerDebugFormat = "0.0000";
 
+        //TODO: remove delta modifier from camera control or make it configurable
         //TODO: store this value elsewhere so graphics system doesn't need a game ref and the other way arround
         public float DeltaModifier { get => GraphicsSystem.DrawDeltaModifier; set => GraphicsSystem.DrawDeltaModifier = value; }
         public IFrameLimitter FrameLimitter { get; set; } = new NullFrameLimitter();
@@ -66,6 +67,7 @@ namespace NtFreX.BuildingBlocks
 
         private readonly Model.Common.ImGuiRenderer imGuiRenderable;
 
+        //TODO: measure all updates and draws
         private DebugExecutionTimer? timerAudioUpdate;
         private DebugExecutionTimer? timerRendering;
         private DebugExecutionTimer? timerUpdating;

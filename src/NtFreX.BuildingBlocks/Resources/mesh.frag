@@ -10,6 +10,10 @@
     layout(set = #{alphaMapSet}, binding = 0) uniform texture2DArray AlphaMap;
     layout(set = #{alphaMapSet}, binding = 1) uniform sampler AlphaMapSampler;
 #endif
+#if hasNormalMap
+    layout(set = #{normalMapSet}, binding = 0) uniform texture2DArray NormalMap;
+    layout(set = #{normalMapSet}, binding = 1) uniform sampler NormalMapSampler;
+#endif
 #if hasReflection
     layout(set = #{reflectionSet}, binding = 0) uniform texture2DArray ReflectionMap;
     layout(set = #{reflectionSet}, binding = 1) uniform sampler ReflectionSampler;
@@ -147,11 +151,11 @@ vec2 ClipToUV(vec4 clip)
         }
     }
 
-    vec4 GetDirectionalColor(vec4 directionalSpecColor, vec4 ambientLight, vec4 surfaceColor, vec4 diffuseColor) 
+    vec4 GetDirectionalColor(vec4 directionalSpecColor, vec4 ambientLight, vec4 surfaceColor, vec4 diffuseColor, vec3 normal) 
     {
         int shadowIndex = 3;
         //TODO: this is the wrong way arround and leads to strange things (or is it?)
-        float lightIntensity = clamp(dot(fsin_normal, -DirectionalLightDirection), 0, 1);
+        float lightIntensity = clamp(dot(normal, -DirectionalLightDirection), 0, 1);
         float lightDepthValue = 0;
         vec2 shadowCoords = vec2(0, 0);
         vec2 shadowCoords_near = ClipToUV(fsin_lightPositionNear);
@@ -213,7 +217,7 @@ vec2 ClipToUV(vec4 clip)
         return directionalSpecColor + (ambientLight * surfaceColor);
     }
 
-    vec4 GetPointColor(vec4 surfaceColor, vec4 diffuseColor, vec3 vertexToEye, float shininess, float shininessStrength)
+    vec4 GetPointColor(vec4 surfaceColor, vec4 diffuseColor, vec3 vertexToEye, float shininess, float shininessStrength, vec3 normal)
     {
         vec4 pointDiffuse = vec4(0, 0, 0, 1);
         vec4 pointSpec = vec4(0, 0, 0, 1);
@@ -221,11 +225,11 @@ vec2 ClipToUV(vec4 clip)
         {
             PointLightInfo pli = PointLights[i];
             vec3 ptLightDir = normalize(pli.Position - fsin_positionWorldSpace);
-            float intensity = clamp(dot(fsin_normal, ptLightDir), 0, 1);
+            float intensity = clamp(dot(normal, ptLightDir), 0, 1);
             float lightDistance = distance(pli.Position, fsin_positionWorldSpace);
             intensity = clamp(intensity * (1 - (lightDistance / pli.Range)), 0, 1);
             pointDiffuse += (intensity * pli.Color * surfaceColor) + (intensity * pli.Color * diffuseColor);
-            vec3 lightReflect = normalize(reflect(ptLightDir, fsin_normal));
+            vec3 lightReflect = normalize(reflect(ptLightDir, normal));
             float specularFactor = dot(vertexToEye, lightReflect);
             if (specularFactor > 0 && pli.Range > lightDistance)
             {
@@ -239,7 +243,7 @@ vec2 ClipToUV(vec4 clip)
 #endif
 
 void main()
-{    
+{
     #if hasReflection
         if (ClipPlaneEnabled == 1)
         {
@@ -258,6 +262,13 @@ void main()
             discard;
             return;
         }
+    #endif
+
+    #if hasNormalMap
+        //TODO: transform?
+        vec3 normal = texture(sampler2DArray(NormalMap, NormalMapSampler), fsin_texCoords).rgb;
+    #else
+        vec3 normal = fsin_normal;
     #endif
 
     vec4 color = fsin_color;
@@ -289,7 +300,7 @@ void main()
         if(shininess > 0) 
         {
             #if hasLights
-                vec3 lightReflect = normalize(reflect(DirectionalLightDirection, fsin_normal));
+                vec3 lightReflect = normalize(reflect(DirectionalLightDirection, normal));
                 float specularFactor = dot(vertexToEye, lightReflect);
                 if (specularFactor > 0)
                 {
@@ -297,7 +308,7 @@ void main()
                     directionalSpecColor = vec4(SpecularColor.xyz  * shininessStrength * specularFactor, 1.0f) + vec4(DirectionalLightColor.xyz * shininessStrength * specularFactor, 1.0f);
                 }
             #else
-                directionalSpecColor = SpecularColor * shininessStrength * pow(fsin_normal.x + fsin_normal.y + fsin_normal.z, shininess);
+                directionalSpecColor = SpecularColor * shininessStrength * pow(normal.x + normal.y + normal.z, shininess);
             #endif
         }
     #else 
@@ -309,8 +320,8 @@ void main()
     
     #if hasLights
         vec4 ambientLight = AmbientLight + ambientColor;
-        vec4 directionalColor = GetDirectionalColor(directionalSpecColor, ambientLight, color, diffuseColor);
-        vec4 pointColor = GetPointColor(color, diffuseColor, vertexToEye, shininess, shininessStrength);
+        vec4 directionalColor = GetDirectionalColor(directionalSpecColor, ambientLight, color, diffuseColor, normal);
+        vec4 pointColor = GetPointColor(color, diffuseColor, vertexToEye, shininess, shininessStrength, normal);
     #else
         vec4 directionalColor = ambientColor + diffuseColor;
         vec4 pointColor = vec4(0, 0, 0, 1);

@@ -18,6 +18,7 @@ namespace NtFreX.BuildingBlocks.Model
         private readonly SemaphoreSlim mainPassCompletionEvent = new (0);
         private readonly SemaphoreSlim startMainPassSemaphoreSlim = new (0);
         private readonly Task mainPassAction;
+        private readonly CommandList prepareCommandList;
         private readonly CommandList[] shadowmapCommandList;
         private readonly CommandList mainCommandList;
         private readonly CommandList mainPassCommandList;
@@ -40,7 +41,7 @@ namespace NtFreX.BuildingBlocks.Model
         private uint fbWidth;
         private uint fbHeight;
         private bool isDisposed = false;
-        private double lastElapsed = 0;
+        private double lastMainPassElapsed = 0;
 
         public float DrawDeltaModifier { get; set; } = 1f;
 
@@ -66,12 +67,16 @@ namespace NtFreX.BuildingBlocks.Model
                 new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Mainpass"), stopwatch),
                 new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Dublicator"), stopwatch),
                 new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem FullScreen"), stopwatch),
-                new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Swapchain"), stopwatch)
+                new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Swapchain"), stopwatch),
+                new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Material"), stopwatch),
+                new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Particle"), stopwatch),
+                new DebugExecutionTimer(new DebugExecutionTimerSource(loggerFactory.CreateLogger<DebugExecutionTimerSource>(), "GraphicsSystem Prepare"), stopwatch)
             };
 
             //mainPassAction = new Task(new Action(ExecuteMainPass));
             mainPassCommandList = resourceFactory.CreateCommandList();
             mainCommandList = resourceFactory.CreateCommandList();
+            prepareCommandList = resourceFactory.CreateCommandList();
             shadowmapCommandList = new[] { resourceFactory.CreateCommandList(), resourceFactory.CreateCommandList(), resourceFactory.CreateCommandList() };
 
             // use a thread here instead of a task because there is no need to reduce ressource usage on the cpu. this enables the decoupling of the draw code from the async state machine which gives another few 0.01% of perf
@@ -114,6 +119,7 @@ namespace NtFreX.BuildingBlocks.Model
             {
                 commandList.Dispose();
             }
+            prepareCommandList.Dispose();
             mainPassCommandList.Dispose();
             mainCommandList.Dispose();
             startMainPassSemaphoreSlim.Release();
@@ -146,27 +152,15 @@ namespace NtFreX.BuildingBlocks.Model
             DrawRenderPass(renderPasses, commandList, RenderContext, items);
         }
 
-        private void DrawMainPass(float depthClear)
+        private void DrawMainPass(float depthClear, float drawDelta)
         {
-            // TODO: apply game. DeltaModifier
-            var drawDelta = (float)(stopwatch.ElapsedMilliseconds - lastElapsed) * DrawDeltaModifier;
-
             //TODO: deffered lightninng
             Debug.Assert(RenderContext?.MainSceneFramebuffer != null);
             Debug.Assert(DrawingScene?.Camera.Value != null);
 
-            // TODO: only needs updating when proj changed, move to somewhere else
-            var cameraProjection = DrawingScene.Camera.Value.ProjectionMatrix;
-            graphicsDevice.UpdateBuffer(RenderContext.CascadeInfoBuffer, 0, new[] {
-                Vector4.Transform(new Vector3(0, 0, -CascadedShadowMaps.NearCascadeLimit), cameraProjection).Z,
-                Vector4.Transform(new Vector3(0, 0, -CascadedShadowMaps.MidCascadeLimit), cameraProjection).Z,
-                Vector4.Transform(new Vector3(0, 0, -Math.Min(DrawingScene.Camera.Value.FarDistance.Value, CascadedShadowMaps.FarCascadeLimit)), cameraProjection).Z,
-            });
-
-            //TODO: do at better place?
-            graphicsDevice.UpdateBuffer(RenderContext.DrawDeltaBuffer, 0, new[] { drawDelta, 0f, 0f, 0f });
-
+            TimerRenderPasses[10].Start();
             MaterialTextureFactory.Instance.Run(drawDelta);
+            TimerRenderPasses[10].Stop();
 
             mainPassCommandList.Begin();
             mainPassCommandList.SetFramebuffer(RenderContext.MainSceneFramebuffer);
@@ -179,16 +173,16 @@ namespace NtFreX.BuildingBlocks.Model
             mainPassCommandList.ClearDepthStencil(depthClear);
             mainPassCommandList.ClearColorTarget(0, RgbaFloat.Pink);
 
-            TimerGetVisibleObjects.Start();
             var cameraFrustum = new BoundingFrustum(DrawingScene.Camera.Value.ViewMatrix * DrawingScene.Camera.Value.ProjectionMatrix);
             FillRenderQueue(in mainPassQueue, in mainPassFrustumItems, in mainPassList, DrawingScene, cameraFrustum, DrawingScene.Camera.Value.Position);
-            TimerGetVisibleObjects.Stop();
 
             TimerRenderPasses[0].Start();
             DrawRenderPass(RenderPasses.Standard, mainPassCommandList, RenderContext, mainPassList);
             TimerRenderPasses[0].Stop();
 
+            TimerRenderPasses[11].Start();
             DrawRenderPass(RenderPasses.Particles, mainPassCommandList, RenderContext, mainPassList);
+            TimerRenderPasses[11].Stop();
 
             TimerRenderPasses[1].Start();
             DrawRenderPass(RenderPasses.AlphaBlend, mainPassCommandList, RenderContext, mainPassList);
@@ -198,7 +192,7 @@ namespace NtFreX.BuildingBlocks.Model
             DrawRenderPass(RenderPasses.Overlay, mainPassCommandList, RenderContext, mainPassList);
             TimerRenderPasses[2].Stop();
 
-            lastElapsed = stopwatch.Elapsed.TotalMilliseconds;
+            lastMainPassElapsed = stopwatch.Elapsed.TotalMilliseconds;
         }
 
         private async Task ExecuteMainPassAsync()
@@ -210,15 +204,31 @@ namespace NtFreX.BuildingBlocks.Model
                 if (isDisposed)
                     break;
 
+                TimerRenderPasses[12].Start();
                 Debug.Assert(DrawingScene?.Camera.Value != null);
                 Debug.Assert(RenderContext?.MainSceneFramebuffer != null);
                 Debug.Assert(RenderContext?.MainSceneColorTexture != null);
                 Debug.Assert(RenderContext?.DuplicatorFramebuffer != null);
                 Debug.Assert(DrawingScene.LightSystem.Value != null);
 
-                float depthClear = graphicsDevice.IsDepthRangeZeroToOne ? 0f : 1f;
                 /*TODO: directional light position!! */
                 Vector3 lightPos = DrawingScene.Camera.Value.Position - DrawingScene.LightSystem.Value.DirectionalLightDirection * 1000f;
+                float depthClear = graphicsDevice.IsDepthRangeZeroToOne ? 0f : 1f;
+                var drawDelta = (float)(stopwatch.ElapsedMilliseconds - lastMainPassElapsed) * DrawDeltaModifier;
+                var cameraProjection = DrawingScene.Camera.Value.ProjectionMatrix;
+
+                prepareCommandList.Begin();
+                // TODO: only needs updating when proj changed, move to somewhere else
+                prepareCommandList.UpdateBuffer(RenderContext.CascadeInfoBuffer, 0, new[] {
+                    Vector4.Transform(new Vector3(0, 0, -CascadedShadowMaps.NearCascadeLimit), cameraProjection).Z,
+                    Vector4.Transform(new Vector3(0, 0, -CascadedShadowMaps.MidCascadeLimit), cameraProjection).Z,
+                    Vector4.Transform(new Vector3(0, 0, -Math.Min(DrawingScene.Camera.Value.FarDistance.Value, CascadedShadowMaps.FarCascadeLimit)), cameraProjection).Z,
+                });
+
+                //TODO: do at better place?
+                prepareCommandList.UpdateBuffer(RenderContext.DrawDeltaBuffer, 0, new[] { drawDelta, 0f, 0f, 0f });
+                prepareCommandList.End();
+                graphicsDevice.SubmitCommands(prepareCommandList);
 
                 // TODO: make cascade levels dynamic
                 // shadows could be done in a single drawing call https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc09/slides/100_Handout%203.pdf
@@ -249,7 +259,8 @@ namespace NtFreX.BuildingBlocks.Model
                     TimerRenderPasses[5].Stop();
                 });
 
-                var mainTask = Task.Run(() => DrawMainPass(depthClear));
+                var mainTask = Task.Run(() => DrawMainPass(depthClear, drawDelta));
+                TimerRenderPasses[12].Stop();
 
                 await Task.WhenAll(shadowMapTaskNear, shadowMapTaskMid, shadowMapTaskFar, mainTask);
 
@@ -391,6 +402,7 @@ namespace NtFreX.BuildingBlocks.Model
 
         private void FillRenderQueue(in RenderQueue queue, in List<Renderable> frustumItems, in List<Renderable> list, Scene scene, BoundingFrustum frustum, Vector3 viewPosition)
         {
+            TimerGetVisibleObjects.Start();
             queue.Clear();
             frustumItems.Clear();
             list.Clear();
@@ -402,6 +414,7 @@ namespace NtFreX.BuildingBlocks.Model
             // TODO: my the hell reverse?? (if not reversing transparency is wrong) also this uses a new list  every time!!!!!!!!!!
             list.AddRange(queue);
             list.Reverse();
+            TimerGetVisibleObjects.Stop();
         }
 
         private void DrawRenderPass(RenderPasses renderPass, CommandList commandList, RenderContext renderContext, List<Renderable> queue)

@@ -328,7 +328,10 @@ namespace NtFreX.BuildingBlocks.Sample
                 ImGui.SetNextWindowSize(windowSize);
                 ImGui.Begin(string.Empty, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoMove);
                 if (ImGui.Button("Continue", new Vector2(windowSize.X, 40)))
+                {
                     showMenu = false;
+                    DeltaModifier = 1f;
+                }
                 ImGui.Button("Options", new Vector2(windowSize.X, 40));
                 if (ImGui.Button("Exit", new Vector2(windowSize.X, 40)))
                     Environment.Exit(0);
@@ -889,13 +892,14 @@ namespace NtFreX.BuildingBlocks.Sample
 
             //TODO: scrolling textures with a material node is unperformant
             var scrollingWoodTexture = "scrollingFloorTexture";
-            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, /*new PerlinNoiseMaterialNode(isDebug)*/ new TextureMaterialNode(textureProvider), new WoodMaterialNode(isDebug), new ScrollingMaterialNode(isDebug));
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, /*new TextureMaterialNode(textureProvider)*/ new PerlinNoiseMaterialNode(isDebug), new WoodMaterialNode(isDebug), new ScrollingMaterialNode(isDebug));
             var materialNodeTexture = new MaterialTextureProvider(scrollingWoodTexture);
 
             var plane = await PlaneMesh.CreateAsync(
                     rows: 200, columns: 200, transform: new Transform { Position = CurrentScene.Camera.Value.Up.Value * -5f },
                     name: "floor", physicsBufferPool: BepuSimulation?.BufferPool, specializations: new MeshDataSpecialization[] { 
-                        new SurfaceTextureMeshDataSpecialization(materialNodeTexture),
+                        new SurfaceTextureMeshDataSpecialization(textureProvider),
+                        new NormalMapMeshDataSpecialization(materialNodeTexture),
                         new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(shininess: .2f, shininessStrength: .1f )) });
 
 
