@@ -3,7 +3,7 @@
 
     internal struct PointLightCollectionInfo
     {
-        public static int MaxLights => 12;
+        public static int MaxLights => 8;
 
         public PointLightInfo LightInfo0;
         public PointLightInfo LightInfo1;
@@ -13,10 +13,10 @@
         public PointLightInfo LightInfo5;
         public PointLightInfo LightInfo6;
         public PointLightInfo LightInfo7;
-        public PointLightInfo LightInfo8;
-        public PointLightInfo LightInfo9;
-        public PointLightInfo LightInfo10;
-        public PointLightInfo LightInfo11;
+        //public PointLightInfo LightInfo8;
+        //public PointLightInfo LightInfo9;
+        //public PointLightInfo LightInfo10;
+        //public PointLightInfo LightInfo11;
         public int ActivePointLights;
         private float padding_0 = 0;
         private float padding_1 = 0;
@@ -33,10 +33,10 @@
             LightInfo5 = default;
             LightInfo6 = default;
             LightInfo7 = default;
-            LightInfo8 = default;
-            LightInfo9 = default;
-            LightInfo10 = default;
-            LightInfo11 = default;
+            //LightInfo8 = default;
+            //LightInfo9 = default;
+            //LightInfo10 = default;
+            //LightInfo11 = default;
         }
 
         public PointLightInfo this[int index]
@@ -53,10 +53,10 @@
                     5 => LightInfo5,
                     6 => LightInfo6,
                     7 => LightInfo7,
-                    8 => LightInfo8,
-                    9 => LightInfo9,
-                    10 => LightInfo10,
-                    11 => LightInfo11,
+                    //8 => LightInfo8,
+                    //9 => LightInfo9,
+                    //10 => LightInfo10,
+                    //11 => LightInfo11,
                     _ => throw new IndexOutOfRangeException(),
                 };
             }
@@ -72,10 +72,10 @@
                     case 5: LightInfo5 = value; break;
                     case 6: LightInfo6 = value; break;
                     case 7: LightInfo7 = value; break;
-                    case 8: LightInfo8 = value; break;
-                    case 9: LightInfo9 = value; break;
-                    case 10: LightInfo10 = value; break;
-                    case 11: LightInfo11 = value; break;
+                    //case 8: LightInfo8 = value; break;
+                    //case 9: LightInfo9 = value; break;
+                    //case 10: LightInfo10 = value; break;
+                    //case 11: LightInfo11 = value; break;
                     default: throw new IndexOutOfRangeException();
                 }
             }

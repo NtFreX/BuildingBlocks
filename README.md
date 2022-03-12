@@ -72,6 +72,7 @@ Features:
  - [ ] particles
    - [x] basic
    - [ ] generic particle types
+ - [ ] precompile assets
  - [x] ...
  - [ ] ...
 

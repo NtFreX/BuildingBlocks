@@ -3,7 +3,7 @@
 layout(set = 0, binding = 2) uniform textureCube CubeTexture;
 layout(set = 0, binding = 3) uniform sampler CubeSampler;
 
-
+//TODO: this should not be needed for deffered light
 #if hasLights
 	layout(set = 1, binding = 0) uniform Environment
 	{

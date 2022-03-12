@@ -66,10 +66,10 @@ public class PhongMaterialMeshDataSpecialization : MeshDataSpecialization, IEqua
 
         Debug.Assert(Material.Value != null);
 
-        MaterialBuffer = resourceFactory.GetMaterialBuffer(graphicsDevice, Material.Value, deviceBufferPool);
+        MaterialBuffer = resourceFactory.GetMaterialBuffer(graphicsDevice, Material.Value, "phongmatspecialization", deviceBufferPool);
 
         var layout = ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory);
-        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, MaterialBuffer.RealDeviceBuffer));
+        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, MaterialBuffer.RealDeviceBuffer), "phongmatresourceset");
 
         return Task.CompletedTask;
     }

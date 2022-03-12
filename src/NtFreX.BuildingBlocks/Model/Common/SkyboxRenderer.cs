@@ -26,7 +26,8 @@ public class SkyboxRenderer : Renderable, IUpdateable
     private DeviceBuffer? vertexBuffer;
     private DeviceBuffer? indexBuffer;
     private DeviceBuffer? envBuffer;
-    private Pipeline? pipeline;
+    private Pipeline? defaultPipeline;
+    private Pipeline? geometryPipeline;
     private ResourceSet? resourceSet;
     private ResourceSet? envResourceSet;
 
@@ -56,6 +57,7 @@ public class SkyboxRenderer : Renderable, IUpdateable
         Debug.Assert(CurrentGraphicsDevice != null);
         Debug.Assert(CurrentRenderContext != null);
         Debug.Assert(CurrentRenderContext.MainSceneFramebuffer != null);
+        Debug.Assert(CurrentRenderContext.GFramebuffer != null);
 
         cameraChanged = true;
 
@@ -96,7 +98,7 @@ public class SkyboxRenderer : Renderable, IUpdateable
         var envLayout = CurrentResourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("Material", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
 
-        var pd = new GraphicsPipelineDescription(
+        var pdDefault = new GraphicsPipelineDescription(
             BlendStateDescription.SingleAlphaBlend,
             graphicsDevice.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
             new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
@@ -105,11 +107,23 @@ public class SkyboxRenderer : Renderable, IUpdateable
             new ResourceLayout[] { cameraLayout, envLayout },
             CurrentRenderContext.MainSceneFramebuffer.OutputDescription);
 
-        pipeline = CurrentResourceFactory.CreateGraphicsPipeline(ref pd);
+        defaultPipeline = CurrentResourceFactory.CreateGraphicsPipeline(ref pdDefault);
+
+        var pdgeometryPipeline = new GraphicsPipelineDescription(
+            BlendStateDescription.SingleAlphaBlend,
+            graphicsDevice.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
+            new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
+            PrimitiveTopology.TriangleList,
+            new ShaderSetDescription(vertexLayouts, new[] { shaders.VertexShader, shaders.FragementShader }, ShaderPrecompiler.GetSpecializations(CurrentGraphicsDevice)),
+            new ResourceLayout[] { cameraLayout, envLayout },
+            CurrentRenderContext.GFramebuffer.OutputDescription);
+
+        geometryPipeline = CurrentResourceFactory.CreateGraphicsPipeline(ref pdgeometryPipeline);
+
 
         envResourceSet = CurrentResourceFactory.CreateResourceSet(new ResourceSetDescription(envLayout, envBuffer));
 
-        disposeCollector.Add(vertexBuffer, indexBuffer, textureCube, pipeline, envResourceSet, shaders.VertexShader, shaders.FragementShader, textureView, cameraLayout);
+        disposeCollector.Add(vertexBuffer, indexBuffer, textureCube, defaultPipeline, geometryPipeline, envResourceSet, shaders.VertexShader, shaders.FragementShader, textureView, cameraLayout);
 
         return true;
     }
@@ -141,7 +155,7 @@ public class SkyboxRenderer : Renderable, IUpdateable
     //TODO: do we need the rendercontext here? only in resource creation? also rename output context or whatever
     public override void Render(GraphicsDevice gd, CommandList cl, RenderContext sc, RenderPasses renderPass)
     {
-        cl.SetPipeline(pipeline);
+        cl.SetPipeline(renderPass == RenderPasses.Forward ? defaultPipeline : geometryPipeline);
         cl.SetGraphicsResourceSet(0, resourceSet);
         cl.SetGraphicsResourceSet(1, envResourceSet);
         cl.SetVertexBuffer(0, vertexBuffer);
@@ -149,7 +163,7 @@ public class SkyboxRenderer : Renderable, IUpdateable
         cl.DrawIndexed((uint)indices.Length, 1, 0, 0, 0);
     }
 
-    public override RenderPasses RenderPasses => RenderPasses.Standard;
+    public override RenderPasses RenderPasses => RenderPasses.Forward | RenderPasses.Geometry;
     public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition) => new (ulong.MaxValue);
 
     public void Update(float deltaSeconds, InputHandler inputHandler)

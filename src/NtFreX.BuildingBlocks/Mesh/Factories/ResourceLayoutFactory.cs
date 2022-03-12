@@ -11,6 +11,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
                 return drawDeltaComputeLayout;
 
             drawDeltaComputeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("DrawDelta", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+            drawDeltaComputeLayout.Name = "drawDeltaComputeLayout";
 
             return drawDeltaComputeLayout;
         }
@@ -23,6 +24,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 
             particleResetLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("ParticleReset", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+            particleResetLayout.Name = "particleResetLayout";
 
             return particleResetLayout;
         }
@@ -35,6 +37,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 
             particleBoundsLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("ParticleBounds", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+            particleBoundsLayout.Name = "particleBoundsLayout";
 
             return particleBoundsLayout;
         }
@@ -47,6 +50,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 
             worldLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("World", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+            worldLayout.Name = "worldLayout";
 
             return worldLayout;
         }
@@ -59,6 +63,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 
             inverseWorldLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("InverseWorld", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+            inverseWorldLayout.Name = "inverseWorldLayout";
 
             return inverseWorldLayout;
         }
@@ -72,30 +77,44 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             projectionViewLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("View", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+            projectionViewLayout.Name = "projectionViewLayout";
 
             return projectionViewLayout;
         }
 
-        private static ResourceLayout? shadowLayout;
-        public static ResourceLayout GetShadowLayout(ResourceFactory resourceFactory)
+        private static ResourceLayout? shadowVertexLayout;
+        public static ResourceLayout GetVertexShadowLayout(ResourceFactory resourceFactory)
         {
-            if (shadowLayout != null)
-                return shadowLayout;
+            if (shadowVertexLayout != null)
+                return shadowVertexLayout;
 
-            shadowLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
+            shadowVertexLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("LightNearProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("LightNearView", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("LightMidProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("LightMidView", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("LightFarProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                new ResourceLayoutElementDescription("LightFarView", ResourceKind.UniformBuffer, ShaderStages.Vertex),
+                new ResourceLayoutElementDescription("LightFarView", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+            shadowVertexLayout.Name = "shadowVertexLayout";
+            
+            return shadowVertexLayout;
+        }
+
+        private static ResourceLayout? shadowFragmentLayout;
+        public static ResourceLayout GetFragmentShadowLayout(ResourceFactory resourceFactory)
+        {
+            if (shadowFragmentLayout != null)
+                return shadowFragmentLayout;
+
+            shadowFragmentLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("CascadeLimits", ResourceKind.UniformBuffer, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("ShadowMapNear", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("ShadowMapMid", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("ShadowMapFar", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
-                new ResourceLayoutElementDescription("ShadowMapSampler", ResourceKind.Sampler, ShaderStages.Fragment))); 
+                new ResourceLayoutElementDescription("ShadowMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+            shadowFragmentLayout.Name = "shadowFragmentLayout";
 
-            return shadowLayout;
+            return shadowFragmentLayout;
         }
 
         private static ResourceLayout? surfaceTextureLayout;
@@ -107,6 +126,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             surfaceTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("SurfaceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("SurfaceSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+            surfaceTextureLayout.Name = "surfaceTextureLayout";
 
             return surfaceTextureLayout;
         }
@@ -120,6 +140,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             normalMapTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("AlphaMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+            normalMapTextureLayout.Name = "normalMapTextureLayout";
 
             return normalMapTextureLayout;
         }
@@ -133,6 +154,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             alphaMapTextureLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("AlphaMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+            alphaMapTextureLayout.Name = "alphaMapTextureLayout";
 
             return alphaMapTextureLayout;
         }
@@ -145,6 +167,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
 
             boneTransformationLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Bones", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+            boneTransformationLayout.Name = "boneTransformationLayout";
 
             return boneTransformationLayout;
         }
@@ -156,6 +179,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
                 return cameraInfoFragmentLayout;
 
             cameraInfoFragmentLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Camera", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
+            cameraInfoFragmentLayout.Name = "cameraInfoFragmentLayout";
 
             return cameraInfoFragmentLayout;
         }
@@ -167,7 +191,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
                 return cameraInfoVertexLayout;
 
             cameraInfoVertexLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Camera", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
-
+            cameraInfoVertexLayout.Name = "cameraInfoVertexLayout";
             return cameraInfoVertexLayout;
         }
 
@@ -180,6 +204,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
             lightInfoLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("DirectionalLights", ResourceKind.UniformBuffer, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("PointLights", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
+            lightInfoLayout.Name = "lightInfoLayout";
 
             return lightInfoLayout;
         }
@@ -191,6 +216,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
                 return materialInfoLayout;
 
             materialInfoLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("Material", ResourceKind.UniformBuffer, ShaderStages.Fragment)));
+            materialInfoLayout.Name = "materialInfoLayout";
 
             return materialInfoLayout;
         }

@@ -15,12 +15,14 @@ namespace NtFreX.BuildingBlocks.Material
         public override async Task CreateDeviceResourcesAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory)
         {
             Output = await textureProvider.GetAsync(graphicsDevice, resourceFactory);
+            Output.Name = MaterialName + "_texturegmaterialnode_Output";
         }
 
         public override void DestroyDeviceResources()
         {
-            Output?.Dispose();
-            Output = null;
+            //TODO: who's resposibility is it?
+            //Output?.Dispose();
+            //Output = null;
         }
 
         public override void Run(CommandList commandList, float delta) { }

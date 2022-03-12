@@ -14,8 +14,9 @@ namespace NtFreX.BuildingBlocks.Model
         private bool shouldRender = true;
 
         public event EventHandler<bool>? ShouldRenderHasChanged;
+        public string? Name { get; set; }
 
-        public virtual RenderPasses RenderPasses => RenderPasses.Standard;
+        public virtual RenderPasses RenderPasses => RenderPasses.Forward | RenderPasses.Geometry;
 
         public bool ShouldRender
         {

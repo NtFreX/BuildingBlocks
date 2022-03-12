@@ -40,6 +40,7 @@ using BepuPhysicsMesh = BepuPhysics.Collidables.Mesh;
 //TODO: material shader for textures to achieve things link simple materials or even fire! https://cyangamedev.wordpress.com/2020/08/04/fire-shader-breakdown/
 //TODO: print number of vertices drawn (+more vertice stats)
 //TODO: print command pool and device buffer pool stats
+//TODO: fix/support device destroy and recreation (device crash or other)
 namespace NtFreX.BuildingBlocks.Sample
 {
     //TODO: multithreading and  tasks!!!!!!!!!!!!!!
@@ -111,41 +112,41 @@ namespace NtFreX.BuildingBlocks.Sample
             var centerQubes = new MeshRenderer[] {
                 //await QubeMesh.CreateAsync(transform: new Transform { Position = Vector3.Zero }, sideLength: qubeSideLength, specializations: new [] { material }),
 
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -4) }, sideLength: qubeSideLength, specializations: new MeshDataSpecialization[] { material, new SurfaceTextureMeshDataSpecialization(blueTextureProvider) }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -3) }, sideLength: qubeSideLength, blue: .5f, specializations: new MeshDataSpecialization[] { material, perlineSpecialization }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -2) }, sideLength: qubeSideLength, green: .5f, specializations: new MeshDataSpecialization[] { material, shiftingPerlin }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -1) }, sideLength: qubeSideLength, red: .5f, specializations: new MeshDataSpecialization[] { material, scrollingWoodTextureSpec }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 1) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 2) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 3) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 4) }, sideLength: qubeSideLength, specializations: new [] { material }),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -4) }, sideLength: qubeSideLength, specializations: new MeshDataSpecialization[] { material, new SurfaceTextureMeshDataSpecialization(blueTextureProvider) }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -3) }, sideLength: qubeSideLength, blue: .5f, specializations: new MeshDataSpecialization[] { material, perlineSpecialization }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -2) }, sideLength: qubeSideLength, green: .5f, specializations: new MeshDataSpecialization[] { material, shiftingPerlin }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, -1) }, sideLength: qubeSideLength, red: .5f, specializations: new MeshDataSpecialization[] { material, scrollingWoodTextureSpec }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 1) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 2) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 3) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 0, 4) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
 
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -4, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -3, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -2, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -1, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 1, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 2, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 3, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 4, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -4, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -3, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -2, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, -1, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 1, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 2, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 3, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(0, 4, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
 
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-4, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-3, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-2, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-1, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(1, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(2, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(3, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(4, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-4, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-3, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-2, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-1, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(1, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(2, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(3, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(4, 0, 0) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
 
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-4, -4, -4) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-3, -3, -3) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-2, -2, -2) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-1, -1, -1) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(1, 1, 1) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(2, 2, 2) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(3, 3, 3) }, sideLength: qubeSideLength, specializations: new [] { material }),
-                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(4, 4, 4) }, sideLength: qubeSideLength, specializations: new [] { material }),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-4, -4, -4) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-3, -3, -3) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-2, -2, -2) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(-1, -1, -1) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(1, 1, 1) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(2, 2, 2) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(3, 3, 3) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
+                await QubeMesh.CreateAsync(transform: new Transform { Position = new Vector3(4, 4, 4) }, sideLength: qubeSideLength, specializations: new [] { material }, name: "centerqube"),
             };
             if (simulation != null)
             {
@@ -242,7 +243,13 @@ namespace NtFreX.BuildingBlocks.Sample
         private MovableCamera? movableCamera;
         //private ThirdPersonCamera thirdPersonCamera;
 
-        private IntPtr? dublicatorViewPtr;
+        private IntPtr? gPosViewPtr;
+        private IntPtr? gNormalViewPtr;
+        private IntPtr? gSpecViewPtr;
+        private IntPtr? gAlbedoViewPtr;
+        private IntPtr? gDepthViewPtr;
+        private IntPtr? mainSceneResolvedColorViewPtr;
+        //private IntPtr? dublicator1ViewPtr;
         private IntPtr? shadowmapNear;
         private IntPtr? shadowmapMid;
         private IntPtr? shadowmapFar;
@@ -261,8 +268,9 @@ namespace NtFreX.BuildingBlocks.Sample
 
         protected override async Task SetupAsync(IShell shell, ILoggerFactory loggerFactory)
         {
-            FrameLimitter = new FrameLimitter(144); //TODO: disable from time to time to make sure perf is top notch
+            //FrameLimitter = new FrameLimitter(144); //TODO: disable from time to time to make sure perf is top notch
             EnableImGui = true;
+            EnableDebugInfo = true;
             AudioSystemType = AudioSystemType.Sdl2;
             //EnableBepuSimulation = true;
 
@@ -308,6 +316,7 @@ namespace NtFreX.BuildingBlocks.Sample
 
             Debug.Assert(Shell != null);
 
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0);
             if (InputHandler.IsKeyDown(Key.Escape))
             {
                 showMenu = !showMenu;
@@ -421,15 +430,56 @@ namespace NtFreX.BuildingBlocks.Sample
             //}
             //GraphicsNodeEditor.AfterGraphicsSystemUpdate(delta);
 
-            ImGui.Begin("Views");
-            if (dublicatorViewPtr != null)
-                ImGui.Image(dublicatorViewPtr.Value, new Vector2(150, 150));
+
+            var viewSize = new Vector2(150, Shell.Height);
+            ImGui.SetNextWindowPos(new Vector2(Shell.Width - viewSize.X, 0));
+            ImGui.SetNextWindowSize(viewSize);
+            ImGui.Begin("Views", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoTitleBar);
+            if (gPosViewPtr != null)
+            {
+                ImGui.Text("Positions");
+                ImGui.Image(gPosViewPtr.Value, new Vector2(150, 150));
+            }
+            if (gNormalViewPtr != null)
+            {
+                ImGui.Text("Normals");
+                ImGui.Image(gNormalViewPtr.Value, new Vector2(150, 150));
+            }
+            if (gSpecViewPtr != null)
+            {
+                ImGui.Text("Specularity");
+                ImGui.Image(gSpecViewPtr.Value, new Vector2(150, 150));
+            }
+            if (gAlbedoViewPtr != null)
+            {
+                ImGui.Text("Albedo");
+                ImGui.Image(gAlbedoViewPtr.Value, new Vector2(150, 150));
+            }
+            if (gDepthViewPtr != null)
+            {
+                ImGui.Text("Main depth");
+                ImGui.Image(gDepthViewPtr.Value, new Vector2(150, 150));
+            }
+            //if (dublicator1ViewPtr != null)
+            //{
+            //    ImGui.Text("Dublicator (TODO: delete)");
+            //    ImGui.Image(dublicator1ViewPtr.Value, new Vector2(150, 150));
+            //}
             if (shadowmapNear != null)
+            {
+                ImGui.Text("Shadowmap near");
                 ImGui.Image(shadowmapNear.Value, new Vector2(150, 150));
+            }
             if (shadowmapMid != null)
+            {
+                ImGui.Text("Shadowmap mid");
                 ImGui.Image(shadowmapMid.Value, new Vector2(150, 150));
+            }
             if (shadowmapFar != null)
+            {
+                ImGui.Text("Shadowmap far");
                 ImGui.Image(shadowmapFar.Value, new Vector2(150, 150));
+            }
             ImGui.End();
 
             if (CurrentScene?.LightSystem.Value != null)
@@ -459,13 +509,16 @@ namespace NtFreX.BuildingBlocks.Sample
 
             if (CurrentScene != null)
             {
-                ImGui.Begin("Items");
+                var itemsSize = new Vector2(250, Shell.Height);
+                ImGui.SetNextWindowPos(new Vector2(Shell.Width - viewSize.X - itemsSize.X, 0));
+                ImGui.SetNextWindowSize(itemsSize);
+                ImGui.Begin("Items", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoTitleBar);
                 var deltaModifer = DeltaModifier;
                 if (ImGui.SliderFloat("Delta modifier", ref deltaModifer, -100f, 100f))
                     DeltaModifier = deltaModifer;
                 foreach (var cull in CurrentScene.CullRenderables)
                 {
-                    if (ImGui.Button(cull.GetType().Name + ": " + cull.GetCenter()) && movableCamera != null)
+                    if (ImGui.Button(cull.Name + " : " + cull.GetType().Name + ": " + cull.GetCenter()) && movableCamera != null)
                     {
                         movableCamera.Position.Value = movableCamera.GetPositionFromLookAt(cull.GetCenter(), distance: 5f);
                         movableCamera.SetLookAt();
@@ -479,10 +532,19 @@ namespace NtFreX.BuildingBlocks.Sample
                 }
                 foreach (var item in CurrentScene.FreeRenderables)
                 {
-                    ImGui.Text(item.GetType().Name);
+                    ImGui.Text(item.Name + " : " + item.GetType().Name);
                 }
                 ImGui.End();
             }
+
+            //TODO: draw ui in other graphics thread/graphics process/graphics system/pipeline whatever and show main color view in center
+            //var mainColorViewSize = new Vector2(Shell.Width - 400, Shell.Height);
+            //ImGui.SetNextWindowPos(new Vector2(0, 0));
+            //ImGui.SetNextWindowSize(mainColorViewSize);
+            //ImGui.Begin("MainColorView", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoTitleBar);
+            //if(mainSceneResolvedColorViewPtr != null)
+            //    ImGui.Image(mainSceneResolvedColorViewPtr.Value, mainColorViewSize);
+            //ImGui.End();
         }
 
         protected override void BeforeRenderContextCreated()
@@ -490,10 +552,58 @@ namespace NtFreX.BuildingBlocks.Sample
             base.BeforeRenderContextCreated();
             DestroyRenderContextResources();
         }
+
+        protected override void AfterRenderContextCreated()
+        {
+            base.AfterRenderContextCreated();
+        }
+
         protected override void AfterWindowResized()
         {
             base.AfterWindowResized();
-            ResizeWindowSizedResources();
+
+            MaterialTextureFactory.Instance.TryDestroyTexture("specularTexturePreview");
+            MaterialTextureFactory.Instance.TryDestroyTexture("normalTexturePreview");
+
+            //if (gAlbedoViewPtr != IntPtr.Zero)
+            //{
+            //    Debug.Assert(RenderContext?.GAlbedoTextureView != null);
+            //    RemoveImGuiBinding(RenderContext.GAlbedoTextureView);
+            gAlbedoViewPtr = null;
+            //}
+            //if (gDepthViewPtr != IntPtr.Zero)
+            //{
+            //    Debug.Assert(RenderContext?.GDepthTextureView != null);
+            //    RemoveImGuiBinding(RenderContext.GDepthTextureView);
+                gDepthViewPtr = null;
+            //}
+            //if(gPosViewPtr != IntPtr.Zero)
+            //{
+            //    Debug.Assert(RenderContext?.GCordTextureView != null);
+            //    RemoveImGuiBinding(RenderContext.GCordTextureView);
+                gPosViewPtr = null;
+            //}
+            //if(gSpecViewPtr != IntPtr.Zero)
+            //{
+            //    RemoveImGuiBinding(MaterialTextureFactory.Instance.GetOutput("specularTexturePreview"));
+                gSpecViewPtr = null;
+            //}
+            //if(gNormalViewPtr != IntPtr.Zero)
+            //{
+            //    //RemoveImGuiBinding(MaterialTextureFactory.Instance.GetOutput("normalTexturePreview"));
+                gNormalViewPtr = null;
+            //}
+
+        }
+        protected override async Task AfterWindowResizedAsync()
+        {
+            await base.AfterWindowResizedAsync();
+            await ResizeWindowSizedResourcesAsync();
+
+            //Debug.Assert(Shell != null);
+            //Debug.Assert(GraphicsSystem != null);
+            //GraphicsSystem.Viewport = new Viewport(0, 0, Shell.Width - 400, Shell.Height, 0, 1);
+
         }
         protected override void BeforeGraphicsDeviceDestroyed()
         {
@@ -512,7 +622,7 @@ namespace NtFreX.BuildingBlocks.Sample
             Debug.Assert(GraphicsDevice != null);
             Debug.Assert(ResourceFactory != null);
 
-            ResizeWindowSizedResources();
+            await ResizeWindowSizedResourcesAsync();
 
             shadowmapNear = GetOrCreateImGuiBinding(RenderContext.NearShadowMapView);
             shadowmapMid = GetOrCreateImGuiBinding(RenderContext.MidShadowMapView);
@@ -570,12 +680,12 @@ namespace NtFreX.BuildingBlocks.Sample
 
                 // TODO: move to fire fnc!
                 //new PointLightInfo { Color = new Vector4(.7f, .3f, 0, 1f), Intensity = .5f, Position = fireTransform.Position, Range = 4f }
-                ,
+                //,
 
-                new PointLightInfo { Color = new Vector4(.3f, 0, 0, 1f), Intensity = .8f, Position = Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
-                new PointLightInfo { Color = new Vector4(0, .3f, 0, 1f), Intensity = .8f, Position = Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f },
-                new PointLightInfo { Color = new Vector4(0, 0, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
-                new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f }
+                //new PointLightInfo { Color = new Vector4(.3f, 0, 0, 1f), Intensity = .8f, Position = Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
+                //new PointLightInfo { Color = new Vector4(0, .3f, 0, 1f), Intensity = .8f, Position = Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f },
+                //new PointLightInfo { Color = new Vector4(0, 0, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitX * 50 - Vector3.UnitY * 4, Range = 8f },
+                //new PointLightInfo { Color = new Vector4(.3f, .3f, .3f, 1f), Intensity = .8f, Position = -Vector3.UnitZ * 50 - Vector3.UnitY * 4, Range = 8f }
             );
             //await CurrentScene.AddCullRenderablesAsync(
             //    await SphereMesh.CreateAsync(new Transform(Vector3.UnitX * 10 - Vector3.UnitY * 4), specializations: new[] { new PhongMaterialMeshDataSpecialization(new PhongMaterialInfo(diffuseColor: new Vector4(.3f, 0, 0, 1f))) }),
@@ -740,10 +850,15 @@ namespace NtFreX.BuildingBlocks.Sample
 
         private void DestroyRenderContextResources()
         {
-            if (dublicatorViewPtr != null)
+            //if (dublicator1ViewPtr != null)
+            //{
+            //    Debug.Assert(RenderContext?.DuplicatorTargetView1 != null);
+            //    RemoveImGuiBinding(RenderContext.DuplicatorTargetView1);
+            //}
+            if (mainSceneResolvedColorViewPtr != null)
             {
-                Debug.Assert(RenderContext?.DuplicatorTargetView1 != null);
-                RemoveImGuiBinding(RenderContext.DuplicatorTargetView1);
+                Debug.Assert(RenderContext?.MainSceneResolvedColorView != null);
+                RemoveImGuiBinding(RenderContext.MainSceneResolvedColorView);
             }
             if (shadowmapNear != null)
             {
@@ -761,12 +876,30 @@ namespace NtFreX.BuildingBlocks.Sample
                 RemoveImGuiBinding(RenderContext.FarShadowMapView);
             }
         }
-        private void ResizeWindowSizedResources()
+        private async Task ResizeWindowSizedResourcesAsync()
         {
-            if (RenderContext?.DuplicatorTargetView1 != null)
-            {
-                dublicatorViewPtr = GetOrCreateImGuiBinding(RenderContext.DuplicatorTargetView1);
-            }
+            Debug.Assert(GraphicsDevice?.SwapchainFramebuffer != null);
+            Debug.Assert(RenderContext?.GNormalSpecTextureView != null);
+            //Debug.Assert(RenderContext?.DuplicatorTargetView1 != null);
+            Debug.Assert(RenderContext?.GAlbedoTextureView != null);
+            Debug.Assert(RenderContext?.GDepthTextureView != null);
+            Debug.Assert(RenderContext?.GCordTextureView != null);
+            Debug.Assert(RenderContext.MainSceneResolvedColorView != null);
+            Debug.Assert(Shell != null);
+
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync("specularTexturePreview", new Size((int)(GraphicsDevice.SwapchainFramebuffer.Width / 4), (int)(GraphicsDevice.SwapchainFramebuffer.Height / 4)),
+                new MaterialNode[] { new TextureMaterialNode(new StaticTextureProvider(RenderContext.GNormalSpecTextureView)), new CodeMaterialNode(Shell.IsDebug, transformVec4Code: "color = vec4(color.a, color.a, color.a, 1);") });
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync("normalTexturePreview", new Size((int)(GraphicsDevice.SwapchainFramebuffer.Width / 4), (int)(GraphicsDevice.SwapchainFramebuffer.Height / 4)),
+                new MaterialNode[] { new TextureMaterialNode(new StaticTextureProvider(RenderContext.GNormalSpecTextureView)), new CodeMaterialNode(Shell.IsDebug, transformVec4Code: "color = vec4(color.r, color.g, color.b, 1);") });
+
+
+            mainSceneResolvedColorViewPtr = GetOrCreateImGuiBinding(RenderContext.MainSceneResolvedColorView);
+            //dublicator1ViewPtr = GetOrCreateImGuiBinding(RenderContext.DuplicatorTargetView1);
+            gAlbedoViewPtr = GetOrCreateImGuiBinding(RenderContext.GAlbedoTextureView);
+            gDepthViewPtr = GetOrCreateImGuiBinding(RenderContext.GDepthTextureView);
+            gPosViewPtr = GetOrCreateImGuiBinding(RenderContext.GCordTextureView);
+            gSpecViewPtr = GetOrCreateImGuiBinding(MaterialTextureFactory.Instance.GetOutput("specularTexturePreview"));
+            gNormalViewPtr = GetOrCreateImGuiBinding(MaterialTextureFactory.Instance.GetOutput("normalTexturePreview"));
         }
 
         private Task CreateSkyboxAsync()
@@ -804,7 +937,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 mesh.WriteTo(fileName);
                 return ProtobufSerializableExtensions.ReadFrom<DefinedMeshData<VertexPosition, Index16>.Protobuf, DefinedMeshData<VertexPosition, Index16>>(fileName);
             }
-            await CurrentScene.AddCullRenderablesAsync(await MeshRenderer.CreateAsync(new DynamicMeshDataProvider(DynamicProvide), transform: new Transform(new Vector3(0, 100, 0))));
+            await CurrentScene.AddCullRenderablesAsync(await MeshRenderer.CreateAsync(new DynamicMeshDataProvider(DynamicProvide), transform: new Transform(new Vector3(0, 100, 0)), name: "saved_loaded_model"));
             File.Delete(fileName);
         }
 
@@ -836,6 +969,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 initialParticles,
                 new ParticleBoxBounds() { BoundingBoxMin = Vector3.One * -positionRange * 8, BoundingBoxMax = Vector3.One * positionRange * 8 },
                 resetBox, isDebug: Shell.IsDebug);
+            centerParticleRenderer.Name = "fireparticlesystem";
             await CurrentScene.AddCullRenderablesAsync(centerParticleRenderer);
         }
 
@@ -864,6 +998,7 @@ namespace NtFreX.BuildingBlocks.Sample
                 new ParticleBoxBounds { BoundingBoxMin = Vector3.One * -positionRange / 2, BoundingBoxMax = Vector3.One * positionRange / 2 },
                 new ParticleBoxReset { ResetBoxMin = new Vector3(-positionRange.X / 2, positionRange.Y / 2, -positionRange.Z / 2), ResetBoxMax = new Vector3(positionRange.X / 2, positionRange.Y / 2 - 1, positionRange.Z / 2) },
                 new DirectoryTextureProvider(TextureFactory, @"resources/models/textures/spnza_bricks_a_diff.png"), isDebug: Shell.IsDebug);
+            centerParticleRenderer.Name = "snowparticlesystem";
             await CurrentScene.AddCullRenderablesAsync(centerParticleRenderer);
         }
 
@@ -875,6 +1010,7 @@ namespace NtFreX.BuildingBlocks.Sample
             {
                 var boundingBox = await BoundingBoxMesh.CreateAsync(model.GetBoundingBox());
                 boundingBox.MeshData.DrawConfiguration.FillMode.Value = PolygonFillMode.Wireframe;
+                boundingBox.Name = model.Name + "_boundingbox";
                 await CurrentScene.AddCullRenderablesAsync(boundingBox);
             }
         }
@@ -892,7 +1028,12 @@ namespace NtFreX.BuildingBlocks.Sample
 
             //TODO: scrolling textures with a material node is unperformant
             var scrollingWoodTexture = "scrollingFloorTexture";
-            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, /*new TextureMaterialNode(textureProvider)*/ new PerlinNoiseMaterialNode(isDebug), new WoodMaterialNode(isDebug), new ScrollingMaterialNode(isDebug));
+            await MaterialTextureFactory.Instance.TryCreateMaterialTextureAsync(scrollingWoodTexture, 1024, 
+                /*new TextureMaterialNode(textureProvider)*/ new PerlinNoiseMaterialNode(isDebug), 
+                new WoodMaterialNode(isDebug), 
+                new ScrollingMaterialNode(isDebug)
+                //new CodeMaterialNode(isDebug, transformVec4Code: "color = normalize(color) * 16;")
+            );
             var materialNodeTexture = new MaterialTextureProvider(scrollingWoodTexture);
 
             var plane = await PlaneMesh.CreateAsync(

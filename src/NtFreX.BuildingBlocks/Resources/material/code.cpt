@@ -1,0 +1,19 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D TexIn;
+layout(set = 0, binding = 1, rgba32f) uniform image2D TexOut;
+
+layout(local_size_x = #{computeX}, local_size_y = #{computeY}, local_size_z = 1) in;
+void main()
+{
+    vec2 inputCords = gl_GlobalInvocationID.xy;
+    #{transformInputCordsCode}
+
+    vec4 color = imageLoad(TexIn, ivec2(inputCords.xy));
+    #{transformVec4Code}
+
+    vec2 outputCords = gl_GlobalInvocationID.xy;
+    #{transformCouputCordsCode}
+
+    imageStore(TexOut, ivec2(outputCords.xy), color);
+}

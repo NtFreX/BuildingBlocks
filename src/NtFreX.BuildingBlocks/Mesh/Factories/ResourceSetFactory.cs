@@ -7,11 +7,12 @@ namespace NtFreX.BuildingBlocks.Mesh.Factories
     {
         private static readonly ConcurrentDictionary<ResourceSetDescription, ResourceSet> resourceSets = new ();
 
-        public static ResourceSet GetResourceSet(ResourceFactory resourceFactory, ResourceSetDescription description)
+        public static ResourceSet GetResourceSet(ResourceFactory resourceFactory, ResourceSetDescription description, string name)
         {
             if (!resourceSets.TryGetValue(description, out var set))
             {
                 set = resourceFactory.CreateResourceSet(ref description);
+                set.Name = name;
                 resourceSets.AddOrUpdate(description, set, (_, value) => value);
             }
             return set;

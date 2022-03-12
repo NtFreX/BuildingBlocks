@@ -38,8 +38,6 @@ namespace NtFreX.BuildingBlocks.Mesh
         public readonly IMutable<Transform> Transform;
         public readonly SpecializedMeshData MeshData;
 
-        public string? Name { get; set; }
-
         public uint IndexCount { get; private set; }
         public PooledDeviceBuffer? VertexBuffer { get; private set; }
         public ResourceSet? WorldResourceSet { get; private set; }
@@ -87,13 +85,16 @@ namespace NtFreX.BuildingBlocks.Mesh
 
         private void UpdateRenderPasses()
         {
+            //TODO: decouple
+            var defaultRenderPasses = RenderPasses.Geometry | RenderPasses.Forward | RenderPasses.AllShadowMap;
+            var alphaRenderPasses = RenderPasses.GeometryAlpha | RenderPasses.AlphaBlend | RenderPasses.AllShadowMap;
             if (MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var specialization))
             {
-                renderPasses = specialization.Material.Value.Opacity == 1f ? RenderPasses.Standard | RenderPasses.AllShadowMap : RenderPasses.AlphaBlend | RenderPasses.AllShadowMap;
+                renderPasses = specialization.Material.Value.Opacity == 1f ? defaultRenderPasses : alphaRenderPasses;
             }
             else
             {
-                renderPasses = RenderPasses.Standard | RenderPasses.AllShadowMap;
+                renderPasses = defaultRenderPasses;
             }
         }
 
@@ -272,12 +273,12 @@ namespace NtFreX.BuildingBlocks.Mesh
 
             //TODO: use render context for pipeline output!
             var worldLayout = ResourceLayoutFactory.GetWorldLayout(CurrentResourceFactory);
-            WorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), deviceBufferPool);
-            WorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(worldLayout, WorldBuffer.RealDeviceBuffer));
+            WorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), "meshRenderer_worldBuffer_" + Name, deviceBufferPool);
+            WorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(worldLayout, WorldBuffer.RealDeviceBuffer), "meshRenderer_worldResourceSet_" + Name);
 
             var inverseWorldLayout = ResourceLayoutFactory.GetInverseWorldLayout(resourceFactory);
-            InverseWorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), deviceBufferPool);
-            InverseWorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(inverseWorldLayout, InverseWorldBuffer.RealDeviceBuffer));
+            InverseWorldBuffer = CurrentResourceFactory.CreatedPooledBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic), "meshRenderer_inverseworldBuffer_" + Name, deviceBufferPool);
+            InverseWorldResourceSet = ResourceSetFactory.GetResourceSet(CurrentResourceFactory, new ResourceSetDescription(inverseWorldLayout, InverseWorldBuffer.RealDeviceBuffer), "meshRenderer_inverseworldResourceSet_" + Name);
 
             hasWorldChanged = true;
 

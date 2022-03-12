@@ -126,11 +126,12 @@ namespace NtFreX.BuildingBlocks.Mesh
             var framebuffer = shadowmapIndex == 0 ? renderContext.NearShadowMapFramebuffer :
                               shadowmapIndex == 1 ? renderContext.MidShadowMapFramebuffer :
                               shadowmapIndex == 2 ? renderContext.FarShadowMapFramebuffer : throw new Exception();
-
-            commandList.SetPipeline(GraphicsPipelineFactory.GetGraphicsPipeline(
-                graphicsDevice, resourceFactory, ResourceLayouts, framebuffer, ShaderSetDescription, 
+            var pipeline = GraphicsPipelineFactory.GetGraphicsPipeline(
+                graphicsDevice, resourceFactory, ResourceLayouts, framebuffer, ShaderSetDescription,
                 meshRenderer.MeshData.DrawConfiguration.PrimitiveTopology.Value, meshRenderer.MeshData.DrawConfiguration.FillMode.Value,
-                BlendStateDescription.Empty, meshRenderer.MeshData.DrawConfiguration.FaceCullMode.Value));
+                BlendStateDescription.Empty, meshRenderer.MeshData.DrawConfiguration.FaceCullMode.Value);
+            pipeline.Name = nameof(ShadowmapMeshRenderPass) + shadowmapIndex.ToString();
+            commandList.SetPipeline(pipeline);
         }
 
         protected override void BindResources(MeshRenderer meshRenderer, Scene scene, RenderContext renderContext, CommandList commandList)

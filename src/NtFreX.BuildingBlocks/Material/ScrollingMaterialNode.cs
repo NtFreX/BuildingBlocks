@@ -36,13 +36,16 @@ namespace NtFreX.BuildingBlocks.Material
             computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, new Dictionary<string, string> { 
                 { "width", Input.Target.Width.ToString() }, { "height", Input.Target.Height.ToString() },
                 { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() } }, "Resources/material/scrolling.cpt", isDebug);
+            computeShader.Name = MaterialName + "_scrollingmaterialnode_computeShader";
 
             scrollBuffer = resourceFactory.CreateBuffer(new BufferDescription(16, BufferUsage.UniformBuffer));
+            scrollBuffer.Name = MaterialName + "_scrollingmaterialnode_scrollBuffer";
 
             computeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadOnly, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("ScrollBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+            computeLayout.Name = MaterialName + "_scrollingmaterialnode_computeLayout";
 
             var computePipelineDesc = new ComputePipelineDescription(
                 computeShader,
@@ -50,6 +53,7 @@ namespace NtFreX.BuildingBlocks.Material
                 computeX, computeY, 1);
 
             computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
+            computePipeline.Name = MaterialName + "_scrollingmaterialnode_computePipeline";
 
             OutputTexture = resourceFactory.CreateTexture(TextureDescription.Texture2D(
                 Input.Target.Width,
@@ -58,12 +62,15 @@ namespace NtFreX.BuildingBlocks.Material
                 1,
                 PixelFormat.R32_G32_B32_A32_Float,
                 TextureUsage.Sampled | TextureUsage.Storage));
+            OutputTexture.Name = MaterialName + "_scrollingmaterialnode_OutputTexture";
 
             Output = resourceFactory.CreateTextureView(OutputTexture);
+            Output.Name = MaterialName + "_scrollingmaterialnode_Output";
 
             computeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
                 computeLayout,
                 Input, Output, scrollBuffer));
+            computeResourceSet.Name = MaterialName + "_scrollingmaterialnode_computeResourceSet";
 
             return Task.CompletedTask;
         }

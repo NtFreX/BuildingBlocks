@@ -76,7 +76,7 @@ namespace NtFreX.BuildingBlocks.Standard
             public override string Precompile()
             {
                 if(includeContext.TryAddInclude(path, basePath, out var normalizedPath))
-                    return currentCompiler.Precompile(File.ReadAllText(normalizedPath), normalizedPath);
+                    return currentCompiler.Precompile(File.ReadAllText(normalizedPath), normalizedPath, includeContext);
 
                 return string.Empty;
             }
@@ -404,7 +404,11 @@ namespace NtFreX.BuildingBlocks.Standard
             }
         }
 
+
         public string Precompile(string shaderText, string filePath)
+            => Precompile(shaderText, filePath, new ShaderIncludeContext());
+
+        private string Precompile(string shaderText, string filePath, ShaderIncludeContext includeContext)
         {
             var tokens = new List<ShaderSyntaxToken>();
             var lineNumber = 1;
@@ -418,7 +422,6 @@ namespace NtFreX.BuildingBlocks.Standard
                 lineNumber++;
             }
 
-            var includeContext = new ShaderIncludeContext();
             var syntaxTree = ParseSyntaxTree(tokens, includeContext);
             var text = new StringBuilder();
             foreach(var node in syntaxTree)

@@ -13,9 +13,10 @@ namespace NtFreX.BuildingBlocks.Light
         public const float BScale = 1f;
         public const float NScale = 4f;
         public const float FScale = 4f;
-        public const float NearCascadeLimit = 100;
-        public const float MidCascadeLimit = 300;
-        public const float FarCascadeLimit = 900;
+
+        public readonly float NearCascadeLimit = 100;
+        public readonly float MidCascadeLimit = 300;
+        public readonly float FarCascadeLimit = 900;
 
         public VeldridTexture NearShadowMap { get; private set; }
         public TextureView NearShadowMapView { get; private set; }
@@ -30,25 +31,30 @@ namespace NtFreX.BuildingBlocks.Light
         public Framebuffer FarShadowMapFramebuffer { get; private set; }
 
         //TODO: support more cascades
-        public CascadedShadowMaps(GraphicsDevice gd, float shadowDetail = 2f)
+        public CascadedShadowMaps(GraphicsDevice gd, ResourceFactory resourceFactory, uint shadowMapResolution = 2048 * 2048)
         {
-            var factory = gd.ResourceFactory;
-            TextureDescription desc = TextureDescription.Texture2D((uint)(2048 * shadowDetail), (uint)(2048 * shadowDetail), 1, 1, PixelFormat.D32_Float_S8_UInt, TextureUsage.DepthStencil | TextureUsage.Sampled);
-            NearShadowMap = factory.CreateTexture(desc);
-            NearShadowMap.Name = "Near Shadow Map";
-            NearShadowMapView = factory.CreateTextureView(NearShadowMap);
-            NearShadowMapFramebuffer = factory.CreateFramebuffer(new FramebufferDescription(
-                new FramebufferAttachmentDescription(NearShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            var size = (uint) Math.Sqrt(shadowMapResolution);
+            TextureDescription desc = TextureDescription.Texture2D(size, size, 1, 1, PixelFormat.D32_Float_S8_UInt, TextureUsage.DepthStencil | TextureUsage.Sampled);
+            NearShadowMap = resourceFactory.CreateTexture(desc);
+            NearShadowMap.Name = "Near Shadow Map Texture";
+            NearShadowMapView = resourceFactory.CreateTextureView(NearShadowMap);
+            NearShadowMapView.Name = "Near Shadow Map View";
+            NearShadowMapFramebuffer = resourceFactory.CreateFramebuffer(new FramebufferDescription(new FramebufferAttachmentDescription(NearShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            NearShadowMapFramebuffer.Name = "Near Shadow Map Framebuffer";
 
-            MidShadowMap = factory.CreateTexture(desc);
-            MidShadowMapView = factory.CreateTextureView(new TextureViewDescription(MidShadowMap, 0, 1, 0, 1));
-            MidShadowMapFramebuffer = factory.CreateFramebuffer(new FramebufferDescription(
-                new FramebufferAttachmentDescription(MidShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            MidShadowMap = resourceFactory.CreateTexture(desc);
+            MidShadowMap.Name = "Mid Shadow Map Texture";
+            MidShadowMapView = resourceFactory.CreateTextureView(new TextureViewDescription(MidShadowMap, 0, 1, 0, 1));
+            MidShadowMapView.Name = "Mid Shadow Map View";
+            MidShadowMapFramebuffer = resourceFactory.CreateFramebuffer(new FramebufferDescription(new FramebufferAttachmentDescription(MidShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            MidShadowMapFramebuffer.Name = "Mid Shadow Map Framebuffer";
 
-            FarShadowMap = factory.CreateTexture(desc);
-            FarShadowMapView = factory.CreateTextureView(new TextureViewDescription(FarShadowMap, 0, 1, 0, 1));
-            FarShadowMapFramebuffer = factory.CreateFramebuffer(new FramebufferDescription(
-                new FramebufferAttachmentDescription(FarShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            FarShadowMap = resourceFactory.CreateTexture(desc);
+            FarShadowMap.Name = "Far Shadow Map Texture";
+            FarShadowMapView = resourceFactory.CreateTextureView(new TextureViewDescription(FarShadowMap, 0, 1, 0, 1));
+            FarShadowMapView.Name = "Far Shadow Map View";
+            FarShadowMapFramebuffer = resourceFactory.CreateFramebuffer(new FramebufferDescription(new FramebufferAttachmentDescription(FarShadowMap, 0), Array.Empty<FramebufferAttachmentDescription>()));
+            FarShadowMapFramebuffer.Name = "Far Shadow Map Framebuffer";
         }
 
         public void DestroyDeviceObjects()

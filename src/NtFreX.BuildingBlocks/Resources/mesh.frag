@@ -25,25 +25,20 @@
 #endif
 #if hasLights
     #define MAX_POINT_LIGHTS #{maxPointLights}
-
+    
     struct PointLightInfo
     {
         vec3 Position;
         float _padding0;
-
+    
         vec4 Color;
-
+    
         float Range;
+        float Intensity; // TODO: use this correctly
         float _padding2;
         float _padding3;
-        float _padding4;
-
-        float Intensity; // TODO: use this correctly
-        float _padding5;
-        float _padding6;
-        float _padding7;
     };
-
+    
     layout(set = #{lightSet}, binding = 0) uniform DirectionalLightBuffer
     {
         vec4 AmbientLight;
@@ -61,18 +56,18 @@
         float _PointLightCollectionBuffer_padding2;
     };
 
-    layout(set = #{shadowSet}, binding = 6) uniform ShadowBuffer
+    layout(set = #{shadowFragmentSet}, binding = 0) uniform ShadowBuffer
     {
         float NearLimit;
         float MidLimit;
         float FarLimit;
         float _ShadowBuffer_padding_0;
     };
-
-    layout(set = #{shadowSet}, binding = 7) uniform texture2D ShadowMapNear;
-    layout(set = #{shadowSet}, binding = 8) uniform texture2D ShadowMapMid;
-    layout(set = #{shadowSet}, binding = 9) uniform texture2D ShadowMapFar;
-    layout(set = #{shadowSet}, binding = 10) uniform sampler ShadowMapSampler;
+    
+    layout(set = #{shadowFragmentSet}, binding = 1) uniform texture2D ShadowMapNear;
+    layout(set = #{shadowFragmentSet}, binding = 2) uniform texture2D ShadowMapMid;
+    layout(set = #{shadowFragmentSet}, binding = 3) uniform texture2D ShadowMapFar;
+    layout(set = #{shadowFragmentSet}, binding = 4) uniform sampler ShadowMapSampler;
 #endif
 
 #if hasMaterial
@@ -129,12 +124,12 @@ vec2 ClipToUV(vec4 clip)
         if (ReverseDepthRange) { return a > b; }
         else { return a < b; }
     }
-
+    
     bool InRange(float val, float min, float max)
     {
         return val >= min && val <= max;
     }
-
+    
     float SampleDepthMap(int index, vec2 coord)
     {
         if (index == 0)

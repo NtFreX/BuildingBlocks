@@ -23,5 +23,5 @@
     layout(location = #{instancePositionLocation}) in vec3 InstancePosition;
     layout(location = #{instanceRotationLocation}) in vec3 InstanceRotation;
     layout(location = #{instanceScaleLocation}) in vec3 InstanceScale;
-    layout(location = #{instanceTexArrayIndexLocation}) in int InstanceTexArrayIndex;
+    layout(location = #{instanceTexArrayIndexLocation}) in uint InstanceTexArrayIndex;
 #endif

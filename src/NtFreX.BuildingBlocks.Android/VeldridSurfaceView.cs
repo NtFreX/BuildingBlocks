@@ -10,6 +10,7 @@ namespace NtFreX.BuildingBlocks.Android
     public class VeldridSurfaceView : SurfaceView, ISurfaceHolderCallback
     {
         private readonly GraphicsBackend backend;
+
         protected GraphicsDeviceOptions DeviceOptions { get; }
         private bool surfaceDestroyed;
         private bool paused;
@@ -20,7 +21,7 @@ namespace NtFreX.BuildingBlocks.Android
         public GraphicsDevice? GraphicsDevice { get; protected set; }
         public Swapchain? MainSwapchain { get; protected set; }
 
-        public event Action? Rendering;
+        public event Func<Task>? RenderingAsync;
         public event Action? DeviceCreated;
         public event Action? DeviceDisposed;
         public event Action? Resized;
@@ -111,8 +112,10 @@ namespace NtFreX.BuildingBlocks.Android
             needsResize = true;
         }
 
-        public void RunRenderLoop()
+        public async Task RunRenderLoopAsync()
         {
+            Debug.Assert(RenderingAsync != null);
+
             enabled = true;
             while (enabled)
             {
@@ -135,7 +138,7 @@ namespace NtFreX.BuildingBlocks.Android
 
                     if (GraphicsDevice != null)
                     {
-                        Rendering?.Invoke();
+                        await RenderingAsync.Invoke();
                     }
                 }
                 catch (Exception e)

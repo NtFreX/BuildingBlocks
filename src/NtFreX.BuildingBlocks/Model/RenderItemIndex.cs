@@ -1,6 +1,6 @@
 ﻿namespace NtFreX.BuildingBlocks.Model;
 
-internal struct RenderItemIndex : IComparable<RenderItemIndex>, IComparable
+public struct RenderItemIndex : IComparable<RenderItemIndex>, IComparable
 {
     public RenderOrderKey Key { get; }
     public int ItemIndex { get; }

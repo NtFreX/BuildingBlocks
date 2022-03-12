@@ -1,4 +1,5 @@
 ﻿using NtFreX.BuildingBlocks.Cameras;
+using NtFreX.BuildingBlocks.Input;
 using NtFreX.BuildingBlocks.Light;
 using NtFreX.BuildingBlocks.Model.Common;
 using NtFreX.BuildingBlocks.Standard;
@@ -35,8 +36,8 @@ namespace NtFreX.BuildingBlocks.Model
             LightSystem = new Mutable<LightSystem?>(null, this);
             LightSystem.ValueChanging += (_, args) => UpdateLightSystem(args.OldValue, args.NewValue);
 
-            AddFreeRenderableCore(new ScreenDuplicator(isDebug));
-            AddFreeRenderableCore(new FullScreenQuad(isDebug));
+            //AddFreeRenderableCore(new ScreenDuplicator(isDebug));
+            //AddFreeRenderableCore(new FullScreenQuad(isDebug));
         }
 
         internal void DestroyAllDeviceObjects()
@@ -89,6 +90,19 @@ namespace NtFreX.BuildingBlocks.Model
 
             await Task.WhenAll(tasks);
             CommandListPool.TrySubmit(graphicsDevice, cl, commandListPool);
+        }
+
+        public void Update(float deltaSeconds, InputHandler inputHandler)
+        {
+            Camera.Value?.BeforeModelUpdate(inputHandler, deltaSeconds);
+
+            foreach (var model in Updateables)
+            {
+                model.Update(deltaSeconds, inputHandler);
+            }
+
+            Camera.Value?.AfterModelUpdate(inputHandler, deltaSeconds);
+            LightSystem.Value?.Update();
         }
 
         public void GetContainedRenderables(BoundingFrustum frustum, List<Renderable> renderables)

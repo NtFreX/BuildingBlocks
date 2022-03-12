@@ -40,7 +40,7 @@ internal class TextIndexBuffer
         if (IndexBuffer == null)
         {
             var desc = new BufferDescription((uint)(MaxTextLength * 6 * Marshal.SizeOf(typeof(ushort))), BufferUsage.IndexBuffer);
-            IndexBuffer = resourceFactory.CreatedPooledBuffer(desc, deviceBufferPool);
+            IndexBuffer = resourceFactory.CreatedPooledBuffer(desc, "text_indexbuffer", deviceBufferPool);
             commandList.UpdateBuffer(IndexBuffer.RealDeviceBuffer, 0, BuildIndices());
         }
     }

@@ -53,7 +53,8 @@ public static class PlaneMesh
         {
             for (float j = 0; j < columns; j++)
             {
-                vertices.Add(new VertexPositionNormalTextureColor(new Vector3(i + halfRows, 0, j + halfColumns), color, new Vector2(i + i % 1 - rows, j + j % 1 - columns), new Vector3(0, 1, 0)));
+                //TODO: fix normal
+                vertices.Add(new VertexPositionNormalTextureColor(new Vector3(i + halfRows, 0, j + halfColumns), color, new Vector2(i + i % 1 - rows, j + j % 1 - columns), new Vector3(0, -1f, 0)));
             }
         }
         return vertices.ToArray();

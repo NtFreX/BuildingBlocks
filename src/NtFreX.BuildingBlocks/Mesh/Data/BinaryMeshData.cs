@@ -154,7 +154,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Data
             var vertexSize = GetVertexSize();
             var vertices = Enumerable.Range(0, indexCount - 1).Select(GetVertexData).SelectMany(x => x).ToArray();
             var desc = new BufferDescription((uint)(indexCount * vertexSize), BufferUsage.VertexBuffer);
-            var vb = factory.CreatedPooledBuffer(desc, deviceBufferPool);
+            var vb = factory.CreatedPooledBuffer(desc, "binarymesh_vertexbuffer", deviceBufferPool);
             commandList.UpdateBuffer(vb.RealDeviceBuffer, 0, vertices);
             return vb;
         }
@@ -166,7 +166,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Data
             var indices = Enumerable.Range(0, indexCount - 1).Select(x => GetIndexData(x).ToArray()).SelectMany(x => x).ToArray();
 
             var desc = new BufferDescription((uint)indices.Length, BufferUsage.IndexBuffer);
-            var ib = factory.CreatedPooledBuffer(desc, deviceBufferPool);
+            var ib = factory.CreatedPooledBuffer(desc, "binarymesh_indexbuffer", deviceBufferPool);
             commandList.UpdateBuffer(ib.RealDeviceBuffer, 0, indices);
             return ib;
         }

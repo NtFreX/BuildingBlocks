@@ -73,7 +73,7 @@ public class InstancedMeshDataSpecialization : MeshDataSpecialization, IEquatabl
 
         Debug.Assert(Instances.Value != null);
 
-        InstanceBuffer = resourceFactory.GetInstanceBuffer(graphicsDevice, Instances.Value, deviceBufferPool);
+        InstanceBuffer = resourceFactory.GetInstanceBuffer(graphicsDevice, Instances.Value, "instancedspecialization", deviceBufferPool);
 
         return Task.CompletedTask;
     }

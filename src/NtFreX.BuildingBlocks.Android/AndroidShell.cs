@@ -1,11 +1,16 @@
 ﻿using Android.Content;
+using Microsoft.Extensions.Logging;
 using NtFreX.BuildingBlocks.Shell;
+using System.Diagnostics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Android
 {
-    public class AndroidShell : IShell
+    public class AndroidShell<TGame> : IShell
+        where TGame : Game, new()
     {
+        private readonly ILoggerFactory loggerFactory;
+
         public VeldridSurfaceView View { get; private set; }
 
         public uint Width => (uint)View.Width;
@@ -14,25 +19,27 @@ namespace NtFreX.BuildingBlocks.Android
         public bool IsDebug { get;private set; }
 
         public event Func<Task>? RenderingAsync;
-        public event Action<InputSnapshot>? Updating;
+        public event Func<InputSnapshot, Task>? UpdatingAsync;
         public event Func<GraphicsDevice, ResourceFactory, Swapchain, Task>? GraphicsDeviceCreated;
         public event Action? GraphicsDeviceDestroyed;
         public event Action? Resized;
 
-        public AndroidShell(Context context, bool isDebug)
+        public AndroidShell(Context context, ILoggerFactory loggerFactory, bool isDebug)
         {
+            this.loggerFactory = loggerFactory;
+
+            IsDebug = isDebug;
+
             this.View = new VeldridSurfaceView(context, isDebug);
-            this.View.Rendering += OnRendering;
+            this.View.RenderingAsync += OnRenderingAsync;
             this.View.DeviceCreated += OnDeviceCreated;
             this.View.Resized += () => Resized?.Invoke();
             this.View.DeviceDisposed += () => GraphicsDeviceDestroyed?.Invoke();
-
-            IsDebug = isDebug;
         }
 
         private void OnDeviceCreated()
         {
-            _ = RunAsync();
+            Task.Factory.StartNew(() => RunAsync(), TaskCreationOptions.LongRunning);
         }
 
         public void OnPause()
@@ -45,22 +52,25 @@ namespace NtFreX.BuildingBlocks.Android
             View.OnResume();
         }
 
-        private void OnRendering()
+        private async Task OnRenderingAsync()
         {
-            Updating?.Invoke(new AndroidInputSnapshot());
-            if(Rendering != null)
-                Rendering.Invoke();
+            Debug.Assert(UpdatingAsync != null);
+            Debug.Assert(RenderingAsync != null);
+
+            await UpdatingAsync.Invoke(new AndroidInputSnapshot());
+            await RenderingAsync.Invoke();
         }
 
         public async Task RunAsync()
         {
-            await Task.Run(async () =>
+            await Game.SetupShellAsync<TGame>(this, loggerFactory);
+
+            if (GraphicsDeviceCreated != null)
             {
-                if (GraphicsDeviceCreated != null)
-                {
-                    await GraphicsDeviceCreated.Invoke(View.GraphicsDevice!, View.GraphicsDevice!.ResourceFactory, View.GraphicsDevice.MainSwapchain);
-                }
-            });
+                await GraphicsDeviceCreated.Invoke(View.GraphicsDevice!, View.GraphicsDevice!.ResourceFactory, View.GraphicsDevice.MainSwapchain);
+            }
+
+            await View.RunRenderLoopAsync();
         }
     }
 }

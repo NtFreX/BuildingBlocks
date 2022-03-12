@@ -31,10 +31,12 @@ namespace NtFreX.BuildingBlocks.Material
                     { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() },
                     { "width", Input.Target.Width.ToString() }, { "height", Input.Target.Height.ToString() },
                     { "lineScale", "10.0" }, { "rotationX", "12" }, { "rotationY", "3" }, { "lineModifier", ".9" } }, "Resources/material/wood.cpt", isDebug);
+            computeShader.Name = MaterialName + "_shiftinggmaterialnode_computeShader";
 
             computeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadOnly, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute)));
+            computeLayout.Name = MaterialName + "_shiftinggmaterialnode_computeLayout";
 
             var computePipelineDesc = new ComputePipelineDescription(
                 computeShader,
@@ -42,6 +44,7 @@ namespace NtFreX.BuildingBlocks.Material
                 computeX, computeY, 1);
 
             computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
+            computePipeline.Name = MaterialName + "_shiftinggmaterialnode_computePipeline";
 
             OutputTexture = resourceFactory.CreateTexture(TextureDescription.Texture2D(
                 Input.Target.Width,
@@ -50,12 +53,15 @@ namespace NtFreX.BuildingBlocks.Material
                 1,
                 PixelFormat.R32_G32_B32_A32_Float,
                 TextureUsage.Sampled | TextureUsage.Storage));
+            OutputTexture.Name = MaterialName + "_shiftinggmaterialnode_OutputTexture";
 
             Output = resourceFactory.CreateTextureView(OutputTexture);
+            Output.Name = MaterialName + "_shiftinggmaterialnode_Output";
 
             computeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
                 computeLayout,
                 Input, Output));
+            computeResourceSet.Name = MaterialName + "_shiftinggmaterialnode_computeResourceSet";
 
             return Task.CompletedTask;
         }

@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace NtFreX.BuildingBlocks.Model;
 
-internal class RenderQueue : IEnumerable<Renderable>
+public class RenderQueue : IEnumerable<Renderable>
 {
     private const int DefaultCapacity = 250;
 

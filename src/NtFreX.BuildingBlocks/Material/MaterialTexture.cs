@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using SixLabors.ImageSharp;
+using System.Diagnostics;
 using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Material
@@ -6,11 +7,11 @@ namespace NtFreX.BuildingBlocks.Material
     internal class MaterialTexture
     {
         public string Name { get; }
-        public uint Size { get; }
+        public Size Size { get; }
         public MaterialNode[] MaterialNodes { get; }
         public TextureView? Output => MaterialNodes.Last().Output;
 
-        public MaterialTexture(MaterialNode[] materialNodes, uint size, string name)
+        public MaterialTexture(MaterialNode[] materialNodes, Size size, string name)
         {
             this.MaterialNodes = materialNodes;
             this.Size = size;
@@ -23,6 +24,8 @@ namespace NtFreX.BuildingBlocks.Material
             foreach (var node in MaterialNodes)
             {
                 node.Input = currentInput;
+                node.MaterialName = Name;
+
                 //TODO: do not await here => group them
                 await node.CreateDeviceResourcesAsync(graphicsDevice, resourceFactory);
                 

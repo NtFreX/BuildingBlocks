@@ -36,13 +36,16 @@ namespace NtFreX.BuildingBlocks.Material
             Debug.Assert(Input != null);
 
             computeShader = ShaderPrecompiler.CompileComputeShader(graphicsDevice, resourceFactory, new Dictionary<string, bool> { }, new Dictionary<string, string> { { "computeX", computeX.ToString() }, { "computeY", computeY.ToString() } }, "Resources/material/shifting.cpt", isDebug);
+            computeShader.Name = MaterialName + "_shiftingingmaterialnode_computeShader";
 
             shiftBuffer = resourceFactory.CreateBuffer(new BufferDescription(16, BufferUsage.UniformBuffer));
+            shiftBuffer.Name = MaterialName + "_shiftingingmaterialnode_shiftBuffer";
 
             computeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("TexIn", ResourceKind.TextureReadOnly, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("TexOut", ResourceKind.TextureReadWrite, ShaderStages.Compute),
                 new ResourceLayoutElementDescription("ShiftBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+            computeLayout.Name = MaterialName + "_shiftingingmaterialnode_computeLayout";
 
             var computePipelineDesc = new ComputePipelineDescription(
                 computeShader,
@@ -50,6 +53,7 @@ namespace NtFreX.BuildingBlocks.Material
                 computeX, computeY, 1);
 
             computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
+            computePipeline.Name = MaterialName + "_shiftingingmaterialnode_computePipeline";
 
             OutputTexture = resourceFactory.CreateTexture(TextureDescription.Texture2D(
                 Input.Target.Width,
@@ -58,12 +62,15 @@ namespace NtFreX.BuildingBlocks.Material
                 1,
                 PixelFormat.R32_G32_B32_A32_Float,
                 TextureUsage.Sampled | TextureUsage.Storage));
+            OutputTexture.Name = MaterialName + "_shiftingingmaterialnode_OutputTexture";
 
             Output = resourceFactory.CreateTextureView(OutputTexture);
+            Output.Name = MaterialName + "_shiftingingmaterialnode_Output";
 
             computeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(
                 computeLayout,
                 Input, Output, shiftBuffer));
+            computeResourceSet.Name = MaterialName + "_shiftingingmaterialnode_computeResourceSet";
 
             return Task.CompletedTask;
         }

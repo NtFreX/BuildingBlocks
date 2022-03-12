@@ -51,8 +51,8 @@ namespace NtFreX.BuildingBlocks.Shell
 
             var graphicsDeviceOptions = this.graphicsDeviceOptions ?? new GraphicsDeviceOptions
             {
-                SwapchainDepthFormat = PixelFormat.R32_Float,
-                HasMainSwapchain = true,
+                SwapchainDepthFormat = null,
+                HasMainSwapchain = false,
                 SwapchainSrgbFormat = true,
                 SyncToVerticalBlank = false, 
                 ResourceBindingModel = ResourceBindingModel.Improved,

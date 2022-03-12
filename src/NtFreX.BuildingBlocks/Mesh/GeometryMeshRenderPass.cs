@@ -10,7 +10,8 @@ using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Mesh
 {
-    public class DefaultMeshRenderPass : MeshRenderPass
+    //TODO: support reflections
+    public class GeometryMeshRenderPass : MeshRenderPass
     {
         public class VertexResourceLayoutConfig
         {
@@ -25,12 +26,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             public bool RequiresInstanceBuffer;
             public bool RequiresAlphaMap;
             public bool RequiresNormalMap;
-            public bool RequiresLights;
-            public bool RequiresReflection; // TODO: support in mesh buffer
+            public bool RequiresSpecularMap;
             public bool RequiresMaterial;
 
             public override int GetHashCode()
-                => (VertexLayout, IsPositionNormalTextureCoordinateColor, IsPositionNormalTextureCoordinate, IsPositionNormal, IsPosition, RequiresBones, RequiresSurfaceTexture, RequiresInstanceBuffer, RequiresAlphaMap, RequiresNormalMap, RequiresLights, RequiresReflection, RequiresMaterial).GetHashCode();
+                => (VertexLayout, IsPositionNormalTextureCoordinateColor, IsPositionNormalTextureCoordinate, IsPositionNormal, IsPosition, RequiresBones, RequiresSurfaceTexture, RequiresInstanceBuffer, RequiresAlphaMap, RequiresNormalMap, RequiresSpecularMap, RequiresMaterial).GetHashCode();
         }
 
         private readonly VertexResourceLayoutConfig config;
@@ -42,12 +42,10 @@ namespace NtFreX.BuildingBlocks.Mesh
         private readonly int alphaMapTextureSetIndex;
         private readonly int normalMapTextureSetIndex;
         private readonly int boneTransformationsSetIndex;
-        private readonly int reflectionSetIndex;
-        private readonly int lightSetIndex;
-        private readonly int shadowSetIndex;
+        private readonly int specularMapSetIndex;
         private readonly int materialSetIndex;
 
-        public static Task<DefaultMeshRenderPass[]> GetAllConfigurationsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, bool isDebug = false)
+        public static Task<GeometryMeshRenderPass[]> GetAllConfigurationsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, bool isDebug = false)
         {
             var vertexLayouts = new List<VertexResourceLayoutConfig>
             {
@@ -71,17 +69,16 @@ namespace NtFreX.BuildingBlocks.Mesh
                     RequiresSurfaceTexture = mutation[1],
                     RequiresInstanceBuffer = mutation[2],
                     RequiresAlphaMap = mutation[3],
-                    RequiresLights = mutation[4],
+                    RequiresSpecularMap = mutation[4],
                     RequiresMaterial = mutation[5],
-                    RequiresNormalMap = mutation[6],
-                    RequiresReflection = false // TODO: implement
+                    RequiresNormalMap = mutation[6]
                 }).ToArray();
             }).Select(config => Task.Run(() => Create(graphicsDevice, resourceFactory, config, isDebug))));
         }
 
-        public DefaultMeshRenderPass(ShaderSetDescription shaderSetDescription, ResourceLayout[] resourceLayouts, VertexResourceLayoutConfig config, 
-            int viewProjectionSetIndex, int worldSetIndex, int inverseWorldSetIndex, int cameraInfoSetIndex, int surfaceTextureSetIndex, int alphaMapTextureSetIndex, int normalMapTextureSetIndex, int boneTransformationsSetIndex,
-            int reflectionSet, int lightSetIndex, int shadowSetIndex, int materialSetIndex)
+        public GeometryMeshRenderPass(ShaderSetDescription shaderSetDescription, ResourceLayout[] resourceLayouts, VertexResourceLayoutConfig config, 
+            int viewProjectionSetIndex, int worldSetIndex, int inverseWorldSetIndex, int cameraInfoSetIndex, int surfaceTextureSetIndex, 
+            int alphaMapTextureSetIndex, int normalMapTextureSetIndex, int specularMapSetIndex, int boneTransformationsSetIndex, int materialSetIndex)
             : base(shaderSetDescription, resourceLayouts)
         {
             this.config = config;
@@ -93,13 +90,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             this.alphaMapTextureSetIndex = alphaMapTextureSetIndex;
             this.normalMapTextureSetIndex = normalMapTextureSetIndex;
             this.boneTransformationsSetIndex = boneTransformationsSetIndex;
-            this.reflectionSetIndex = reflectionSet;
-            this.lightSetIndex = lightSetIndex;
-            this.shadowSetIndex = shadowSetIndex;
+            this.specularMapSetIndex = specularMapSetIndex;
             this.materialSetIndex = materialSetIndex;
         }
 
-        public static DefaultMeshRenderPass Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, VertexResourceLayoutConfig config, bool isDebug = false)
+        public static GeometryMeshRenderPass Create(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, VertexResourceLayoutConfig config, bool isDebug = false)
         {
             var vertexPositions = config.IsPositionNormalTextureCoordinateColor ? 4 :
                         config.IsPositionNormalTextureCoordinate ? 3 : 
@@ -117,14 +112,11 @@ namespace NtFreX.BuildingBlocks.Mesh
             int normalMapTextureSetIndex = config.RequiresNormalMap ? currentSet++ : -1;
             int boneTransformationsSetIndex = config.RequiresBones ? currentSet++ : -1;
             int materialSetIndex = config.RequiresMaterial ? currentSet++ : -1;
-            int lightSetIndex = config.RequiresLights ? currentSet++ : -1;
-            int shadowSetIndex = config.RequiresLights ? currentSet++ : -1;
-            int reflectionSetIndex = config.RequiresReflection ? currentSet++ : -1;
+            int specularMapSetIndex = config.RequiresSpecularMap ? currentSet++ : -1;
 
             var shaderFlags = new Dictionary<string, bool>
             {
-                { "hasReflection", config.RequiresReflection },
-                { "hasLights", config.RequiresLights },
+                { "hasSpecularMap", config.RequiresSpecularMap },
                 { "hasMaterial", config.RequiresMaterial },
                 { "hasTexture", config.RequiresSurfaceTexture },
                 { "hasInstances", config.RequiresInstanceBuffer },
@@ -149,10 +141,8 @@ namespace NtFreX.BuildingBlocks.Mesh
                 { "alphaMapSet", alphaMapTextureSetIndex.ToString() },
                 { "normalMapSet", normalMapTextureSetIndex.ToString() },
                 { "boneTransformationsSet", boneTransformationsSetIndex.ToString() },
-                { "reflectionSet", reflectionSetIndex.ToString() },
+                { "specularMapSet", specularMapSetIndex.ToString() },
                 { "materialSet", materialSetIndex.ToString() },
-                { "lightSet", lightSetIndex.ToString() },
-                { "shadowSet", shadowSetIndex.ToString() },
                 { "boneWeightsLocation", config.RequiresBones ? vertexPositions++.ToString() : "-1" },
                 { "boneIndicesLocation", config.RequiresBones ? vertexPositions++.ToString() : "-1" },
                 { "instancePositionLocation", config.RequiresInstanceBuffer ? vertexPositions++.ToString() : "-1" },
@@ -181,32 +171,26 @@ namespace NtFreX.BuildingBlocks.Mesh
                 resourceLayoutList.Add(ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory));
             if (config.RequiresMaterial)
                 resourceLayoutList.Add(ResourceLayoutFactory.GetMaterialInfoLayout(resourceFactory));
-            if (config.RequiresLights) 
-            { 
-                resourceLayoutList.Add(ResourceLayoutFactory.GetLightInfoLayout(resourceFactory));
-                resourceLayoutList.Add(ResourceLayoutFactory.GetShadowLayout(resourceFactory));
-            }
-            if (config.RequiresReflection)
-                throw new NotImplementedException();
 
-            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, shaderFlags, shaderValues, "Resources/mesh", isDebug);
+            var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, shaderFlags, shaderValues, "Resources/geometry", isDebug);
             var shaderSet = new ShaderSetDescription(vertexLayouts: VertexLayoutFactory.CreateDefaultLayout(config.VertexLayout, config.RequiresBones, config.RequiresInstanceBuffer), shaders: new[] { shaders.VertexShader, shaders.FragementShader }, ShaderPrecompiler.GetSpecializations(graphicsDevice));
 
-            return new DefaultMeshRenderPass(shaderSet, resourceLayoutList.ToArray(), config, viewProjectionSetIndex, worldSetIndex, inverseWorldSetIndex, cameraInfoSetIndex, surfaceTextureSetIndex, alphaMapTextureSetIndex, normalMapTextureSetIndex, boneTransformationsSetIndex, reflectionSetIndex, lightSetIndex, shadowSetIndex, materialSetIndex);            
+            return new GeometryMeshRenderPass(shaderSet, resourceLayoutList.ToArray(), config, viewProjectionSetIndex, worldSetIndex, inverseWorldSetIndex, cameraInfoSetIndex, surfaceTextureSetIndex, alphaMapTextureSetIndex, normalMapTextureSetIndex, specularMapSetIndex, boneTransformationsSetIndex, materialSetIndex);
         }
 
         protected override void BindPipeline(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, MeshRenderer meshRenderer, RenderContext renderContext, CommandList commandList)
         {
-            Debug.Assert(renderContext.MainSceneFramebuffer != null);
+            Debug.Assert(renderContext.GFramebuffer != null);
 
             meshRenderer.MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterialMeshDataSpecialization);
             var hasAlphaMap = meshRenderer.MeshData.Specializations.TryGet<AlphaMapMeshDataSpecialization>(out _);
+            var blendStateAtta = (phongMaterialMeshDataSpecialization == null || phongMaterialMeshDataSpecialization.Material.Value.Opacity == 1f) && !hasAlphaMap ? BlendAttachmentDescription.OverrideBlend : BlendAttachmentDescription.AlphaBlend;
 
-            var blendState = (phongMaterialMeshDataSpecialization == null || phongMaterialMeshDataSpecialization.Material.Value.Opacity == 1f) && !hasAlphaMap ? BlendStateDescription.SingleOverrideBlend : BlendStateDescription.SingleAlphaBlend;
             var pipeLine = GraphicsPipelineFactory.GetGraphicsPipeline(
-                graphicsDevice, resourceFactory, ResourceLayouts, renderContext.MainSceneFramebuffer, ShaderSetDescription,
+                graphicsDevice, resourceFactory, ResourceLayouts, renderContext.GFramebuffer, ShaderSetDescription,
                 meshRenderer.MeshData.DrawConfiguration.PrimitiveTopology.Value, meshRenderer.MeshData.DrawConfiguration.FillMode.Value,
-                blendState, meshRenderer.MeshData.DrawConfiguration.FaceCullMode.Value);
+                new BlendStateDescription(RgbaFloat.Black, BlendAttachmentDescription.OverrideBlend, BlendAttachmentDescription.OverrideBlend, blendStateAtta), meshRenderer.MeshData.DrawConfiguration.FaceCullMode.Value);
+            pipeLine.Name = nameof(GeometryMeshRenderPass);
             commandList.SetPipeline(pipeLine);
         }
 
@@ -253,9 +237,6 @@ namespace NtFreX.BuildingBlocks.Mesh
                 commandList.SetGraphicsResourceSet((uint)boneTransformationsSetIndex, specialization.ResouceSet);
             }
 
-            if (config.RequiresReflection)
-                throw new NotImplementedException();
-
             if (config.RequiresMaterial) 
             {
                 var specialization = meshRenderer.MeshData.Specializations.Get<PhongMaterialMeshDataSpecialization>();
@@ -264,12 +245,12 @@ namespace NtFreX.BuildingBlocks.Mesh
                 commandList.SetGraphicsResourceSet((uint)materialSetIndex, specialization.ResouceSet);
             }
 
-            if (config.RequiresLights)
+            if (config.RequiresSpecularMap)
             {
-                Debug.Assert(meshRenderer.CurrentScene?.LightSystem.Value != null);
+                var specialization = meshRenderer.MeshData.Specializations.Get<SpecularMapMeshDataSpecialization>();
+                Debug.Assert(specialization.ResouceSet != null);
 
-                commandList.SetGraphicsResourceSet((uint)lightSetIndex, meshRenderer.CurrentScene.LightSystem.Value.LightInfoResourceSet);
-                commandList.SetGraphicsResourceSet((uint)shadowSetIndex, renderContext.ShadowResourceSet);
+                commandList.SetGraphicsResourceSet((uint)specularMapSetIndex, specialization.ResouceSet);
             }
 
             //TODO: do not doublicate this
@@ -297,7 +278,7 @@ namespace NtFreX.BuildingBlocks.Mesh
         }
 
         public override bool CanBindRenderPass(RenderPasses renderPasses)
-            => renderPasses.HasFlag(RenderPasses.Standard) || renderPasses.HasFlag(RenderPasses.AlphaBlend);
+            => renderPasses.HasFlag(RenderPasses.Geometry) || renderPasses.HasFlag(RenderPasses.GeometryAlpha);
 
         public override bool CanBindMeshRenderer(MeshRenderer meshRenderer)
         {
@@ -306,7 +287,7 @@ namespace NtFreX.BuildingBlocks.Mesh
             var hasAlphaMap = meshRenderer.MeshData.Specializations.TryGet<AlphaMapMeshDataSpecialization>(out var alphaMap) && alphaMap.ResouceSet != null;
             var hasNormalMap = meshRenderer.MeshData.Specializations.TryGet<NormalMapMeshDataSpecialization>(out var normalMap) && normalMap.ResouceSet != null;
             var hasBones = meshRenderer.MeshData.Specializations.TryGet<BonesMeshDataSpecialization>(out var bonesSpecialization) && bonesSpecialization.ResouceSet != null && bonesSpecialization.BonesBuffer != null;
-            var hasLights = meshRenderer.CurrentScene?.LightSystem != null;
+            var hasSpecularMap = meshRenderer.MeshData.Specializations.TryGet<SpecularMapMeshDataSpecialization>(out var specularMap) && specularMap.ResouceSet != null;
             var hasMaterial = meshRenderer.MeshData.Specializations.TryGet<PhongMaterialMeshDataSpecialization>(out var phongMaterial) && phongMaterial.ResouceSet != null;
 
             return meshRenderer.MeshData.DrawConfiguration.VertexLayout.Equals(config.VertexLayout) && 
@@ -314,7 +295,7 @@ namespace NtFreX.BuildingBlocks.Mesh
                 config.RequiresSurfaceTexture == hasSurfaceTexture &&
                 config.RequiresAlphaMap == hasAlphaMap &&
                 config.RequiresBones == hasBones && 
-                config.RequiresLights == hasLights &&
+                config.RequiresSpecularMap == hasSpecularMap &&
                 config.RequiresMaterial == hasMaterial && 
                 config.RequiresNormalMap == hasNormalMap;
         }

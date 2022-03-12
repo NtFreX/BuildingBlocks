@@ -17,6 +17,7 @@ using NtFreX.BuildingBlocks.Standard.Pools;
 using NtFreX.BuildingBlocks.Texture;
 using NtFreX.BuildingBlocks.Texture.Text;
 using System.Diagnostics;
+using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
@@ -31,9 +32,7 @@ namespace NtFreX.BuildingBlocks
     {
         private const string TimerDebugFormat = "0.0000";
 
-        //TODO: remove delta modifier from camera control or make it configurable
-        //TODO: store this value elsewhere so graphics system doesn't need a game ref and the other way arround
-        public float DeltaModifier { get => GraphicsSystem.DrawDeltaModifier; set => GraphicsSystem.DrawDeltaModifier = value; }
+        public float DeltaModifier { get; set; } = 1f;
         public IFrameLimitter FrameLimitter { get; set; } = new NullFrameLimitter();
         public Stopwatch Stopwatch { get; private set; } = Stopwatch.StartNew();
         public AssimpDaeModelImporter? AssimpDaeModelImporter { get; private set; }
@@ -46,12 +45,12 @@ namespace NtFreX.BuildingBlocks
         public DisposeCollectorResourceFactory? ResourceFactory { get; private set; }
         public Simulation? BepuSimulation { get; private set; }
         public IContactEventHandler BepuContactEventHandler { get; set; } = new NullContactEventHandler();
+        public IThreadDispatcher BepuThreadDispatcher { get; private set; }
         public IShell? Shell { get; private set; }
         public ILoggerFactory? LoggerFactory { get; private set; }
         public InputHandler InputHandler { get; private set; }
         public RenderDoc? RenderDoc { get; private set; }
         public ILogger<Game>? Logger { get; private set; }
-        public IThreadDispatcher ThreadDispatcher { get; private set; }
         public Scene? CurrentScene { get; private set; }
         public TextureSampleCount TextureSampleCount { get; private set; } = TextureSampleCount.Count32;
         public CommandListPool? CommandListPool { get; private set; }
@@ -61,25 +60,30 @@ namespace NtFreX.BuildingBlocks
         public AudioSystemType AudioSystemType { get; set; }
         public bool EnableBepuSimulation { get; set; }
         public bool EnableImGui { get; set; }
+        public bool EnableDebugInfo { get; set; }
 
         private double? previousRenderingElapsed;
         private double? previousUpdaingElapsed;
+        private bool wasResized = false;
 
         private readonly Model.Common.ImGuiRenderer imGuiRenderable;
 
         //TODO: measure all updates and draws
-        private DebugExecutionTimer? timerAudioUpdate;
+        private DebugExecutionTimer? timerCustomRenderingBefore;
+        private DebugExecutionTimer? timerCustomRenderingAfter;
         private DebugExecutionTimer? timerRendering;
+        private DebugExecutionTimer? timerAudioUpdate;
         private DebugExecutionTimer? timerUpdating;
         private DebugExecutionTimer? timerUpdateInput;
         private DebugExecutionTimer? timerAfterGraphicsUpdate;
         private DebugExecutionTimer? timerBeforeGraphicsUpdate;
+        private DebugExecutionTimer? timerUpdateDebugInfo;
         private DebugExecutionTimer? timerUpdateGraphics;
         private DebugExecutionTimer? timerUpdateSimulation;
 
         public Game()
         {
-            ThreadDispatcher = new ThreadDispatcher(Math.Max(1, Environment.ProcessorCount > 4 ? Environment.ProcessorCount - 2 : Environment.ProcessorCount - 1));
+            BepuThreadDispatcher = new ThreadDispatcher(Math.Max(1, Environment.ProcessorCount > 4 ? Environment.ProcessorCount - 2 : Environment.ProcessorCount - 1));
             InputHandler = new InputHandler();
 
             imGuiRenderable = new Model.Common.ImGuiRenderer(0, 0);
@@ -105,15 +109,19 @@ namespace NtFreX.BuildingBlocks
             ObjModelImporter = new ObjModelImporter(TextureFactory);
             AudioSystem = AudioSystemType == AudioSystemType.Sdl2 ? new SdlAudioSystem() : null;
             BepuSimulation = EnableBepuSimulation ? LoadBeupSimulation() : null;
+            GraphicsSystem = new GraphicsSystem(LoggerFactory, Stopwatch, Shell.IsDebug);
 
-            timerAudioUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Audio Update"), Stopwatch);
+            timerCustomRenderingBefore = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game custom render (before)"), Stopwatch);
+            timerCustomRenderingAfter = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game  custom render (after)"), Stopwatch);
             timerRendering = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Render"), Stopwatch);
+            timerAudioUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Audio Update"), Stopwatch);
             timerUpdating = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update"), Stopwatch);
             timerUpdateInput = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Input"), Stopwatch);
             timerUpdateSimulation = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Simulation"), Stopwatch);
             timerUpdateGraphics = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update Graphics"), Stopwatch);
             timerAfterGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game After Graphics Update"), Stopwatch);
             timerBeforeGraphicsUpdate = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Before Graphics Update"), Stopwatch);
+            timerUpdateDebugInfo = new DebugExecutionTimer(new DebugExecutionTimerSource(LoggerFactory.CreateLogger<DebugExecutionTimerSource>(), "Game Update debug info"), Stopwatch);
 
             if (shell.IsDebug)
             {
@@ -183,6 +191,7 @@ namespace NtFreX.BuildingBlocks
         protected virtual void BeforeRenderContextCreated() { }
         protected virtual void AfterRenderContextCreated() { }
         protected virtual void AfterWindowResized() { }
+        protected virtual Task AfterWindowResizedAsync() => Task.CompletedTask;
         protected virtual void BeforeGraphicsSystemRender(float delta) { }
         protected virtual void AfterGraphicsSystemRender(float delta) { }
 
@@ -205,7 +214,9 @@ namespace NtFreX.BuildingBlocks
                 RenderContext?.RecreateWindowSizedResources(GraphicsDevice, ResourceFactory);
                 GraphicsDevice.WaitForIdle(); // TODO: is this line needed
             }
+
             AfterWindowResized();
+            wasResized = true;
         }
 
         private void OnGraphicsDeviceDestroyed()
@@ -224,10 +235,9 @@ namespace NtFreX.BuildingBlocks
             CommandListPool?.Dispose();
             CommandListPool = null;
 
-            MaterialTextureFactory.Instance.DestroyDeviceResources();
+            //MaterialTextureFactory.Instance.DestroyDeviceResources();
 
-            GraphicsSystem?.DestroyDeviceResources();
-            GraphicsSystem = null;
+            GraphicsSystem?.DestroyDeviceResouces();
 
             ResourceFactory?.DisposeCollector.DisposeAll();
             ResourceFactory = null;
@@ -263,14 +273,17 @@ namespace NtFreX.BuildingBlocks
 
             Debug.Assert(Shell != null);
             Debug.Assert(LoggerFactory != null);
+            Debug.Assert(GraphicsSystem != null);
 
             GraphicsDevice = graphicsDevice;
             ResourceFactory = new DisposeCollectorResourceFactory(resourceFactory);
-            GraphicsSystem = new GraphicsSystem(LoggerFactory, GraphicsDevice, ResourceFactory, Stopwatch);
             CommandListPool = new CommandListPool(resourceFactory);
+
             CreateRenderContext();
 
-            await MaterialTextureFactory.Instance.CreateDeviceResourcesAsync(graphicsDevice, resourceFactory);
+            await GraphicsSystem.CreateDeviceResoucesAsync(graphicsDevice, resourceFactory);
+
+            //await MaterialTextureFactory.Instance.CreateDeviceResourcesAsync(graphicsDevice, resourceFactory);
 
             Debug.Assert(RenderContext != null);
             await MeshRenderPassFactory.LoadAsync(GraphicsDevice, ResourceFactory, RenderContext, Shell.IsDebug);
@@ -294,19 +307,36 @@ namespace NtFreX.BuildingBlocks
             Debug.Assert(timerAudioUpdate != null);
             Debug.Assert(GraphicsSystem != null);
             Debug.Assert(GraphicsDevice != null);
+            Debug.Assert(timerUpdating != null);
+            Debug.Assert(timerUpdateSimulation != null);
+            Debug.Assert(timerUpdateInput != null);
+            Debug.Assert(timerAfterGraphicsUpdate != null);
+            Debug.Assert(timerUpdateGraphics != null);
+            Debug.Assert(timerCustomRenderingBefore != null);
+            Debug.Assert(timerCustomRenderingAfter != null);
+            Debug.Assert(timerAudioUpdate != null);
+            Debug.Assert(timerRendering != null);
+            Debug.Assert(timerUpdateDebugInfo != null);
+            Debug.Assert(Shell != null);
 
             timerUpdating.Start();
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
             var updateDelta = (float)(previousUpdaingElapsed == null ? 0: elapsed - previousUpdaingElapsed.Value) * DeltaModifier;
             previousUpdaingElapsed = elapsed;
-                        
+
+            if (wasResized)
+            {
+                await AfterWindowResizedAsync();
+                wasResized = false;
+            }
+
             {
                 timerUpdateSimulation.Start();
                 // TODO: this check can be removed if update and update device resources is seperated. update device resources needs to be called when the delta is 0 all other updates not
                 if (updateDelta > 0)
                 {
-                    BepuSimulation?.Timestep(updateDelta, ThreadDispatcher);
+                    BepuSimulation?.Timestep(updateDelta, BepuThreadDispatcher);
                 }
                 timerUpdateSimulation.Stop();
             }
@@ -330,11 +360,39 @@ namespace NtFreX.BuildingBlocks
                 if (CurrentScene != null)
                 {
                     timerUpdateGraphics.Start();
-                    GraphicsSystem.Update(updateDelta, InputHandler, CurrentScene);
+                    CurrentScene.Update(updateDelta, InputHandler);
                     timerUpdateGraphics.Stop();
                 }
             }
-            
+
+            timerUpdateDebugInfo.Start();
+            if (EnableDebugInfo && EnableImGui)
+            {
+                var size = new Vector2(480, 570);
+                ImGui.SetNextWindowPos(new Vector2(0, Shell.Height - size.Y));
+                ImGui.SetNextWindowSize(new Vector2(size.X, size.Y));
+                ImGui.Begin("Debug info", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoTitleBar);
+                ImGui.Text(timerUpdating.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update time");
+                ImGui.Text(" - " + timerUpdateSimulation.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update simulation time");
+                ImGui.Text(" - " + timerUpdateInput.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms read input time");
+                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms before graphics update app time");
+                ImGui.Text(" - " + timerUpdateGraphics.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update graphics time");
+                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms after graphics update app time");
+                ImGui.Text(" - " + timerAudioUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms audio time");
+                ImGui.Text(timerRendering.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms draw time");
+                ImGui.Text(" - " + timerCustomRenderingBefore.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms custom rendering (before)");
+                ImGui.Text(GraphicsSystem.GetCurrentExecutionTimes(" - ", TimerDebugFormat));
+                ImGui.Text(" - " + timerCustomRenderingAfter.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms custom rendering (after)");
+                ImGui.Text(Math.Round(1f / updateDelta) + " FPS");
+                ImGui.End();
+
+                ImGui.Begin("Camera");
+                ImGui.Text($"Position : {CurrentScene?.Camera.Value?.Position.Value}");
+                ImGui.Text($"LookAt : {CurrentScene?.Camera.Value?.LookAt.Value}");
+                ImGui.End();
+            }
+            timerUpdateDebugInfo.Stop();
+
             {
                 timerAfterGraphicsUpdate.Start();
                 await AfterGraphicsSystemUpdateAsync(updateDelta);
@@ -357,52 +415,29 @@ namespace NtFreX.BuildingBlocks
         {
             Debug.Assert(Shell != null);
             Debug.Assert(timerRendering != null);
-            Debug.Assert(timerUpdating != null);
-            Debug.Assert(timerUpdateSimulation != null);
-            Debug.Assert(timerUpdateInput != null);
-            Debug.Assert(timerAfterGraphicsUpdate != null);
-            Debug.Assert(timerUpdateGraphics != null);
-            Debug.Assert(timerAudioUpdate != null);
+            Debug.Assert(timerCustomRenderingBefore != null);
+            Debug.Assert(timerCustomRenderingAfter != null);
             Debug.Assert(GraphicsSystem != null);
             Debug.Assert(RenderContext != null);
-
-            timerRendering.Start();
+            Debug.Assert(GraphicsDevice != null);
+            Debug.Assert(ResourceFactory != null);
 
             var elapsed = Stopwatch.Elapsed.TotalSeconds;
             var renderDelta = (float)(previousRenderingElapsed == null ? 0f : elapsed - previousRenderingElapsed.Value) * DeltaModifier;
             previousRenderingElapsed = elapsed;
 
-            if (Shell.IsDebug && EnableImGui)
-            {
-                ImGui.Begin("Debug info");
-                ImGui.Text(timerUpdating.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update time");
-                ImGui.Text(" - " + timerUpdateSimulation.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update simulation time");
-                ImGui.Text(" - " + timerUpdateInput.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms read input time");
-                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms before graphics update app time");
-                ImGui.Text(" - " + timerUpdateGraphics.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms update graphics time");
-                ImGui.Text(" - " + timerAfterGraphicsUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms after graphics update app time");
-                ImGui.Text(" - " + timerAudioUpdate.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms audio time");
-                ImGui.Text(timerRendering.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms draw time");
-                ImGui.Text(" - " + GraphicsSystem.TimerGetVisibleObjects.Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms " + GraphicsSystem.TimerGetVisibleObjects.Source.Name);
-                for(var i = 0; i < GraphicsSystem.TimerRenderPasses.Length; i++)
-                {
-                    ImGui.Text(" - " + GraphicsSystem.TimerRenderPasses[i].Source.AverageMilliseconds.ToString(TimerDebugFormat) + "ms " + GraphicsSystem.TimerRenderPasses[i].Source.Name);
-                }
-                ImGui.Text(Math.Round(1f / renderDelta) + " FPS");
-                ImGui.End();
-
-                ImGui.Begin("Camera");
-                ImGui.Text($"Position : {CurrentScene?.Camera.Value?.Position.Value}");
-                ImGui.Text($"LookAt : {CurrentScene?.Camera.Value?.LookAt.Value}");
-                ImGui.End();
-            }
-
+            timerCustomRenderingBefore.Start();
             BeforeGraphicsSystemRender(renderDelta);
-            if (CurrentScene?.Camera.Value != null)
-                await GraphicsSystem.DrawAsync(CurrentScene, RenderContext);
-            AfterGraphicsSystemRender(renderDelta);
+            timerCustomRenderingBefore.Stop();
 
+            timerRendering.Start();
+            if (CurrentScene?.Camera.Value != null)
+                await GraphicsSystem.DrawAsync(renderDelta, GraphicsDevice, ResourceFactory, CurrentScene, RenderContext);
             timerRendering.Stop();
+
+            timerCustomRenderingAfter.Start();
+            AfterGraphicsSystemRender(renderDelta);
+            timerCustomRenderingAfter.Stop();
 
             await FrameLimitter.LimitAsync(renderDelta);
         }

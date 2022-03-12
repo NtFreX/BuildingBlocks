@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0-android</TargetFramework>
 	<RuntimeIdentifiers>android-x86;android-arm</RuntimeIdentifiers>
-    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -6,6 +6,7 @@ namespace NtFreX.BuildingBlocks.Material
 {
     public abstract class MaterialNode
     {
+        internal string MaterialName { get; set; }
         public TextureView? Input { get; internal set; }
         public TextureView? Output { get; protected set; }
         public VeldridTexture? OutputTexture { get; protected set; }

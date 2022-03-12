@@ -1,12 +1,12 @@
 ﻿using NtFreX.BuildingBlocks.Mesh.Common;
 using NtFreX.BuildingBlocks.Standard;
-using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
 
 namespace NtFreX.BuildingBlocks.Model.Common;
 
-internal class FullScreenQuad : Renderable
+//TODO: move
+internal class FullScreenQuad
 {
     private DisposeCollector? disposeCollector;
     private Pipeline? pipeline;
@@ -14,9 +14,7 @@ internal class FullScreenQuad : Renderable
     private DeviceBuffer? vertexBuffer;
 
     // TODO: delete this together with second screen doublicator output?
-    public bool UseTintedTexture { get; set; }
-
-    public override RenderPasses RenderPasses => RenderPasses.SwapchainOutput;
+    //public bool UseTintedTexture { get; set; }
 
     private static ushort[] s_quadIndices = new ushort[] { 0, 1, 2, 0, 2, 3 };
     private readonly bool isDebug;
@@ -26,19 +24,19 @@ internal class FullScreenQuad : Renderable
         this.isDebug = isDebug;
     }
 
-    public override async Task<bool> CreateDeviceObjectsAsync(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, CommandList commandList, RenderContext renderContext, Scene scene)
+    public void CreateDeviceObjects(GraphicsDevice graphicsDevice, ResourceFactory resourceFactory, CommandList commandList)
     {
-        if (!await base.CreateDeviceObjectsAsync(graphicsDevice, resourceFactory, commandList, renderContext, scene))
-            return false;
-
         var factory = new DisposeCollectorResourceFactory(graphicsDevice.ResourceFactory);
         disposeCollector = factory.DisposeCollector;
 
         var resourceLayout = factory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("SourceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
             new ResourceLayoutElementDescription("SourceSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
+        resourceLayout.Name = nameof(FullScreenQuad);
 
         (Shader vs, Shader fs) = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, new Dictionary<string, bool>(), new Dictionary<string, string>(), "Resources/fullscreen", isDebug);
+        vs.Name = nameof(FullScreenQuad) + "vertex";
+        fs.Name = nameof(FullScreenQuad) + "fragment";
 
         var pd = new GraphicsPipelineDescription(
             new BlendStateDescription(
@@ -59,42 +57,28 @@ internal class FullScreenQuad : Renderable
             new ResourceLayout[] { resourceLayout },
             graphicsDevice.SwapchainFramebuffer.OutputDescription);
         pipeline = factory.CreateGraphicsPipeline(ref pd);
+        pipeline.Name = nameof(FullScreenQuad);
 
         float[] verts = Quad.GetFullScreenQuadVerts(graphicsDevice.IsClipSpaceYInverted);
 
         vertexBuffer = factory.CreateBuffer(new BufferDescription((uint) (verts.Length * sizeof(float)), BufferUsage.VertexBuffer));
+        vertexBuffer.Name = nameof(FullScreenQuad);
         commandList.UpdateBuffer(vertexBuffer, 0, verts);
 
         indexBuffer = factory.CreateBuffer(new BufferDescription((uint)s_quadIndices.Length * sizeof(ushort), BufferUsage.IndexBuffer));
+        indexBuffer.Name = nameof(FullScreenQuad);
         commandList.UpdateBuffer(indexBuffer, 0, s_quadIndices);
-
-
-        //renderContext.MainSceneFramebuffer.GetOrCreateImGuiBinding();
-
-        ////TODO: design something? remove screen doublicator?
-        //var outputView = resourceFactory.CreateTextureView(renderContext.MainSceneDepthTexture.GetOrCreateImGuiBinding());
-        //outputSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(renderContext.TextureSamplerResourceLayout, outputView, graphicsDevice.PointSampler));
-
-        //graphicsDevice.
-
-        return true;
     }
 
-    //private ResourceSet outputSet;
-
-    public override void DestroyDeviceObjects()
+    public void DestroyDeviceObjects()
     {
         disposeCollector?.DisposeAll();
     }
 
-    public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
-        => new RenderOrderKey();
-
-    public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
+    public void Render(CommandList commandList, ResourceSet outputSet)
     {
         commandList.SetPipeline(pipeline);
-        //commandList.SetGraphicsResourceSet(0, outputSet);
-        commandList.SetGraphicsResourceSet(0, UseTintedTexture ? renderContext.DuplicatorTargetSet1 : renderContext.DuplicatorTargetSet0);
+        commandList.SetGraphicsResourceSet(0, outputSet);
         commandList.SetVertexBuffer(0, vertexBuffer);
         commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16);
         commandList.DrawIndexed(6, 1, 0, 0, 0);

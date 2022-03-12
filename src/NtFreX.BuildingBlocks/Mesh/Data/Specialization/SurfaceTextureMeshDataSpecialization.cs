@@ -67,7 +67,7 @@ public class SurfaceTextureMeshDataSpecialization : MeshDataSpecialization, IEqu
         Debug.Assert(TextureView != null);
 
         var layout = ResourceLayoutFactory.GetSurfaceTextureLayout(resourceFactory);
-        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, TextureView, graphicsDevice.PointSampler));
+        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, TextureView, graphicsDevice.PointSampler), "surfacetexturespecialization");
     }
 
     public override void DestroyDeviceObjects()

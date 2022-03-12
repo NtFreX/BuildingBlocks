@@ -5,6 +5,7 @@ using Veldrid;
 
 namespace NtFreX.BuildingBlocks.Model.Common
 {
+    //TODO: delete and make graphics pipeline node
     internal class ImGuiRenderer : Renderable, IUpdateable
     {
         private Veldrid.ImGuiRenderer? imguiRenderer;

@@ -31,10 +31,12 @@ namespace NtFreX.BuildingBlocks.Light
             this.graphicsDevice = graphicsDevice;
 
             PointLightBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<PointLightCollectionInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            PointLightBuffer.Name = "PointLightBuffer";
             DirectionalLightBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<DirectionalLightInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            DirectionalLightBuffer.Name = "DirectionalLightBuffer";
 
             var lightInfoLayout = ResourceLayoutFactory.GetLightInfoLayout(resourceFactory);
-            LightInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(lightInfoLayout, DirectionalLightBuffer, PointLightBuffer));
+            LightInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(lightInfoLayout, DirectionalLightBuffer, PointLightBuffer), "LightInfoResourceSet");
         }
 
         public void DestroyDeviceResources()

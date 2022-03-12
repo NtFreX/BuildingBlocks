@@ -13,7 +13,7 @@ layout (location = 1) out float accumAlpha;
 void main()
 {
     #if hasTexture
-        vec4 textureColor = texture(sampler2DArray(SurfaceTexture, SurfaceSampler), vec3(gl_PointCoord + fsin_textCoords.xy, fsin_textCoords.z));
+        vec4 textureColor = texture(sampler2DArray(SurfaceTexture, SurfaceSampler), fsin_textCoords);
         fsout_color = textureColor + fsin_color;
     #else
         fsout_color = fsin_color;

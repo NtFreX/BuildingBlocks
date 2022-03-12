@@ -20,7 +20,7 @@ public struct InstanceInfo : IEquatable<InstanceInfo>
     public Vector3 Position { get; init; }
     public Vector3 Rotation { get; init; }
     public Vector3 Scale { get; init; }
-    public int TexArrayIndex { get; init; }
+    public uint TexArrayIndex { get; init; }
 
     public InstanceInfo()
     {
@@ -30,7 +30,7 @@ public struct InstanceInfo : IEquatable<InstanceInfo>
         TexArrayIndex = 0;
     }
 
-    public InstanceInfo(Vector3 position, Vector3 rotation, Vector3 scale, int texArrayIndex)
+    public InstanceInfo(Vector3 position, Vector3 rotation, Vector3 scale, uint texArrayIndex)
     {
         Position = position;
         Rotation = rotation;

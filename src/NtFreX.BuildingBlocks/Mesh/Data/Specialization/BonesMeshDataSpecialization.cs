@@ -100,11 +100,11 @@ public class BonesMeshDataSpecialization : MeshDataSpecialization, IEquatable<Bo
         Debug.Assert(Bones.Value != null);
         Debug.Assert(BoneTransforms.Value != null);
 
-        BonesBuffer = resourceFactory.GetBonesInfoBuffer(graphicsDevice, Bones.Value, deviceBufferPool);
-        BoneTransformsBuffer = resourceFactory.GetBonesTransformBuffer(graphicsDevice, BoneTransforms.Value, deviceBufferPool);
+        BonesBuffer = resourceFactory.GetBonesInfoBuffer(graphicsDevice, Bones.Value, "bonespecialization", deviceBufferPool);
+        BoneTransformsBuffer = resourceFactory.GetBonesTransformBuffer(graphicsDevice, BoneTransforms.Value, "bonespecialization", deviceBufferPool);
 
         var layout = ResourceLayoutFactory.GetBoneTransformationLayout(resourceFactory);
-        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, BoneTransformsBuffer.RealDeviceBuffer));
+        ResouceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(layout, BoneTransformsBuffer.RealDeviceBuffer), "bonebonespecialization_resourceset");
 
         return Task.CompletedTask;
     }

@@ -30,9 +30,13 @@ public struct ParticleNullReset : IResetBuffer { }
 public struct ParticleBoxBounds : IBoundsBuffer
 {
     public Vector3 BoundingBoxMin;
-    private float _padding0;
+#pragma warning disable IDE0051 // Remove unused private members
+#pragma warning disable IDE0044 // Add readonly modifier
+    private float _padding0 = 0;
+#pragma warning restore IDE0044 // Add readonly modifier
+#pragma warning restore IDE0051 // Remove unused private members
     public Vector3 BoundingBoxMax;
-    private float _padding1;
+    private float _padding1 = 0;
 
     public BoundingBox GetBoundingBox()
         => new BoundingBox(BoundingBoxMin, BoundingBoxMax);
@@ -43,9 +47,9 @@ public struct ParticleBoxBounds : IBoundsBuffer
 public struct ParticleBoxReset : IResetBuffer
 {
     public Vector3 ResetBoxMin;
-    private float _padding2;
+    private float _padding2 = 0;
     public Vector3 ResetBoxMax;
-    private float _padding3;
+    private float _padding3 = 0;
 }
 
 public struct ParticleSphereBounds : IBoundsBuffer
@@ -109,8 +113,11 @@ public class ParticleRenderer : ParticleRenderer<ParticleNullBounds, ParticleNul
         : base(transform, particles, new ParticleNullBounds(), new ParticleNullReset(), textureProvider, isDebug: isDebug)
     { }
 }
-
-public class ParticleRenderer<TBounds, TReset> : CullRenderable
+public interface IParticleRenderer
+{
+    void Compute(CommandList commandList, RenderContext renderContext);
+}
+public class ParticleRenderer<TBounds, TReset> : CullRenderable, IParticleRenderer
     where TBounds : unmanaged, IBoundsBuffer
     where TReset : unmanaged, IResetBuffer
 {
@@ -210,8 +217,10 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
                 (uint)(Unsafe.SizeOf<ParticleInfo>() * maxParticles),
                 BufferUsage.StructuredBufferReadWrite,
                 (uint)Unsafe.SizeOf<ParticleInfo>()));
+        particleBuffer.Name = "particlebuffer";
 
         worldBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<Matrix4x4>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+        particleBuffer.Name = "particleworldbuffer";
         commandList.UpdateBuffer(worldBuffer, 0, Transform.CreateWorldMatrix()); // TODO: make dynamic
 
         particleSizeBuffer = resourceFactory.CreateBuffer(new BufferDescription(32, BufferUsage.UniformBuffer));
@@ -220,12 +229,15 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
             { "hasBoundingBox", typeof(TBounds) == typeof(ParticleBoxBounds) }, { "hasBoundingSphere", typeof(TBounds) == typeof(ParticleSphereBounds) },
             { "hasResetBox", typeof(TReset) == typeof(ParticleBoxReset) }, { "hasResetSphere", typeof(TReset) == typeof(ParticleSphereReset) }, { "hasResetCircle", typeof(TReset) == typeof(ParticleCircleReset) } }, 
             new Dictionary<string, string> { { "resetSet", !HasBounds() ? "3" : "4" } }, computeShaderPath ?? "Resources/particle.cpt", isDebug);
+        computeShader.Name = "particlecompute";
 
         var particleStorageLayoutCompute = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)));
+        particleStorageLayoutCompute.Name = "particleStorageLayoutCompute";
 
         var computeSizeLayout = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(
             new ResourceLayoutElementDescription("SizeBuffer", ResourceKind.UniformBuffer, ShaderStages.Compute)));
+        computeSizeLayout.Name = "computeSizeLayout";
 
         var computeLayouts = new List<ResourceLayout>(new[] { particleStorageLayoutCompute, computeSizeLayout, ResourceLayoutFactory.GetDrawDeltaComputeLayout(resourceFactory) });
 
@@ -233,14 +245,18 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         {
             var boundsLayout = ResourceLayoutFactory.GetParticleBoundsLayout(resourceFactory);
             boundsBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<TBounds>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            boundsBuffer.Name = "particle_compute_boundsBuffer";
             computeBoundsSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(boundsLayout, boundsBuffer));
+            computeBoundsSet.Name = "particle_compute_BoundsSet";
             computeLayouts.Add(boundsLayout);
         }
         if (HasReset())
         {
             var resetLayout = ResourceLayoutFactory.GetParticleResetLayout(resourceFactory);
             resetBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<TReset>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            resetBuffer.Name = "particle_resetBuffer";
             computeResetSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(resetLayout, resetBuffer));
+            computeResetSet.Name = "particle_computeResetSet";
             computeLayouts.Add(resetLayout);
         }
 
@@ -250,12 +266,17 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
             1, 1, 1);
 
         computePipeline = resourceFactory.CreateComputePipeline(ref computePipelineDesc);
+        computePipeline.Name = "particle_computePipeline";
         computeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(particleStorageLayoutCompute, particleBuffer));
+        computeResourceSet.Name = "particle_computeResourceSet";
         computeSizeResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(computeSizeLayout, particleSizeBuffer));
+        computeSizeResourceSet.Name = "particle_computeSizeResourceSet";
 
         var shaders = ShaderPrecompiler.CompileVertexAndFragmentShaders(graphicsDevice, resourceFactory, 
             new Dictionary<string, bool> { { "hasTexture", textureProvider != null } },
             new Dictionary<string, string> { { "viewProjectionSet", "1" }, { "worldSet", "2" }, { "cameraInfoSet", "3" } }, graphicsShaderPath ?? "Resources/particle", isDebug);
+        shaders.VertexShader.Name = "particle_vertex";
+        shaders.FragementShader.Name = "particle_fragment";
 
         var shaderSet = new ShaderSetDescription(
             Array.Empty<VertexLayoutDescription>(),
@@ -263,6 +284,7 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
 
         var worldLayout = ResourceLayoutFactory.GetWorldLayout(resourceFactory);
         var particleStorageLayoutGrapcis = resourceFactory.CreateResourceLayout(new ResourceLayoutDescription(new ResourceLayoutElementDescription("ParticlesBuffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)));
+        particleStorageLayoutGrapcis.Name = "particle_particleStorageLayoutGrapcis";
 
         //TODO: draw to seperate texture!!!!
         var layouts = new List<ResourceLayout>(new[] { particleStorageLayoutGrapcis, ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory), worldLayout, ResourceLayoutFactory.GetCameraInfoVertexLayout(resourceFactory) });
@@ -272,7 +294,9 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
             layouts.Add(textureLayout);
 
             textureView = await textureProvider.GetAsync(graphicsDevice, resourceFactory);
+            textureView.Name = "particle_textureView";
             textureResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(textureLayout, textureView, graphicsDevice.PointSampler));
+            textureView.Name = "particle_textureResourceSet";
         }
         var particleDrawPipelineDesc = new GraphicsPipelineDescription(
             BlendStateDescription.SingleAlphaBlend,
@@ -284,15 +308,17 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
             renderContext.MainSceneFramebuffer.OutputDescription);
 
         graphicsPipeline = resourceFactory.CreateGraphicsPipeline(ref particleDrawPipelineDesc);
+        graphicsPipeline.Name = "particle_graphicsPipeline";
         graphicsParticleResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(particleStorageLayoutGrapcis, particleBuffer));
+        graphicsParticleResourceSet.Name = "particle_graphicsParticleResourceSet";
         graphicsWorldResourceSet = resourceFactory.CreateResourceSet(new ResourceSetDescription(worldLayout, worldBuffer));
+        graphicsWorldResourceSet.Name = "particle_graphicsWorldResourceSet";
 
         return true;
     }
 
-    public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
+    public void Compute(CommandList commandList, RenderContext renderContext)
     {
-        //TODO: do this in resource update
         if (hasParticlesChanged)
         {
             commandList.UpdateBuffer(particleBuffer, 0, particles);
@@ -316,8 +342,6 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
             hasboundsChanged = false;
         }
 
-        Debug.Assert(CurrentScene?.Camera.Value?.ProjectionViewResourceSet != null);
-
         commandList.SetPipeline(computePipeline);
         commandList.SetComputeResourceSet(0, computeResourceSet);
         commandList.SetComputeResourceSet(1, computeSizeResourceSet);
@@ -327,7 +351,12 @@ public class ParticleRenderer<TBounds, TReset> : CullRenderable
         if (HasReset())
             commandList.SetComputeResourceSet(!HasBounds() ? 3u : 4u, computeResetSet);
         commandList.Dispatch(maxParticles, 1, 1);
-        
+    }
+
+    public override void Render(GraphicsDevice graphicsDevice, CommandList commandList, RenderContext renderContext, RenderPasses renderPass)
+    {
+        Debug.Assert(CurrentScene?.Camera.Value?.ProjectionViewResourceSet != null);
+
         //TODO: draw to seperate texture?
         commandList.SetFramebuffer(renderContext.MainSceneFramebuffer);
         commandList.SetFullViewports();

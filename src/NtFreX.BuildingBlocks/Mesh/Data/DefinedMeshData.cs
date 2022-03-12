@@ -52,7 +52,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Data
         public override PooledDeviceBuffer CreateVertexBuffer(ResourceFactory factory, CommandList commandList, DeviceBufferPool? deviceBufferPool = null)
         {
             var desc = new BufferDescription((uint)(Vertices.Length * VertexSize), BufferUsage.VertexBuffer);
-            var vb = factory.CreatedPooledBuffer(desc, deviceBufferPool);
+            var vb = factory.CreatedPooledBuffer(desc, GetType().Name + "_vertexbuffer", deviceBufferPool);
             commandList.UpdateBuffer(vb.RealDeviceBuffer, 0, Vertices);
             return vb;
         }
@@ -66,7 +66,7 @@ namespace NtFreX.BuildingBlocks.Mesh.Data
         public override PooledDeviceBuffer CreateIndexBuffer(ResourceFactory factory, CommandList commandList, out int indexCount, DeviceBufferPool? deviceBufferPool = null)
         {
             var desc = new BufferDescription((uint)(Indices.Length * Marshal.SizeOf(typeof(TIndex))), BufferUsage.IndexBuffer);
-            var ib = factory.CreatedPooledBuffer(desc, deviceBufferPool);
+            var ib = factory.CreatedPooledBuffer(desc, GetType().Name + "_indexbuffer", deviceBufferPool);
             commandList.UpdateBuffer(ib.RealDeviceBuffer, 0, Indices);
             indexCount = Indices.Length;
             return ib;

@@ -15,27 +15,27 @@ layout(set = #{inverseWorldSet}, binding = 0) uniform InverseWorldBuffer
 #endif
 
 #if hasLights
-    layout(set = #{shadowSet}, binding = 0) uniform LightProjectionNearBuffer
+    layout(set = #{shadowVertexSet}, binding = 0) uniform LightProjectionNearBuffer
     {
         mat4 LightProjectionNear;
     };
-    layout(set = #{shadowSet}, binding = 1) uniform LightViewNearBuffer
+    layout(set = #{shadowVertexSet}, binding = 1) uniform LightViewNearBuffer
     {
         mat4 LightViewNear;
     };
-    layout(set = #{shadowSet}, binding = 2) uniform LightProjectionMidBuffer
+    layout(set = #{shadowVertexSet}, binding = 2) uniform LightProjectionMidBuffer
     {
         mat4 LightProjectionMid;
     };
-    layout(set = #{shadowSet}, binding = 3) uniform LightViewMidBuffer
+    layout(set = #{shadowVertexSet}, binding = 3) uniform LightViewMidBuffer
     {
         mat4 LightViewMid;
     };
-    layout(set = #{shadowSet}, binding = 4) uniform LightProjectionFarBuffer
+    layout(set = #{shadowVertexSet}, binding = 4) uniform LightProjectionFarBuffer
     {
         mat4 LightProjectionFar;
     };
-    layout(set = #{shadowSet}, binding = 5) uniform LightViewFarBuffer
+    layout(set = #{shadowVertexSet}, binding = 5) uniform LightViewFarBuffer
     {
         mat4 LightViewFar;
     };
@@ -60,7 +60,9 @@ layout(location = 4) out vec3 fsin_normal;
 
 void main()
 {
+    #include ./transformnormal.shader
     #include ./transformposition.shader
+    #include ./transformtexcoords.shader
 
     #if hasColor
         fsin_color = Color;
@@ -68,15 +70,10 @@ void main()
         fsin_color = vec4(0, 0, 0, 1);
     #endif
 
-    #include ./transformtexcoords.shader
-
     fsin_texCoords = transformedTexCoords;
-
-    #if hasNormal
-        fsin_normal = normalize((InverseWorld * vec4(Normal, 1)).xyz);
-    #else
-        fsin_normal = vec3(0, 0, 0);
-    #endif
+    
+    vec4 worldNormal = InverseWorld * transformedNormal;
+    fsin_normal = worldNormal.xyz;
 
     vec4 worldPosition = World * transformedPos;
     fsin_positionWorldSpace = worldPosition.xyz;

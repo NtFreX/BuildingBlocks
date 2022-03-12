@@ -70,14 +70,17 @@ namespace NtFreX.BuildingBlocks.Cameras
             this.graphicsDevice = graphicsDevice;
 
             ProjectionBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            ProjectionBuffer.Name = "ProjectionBuffer";
             ViewBuffer = resourceFactory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            ViewBuffer.Name = "ViewBuffer";
             CameraInfoBuffer = resourceFactory.CreateBuffer(new BufferDescription((uint)sizeof(CameraInfo), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            CameraInfoBuffer.Name = "CameraInfoBuffer";
 
             var cameraInfoLayout = ResourceLayoutFactory.GetCameraInfoFragmentLayout(resourceFactory);
-            CameraInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(cameraInfoLayout, CameraInfoBuffer));
+            CameraInfoResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(cameraInfoLayout, CameraInfoBuffer), "CameraInfoResourceSet");
 
             var projectionViewLayout = ResourceLayoutFactory.GetProjectionViewLayout(resourceFactory);
-            ProjectionViewResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(projectionViewLayout, ProjectionBuffer, ViewBuffer));
+            ProjectionViewResourceSet = ResourceSetFactory.GetResourceSet(resourceFactory, new ResourceSetDescription(projectionViewLayout, ProjectionBuffer, ViewBuffer), "ProjectionViewResourceSet");
         }
 
         public void DestroyDeviceResources()
